@@ -1,0 +1,27 @@
+{
+  "name": "pixi-tiledmap",
+  "version": "1.2.0",
+  "description": "Pixi.js Tiled map editor plugin",
+  "keywords": [
+    "pixi",
+    "pixi.js",
+    "tiled",
+    "tilemap",
+    "tiledmap"
+  ],
+  "author": "Hagen Sommerkorn",
+  "repository": "https://github.com/riebel/pixi-tiledmap",
+  "license": "MIT",
+  "main": "index.js",
+  "scripts": {
+    "build": "jspm bundle index bin/pixi-tiledmap.js"
+  },
+  "peerDependencies": {
+    "pixi.js": "^3.0.2"
+  },
+  "devDependencies": {},
+  "jspm": {
+    "directories": {},
+    "devDependencies": {}
+  }
+}
