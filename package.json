@@ -10,7 +10,10 @@
     "tiledmap"
   ],
   "author": "Hagen Sommerkorn",
-  "repository": "https://github.com/riebel/pixi-tiledmap",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/riebel/pixi-tiledmap.git"
+  },
   "license": "MIT",
   "main": "index.js",
   "scripts": {
@@ -23,5 +26,12 @@
   "jspm": {
     "directories": {},
     "devDependencies": {}
+  },
+  "bugs": {
+    "url": "https://github.com/riebel/pixi-tiledmap/issues"
+  },
+  "homepage": "https://github.com/riebel/pixi-tiledmap#readme",
+  "bin": {
+    "pixi-tiledmap": "pixi-tiledmap.js"
   }
 }
