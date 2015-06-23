@@ -17,6 +17,9 @@ npm install pixi-tiledmap
 var PIXI = require('pixi.js');
 var pixiTiled = require('pixi-tiledmap');
 
+var renderer = PIXI.autoDetectRenderer( 1024, 768 );
+document.body.appendChild( renderer.view );
+
 /**
  * Simply load a Tiled map in json format like a usual resource
  */
