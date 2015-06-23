@@ -25,7 +25,8 @@ function findTexture ( gid, tilesets ) {
 var Layer = function ( layerData, tilesets ) {
 	PIXI.Container.call( this );
 	this.name = layerData.name;
-	this.alpha = (layerData.visible) ? 1 : 0;
+	this.visible = layerData.visible;
+	this.alpha = layerData.opacity;
 	this.data = layerData.data;
 	this.tilesets = tilesets;
 	this.tiles = [];
