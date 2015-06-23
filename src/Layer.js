@@ -53,7 +53,7 @@ Layer.prototype.createTiles = function ( options, tilesets ) {
 
 			if ( gid !== 0 && texture ) {
 				tile = new Tile( {
-					gid: gid,
+					gid: options.data[ i ],
 					texture: texture,
 					width: texture.width,
 					height: texture.height,
