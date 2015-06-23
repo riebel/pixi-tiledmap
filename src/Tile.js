@@ -1,12 +1,7 @@
-/**
- * Tile
- * @constructor
- */
 var Tile = function ( options ) {
 	PIXI.Sprite.call( this, options.texture );
 
 	this.gid = options.gid;
-
 	this.width = options.width;
 	this.height = options.height;
 
@@ -14,17 +9,17 @@ var Tile = function ( options ) {
 	this.flippedHorizontally = options.flippedHorizontally;
 	this.flippedDiagonally = options.flippedDiagonally;
 
-	if (this.flippedHorizontally) {
+	if ( this.flippedHorizontally ) {
 		this.scale.x = -1;
 		this.anchor.x = 1;
 	}
 
-	if (this.flippedVertically) {
+	if ( this.flippedVertically ) {
 		this.scale.y = -1;
 		this.anchor.y = 1;
 	}
 
-	if (this.flippedDiagonally) {
+	if ( this.flippedDiagonally ) {
 		this.scale.x = -1;
 		this.anchor.x = 1;
 		this.scale.y = -1;

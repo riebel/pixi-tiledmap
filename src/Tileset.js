@@ -1,9 +1,4 @@
-/**
- * Tileset
- * @constructor
- */
 var Tileset = function ( options ) {
-
 	this.baseTexture = PIXI.Texture.fromImage( options.image );
 	this.name = options.name;
 	this.firstGID = options.firstgid;

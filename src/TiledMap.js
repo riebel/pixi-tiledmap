@@ -1,10 +1,6 @@
 var TileSet = require( "./TileSet" );
 var Layer = require( "./Layer" );
 
-/**
- * TiledMap
- * @constructor
- */
 var TiledMap = function ( resourceName ) {
 	PIXI.Container.call( this );
 
@@ -28,10 +24,6 @@ TiledMap.prototype = Object.create( PIXI.Container.prototype );
 
 TiledMap.prototype.addLayer = function ( layer ) {
 	this.addChild( layer );
-};
-
-TiledMap.prototype.getLayerByName = function ( name ) {
-	return this.layers[ name ];
 };
 
 TiledMap.prototype.getTilesByGid = function ( gids ) {

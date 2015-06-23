@@ -1,6 +1,5 @@
-/* */
-
 var Tile = require( "./Tile" );
+
 function findTexture ( gid, tilesets ) {
 	var tileset,
 		i,
@@ -14,6 +13,7 @@ function findTexture ( gid, tilesets ) {
 	ix = gid - tileset.firstGID;
 	return tileset.textures[ ix ];
 }
+
 var Layer = function ( layerData, tilesets ) {
 	PIXI.Container.call( this );
 	this.name = layerData.name;
@@ -23,7 +23,9 @@ var Layer = function ( layerData, tilesets ) {
 	this.tiles = [];
 	this.createTiles( layerData, tilesets );
 };
+
 Layer.prototype = Object.create( PIXI.Container.prototype );
+
 Layer.prototype.createTiles = function ( layerData, tilesets ) {
 	// Bits on the far end of the 32-bit global tile ID are used for tile flags
 	var FLIPPED_HORIZONTALLY_FLAG = 0x80000000,
@@ -69,9 +71,11 @@ Layer.prototype.createTiles = function ( layerData, tilesets ) {
 		}
 	}
 };
+
 Layer.prototype.addTile = function ( tile ) {
 	this.addChild( tile );
 };
+
 Layer.prototype.getTilesByGid = function ( gids ) {
 	if ( !Array.isArray( gids ) ) {
 		gids = [ gids ];
@@ -80,4 +84,5 @@ Layer.prototype.getTilesByGid = function ( gids ) {
 		return gids.indexOf( tile.gid ) > -1;
 	} );
 };
+
 module.exports = PIXI.extras.TileLayer = Layer;
