@@ -11,6 +11,12 @@ Creates new PIXI classes for Tiled maps.
 npm install pixi-tiledmap
 ```
 
+or
+
+```sh
+jspm install pixi-tiledmap
+```
+
 ## usage
 
 ```js
