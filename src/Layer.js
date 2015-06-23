@@ -14,17 +14,17 @@ function findTexture ( gid, tilesets ) {
 	ix = gid - tileset.firstGID;
 	return tileset.textures[ ix ];
 }
-var Layer = function ( options, tilesets ) {
+var Layer = function ( layerData, tilesets ) {
 	PIXI.Container.call( this );
-	this.name = options.name;
-	this.alpha = options.alpha || 1;
-	this.data = options.data;
+	this.name = layerData.name;
+	this.alpha = (layerData.visible) ? 1 : 0;
+	this.data = layerData.data;
 	this.tilesets = tilesets;
 	this.tiles = [];
-	this.createTiles( options, tilesets );
+	this.createTiles( layerData, tilesets );
 };
 Layer.prototype = Object.create( PIXI.Container.prototype );
-Layer.prototype.createTiles = function ( options, tilesets ) {
+Layer.prototype.createTiles = function ( layerData, tilesets ) {
 	// Bits on the far end of the 32-bit global tile ID are used for tile flags
 	var FLIPPED_HORIZONTALLY_FLAG = 0x80000000,
 		FLIPPED_VERTICALLY_FLAG = 0x40000000,
@@ -35,11 +35,11 @@ Layer.prototype.createTiles = function ( options, tilesets ) {
 		gid,
 		tile;
 
-	for ( y = 0; y < options.height; y++ ) {
-		for ( x = 0; x < options.width; x++ ) {
-			i = x + (y * options.width);
+	for ( y = 0; y < layerData.height; y++ ) {
+		for ( x = 0; x < layerData.width; x++ ) {
+			i = x + (y * layerData.width);
 
-			gid = options.data[ i ];
+			gid = layerData.data[ i ];
 
 			// Read out the flags
 			var flippedHorizontally = Boolean( gid & FLIPPED_HORIZONTALLY_FLAG );
@@ -53,7 +53,7 @@ Layer.prototype.createTiles = function ( options, tilesets ) {
 
 			if ( gid !== 0 && texture ) {
 				tile = new Tile( {
-					gid: options.data[ i ],
+					gid: layerData.data[ i ],
 					texture: texture,
 					width: texture.width,
 					height: texture.height,
