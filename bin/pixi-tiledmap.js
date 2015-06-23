@@ -1,12 +1,13 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var tiledMapLoader = require("./src/tiledMapLoader");
-PIXI.loaders.Loader.addPixiMiddleware(tiledMapLoader);
-PIXI.loader.use(tiledMapLoader());
-module.exports = PIXI.extras.TiledMap = require("./src/TiledMap");
-},{"./src/TiledMap":5,"./src/tiledMapLoader":6}],2:[function(require,module,exports){
-/* */
+var tiledMapLoader = require( "./src/tiledMapLoader" );
 
+PIXI.loaders.Loader.addPixiMiddleware( tiledMapLoader );
+PIXI.loader.use( tiledMapLoader() );
+
+module.exports = PIXI.extras.TiledMap = require( "./src/TiledMap" );
+},{"./src/TiledMap":5,"./src/tiledMapLoader":6}],2:[function(require,module,exports){
 var Tile = require( "./Tile" );
+
 function findTexture ( gid, tilesets ) {
 	var tileset,
 		i,
@@ -20,6 +21,7 @@ function findTexture ( gid, tilesets ) {
 	ix = gid - tileset.firstGID;
 	return tileset.textures[ ix ];
 }
+
 var Layer = function ( layerData, tilesets ) {
 	PIXI.Container.call( this );
 	this.name = layerData.name;
@@ -29,7 +31,9 @@ var Layer = function ( layerData, tilesets ) {
 	this.tiles = [];
 	this.createTiles( layerData, tilesets );
 };
+
 Layer.prototype = Object.create( PIXI.Container.prototype );
+
 Layer.prototype.createTiles = function ( layerData, tilesets ) {
 	// Bits on the far end of the 32-bit global tile ID are used for tile flags
 	var FLIPPED_HORIZONTALLY_FLAG = 0x80000000,
@@ -75,9 +79,11 @@ Layer.prototype.createTiles = function ( layerData, tilesets ) {
 		}
 	}
 };
+
 Layer.prototype.addTile = function ( tile ) {
 	this.addChild( tile );
 };
+
 Layer.prototype.getTilesByGid = function ( gids ) {
 	if ( !Array.isArray( gids ) ) {
 		gids = [ gids ];
@@ -86,17 +92,13 @@ Layer.prototype.getTilesByGid = function ( gids ) {
 		return gids.indexOf( tile.gid ) > -1;
 	} );
 };
+
 module.exports = PIXI.extras.TileLayer = Layer;
 },{"./Tile":3}],3:[function(require,module,exports){
-/**
- * Tile
- * @constructor
- */
 var Tile = function ( options ) {
 	PIXI.Sprite.call( this, options.texture );
 
 	this.gid = options.gid;
-
 	this.width = options.width;
 	this.height = options.height;
 
@@ -104,17 +106,17 @@ var Tile = function ( options ) {
 	this.flippedHorizontally = options.flippedHorizontally;
 	this.flippedDiagonally = options.flippedDiagonally;
 
-	if (this.flippedHorizontally) {
+	if ( this.flippedHorizontally ) {
 		this.scale.x = -1;
 		this.anchor.x = 1;
 	}
 
-	if (this.flippedVertically) {
+	if ( this.flippedVertically ) {
 		this.scale.y = -1;
 		this.anchor.y = 1;
 	}
 
-	if (this.flippedDiagonally) {
+	if ( this.flippedDiagonally ) {
 		this.scale.x = -1;
 		this.anchor.x = 1;
 		this.scale.y = -1;
@@ -126,12 +128,7 @@ Tile.prototype = Object.create( PIXI.Sprite.prototype );
 
 module.exports = PIXI.extras.Tile = Tile;
 },{}],4:[function(require,module,exports){
-/**
- * Tileset
- * @constructor
- */
 var Tileset = function ( options ) {
-
 	this.baseTexture = PIXI.Texture.fromImage( options.image );
 	this.name = options.name;
 	this.firstGID = options.firstgid;
@@ -151,15 +148,10 @@ var Tileset = function ( options ) {
 };
 
 module.exports = PIXI.extras.TileSet = Tileset;
-
 },{}],5:[function(require,module,exports){
 var TileSet = require( "./TileSet" );
 var Layer = require( "./Layer" );
 
-/**
- * TiledMap
- * @constructor
- */
 var TiledMap = function ( resourceName ) {
 	PIXI.Container.call( this );
 
@@ -185,10 +177,6 @@ TiledMap.prototype.addLayer = function ( layer ) {
 	this.addChild( layer );
 };
 
-TiledMap.prototype.getLayerByName = function ( name ) {
-	return this.layers[ name ];
-};
-
 TiledMap.prototype.getTilesByGid = function ( gids ) {
 	var tiles = [];
 
@@ -201,18 +189,17 @@ TiledMap.prototype.getTilesByGid = function ( gids ) {
 
 module.exports = TiledMap;
 },{"./Layer":2,"./TileSet":4}],6:[function(require,module,exports){
-module.exports = function() {
-	return function(resource, next) {
-		if (!resource.data || !resource.isJson || !resource.data.layers || !resource.data.tilesets) {
+module.exports = function () {
+	return function ( resource, next ) {
+		if ( !resource.data || !resource.isJson || !resource.data.layers || !resource.data.tilesets ) {
 			return next();
 		}
 
 		var tileSets = resource.data.tilesets;
-		for (var i = 0; i < tileSets.length; i++) {
-			this.add(tileSets[i].name, tileSets[i].image);
+		for ( var i = 0; i < tileSets.length; i++ ) {
+			this.add( tileSets[ i ].name, tileSets[ i ].image );
 		}
 		next();
 	};
 };
-
 },{}]},{},[1]);
