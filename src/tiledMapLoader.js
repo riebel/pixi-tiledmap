@@ -1,4 +1,3 @@
-var path = require("path");
 module.exports = function() {
 	return function(resource, next) {
 		if (!resource.data || !resource.isJson || !resource.data.layers || !resource.data.tilesets) {
