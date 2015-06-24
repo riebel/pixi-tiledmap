@@ -14,7 +14,7 @@ var TiledMap = function ( resourceName ) {
 	}, this );
 
 	data.layers.forEach( function ( layerData ) {
-		var layer = new Layer( layerData, this.tilesets );
+		var layer = new Layer( data.tilewidth, data.tileheight, layerData, this.tilesets );
 		this.layers[ layerData.name ] = layer;
 		this.addLayer( layer );
 	}, this );
