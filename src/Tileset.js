@@ -6,6 +6,7 @@ var Tileset = function ( options ) {
 	this.imageWidth = options.imagewidth;
 	this.tileHeight = options.tileheight;
 	this.tileWidth = options.tilewidth;
+	this.tileOffset = options.tileoffset;
 	this.margin = options.margin;
 	this.spacing = options.spacing;
 	this.textures = [];

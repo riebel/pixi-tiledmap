@@ -1,17 +1,14 @@
 var Tile = require( "./Tile" );
 
-function findTexture ( gid, tilesets ) {
-	var tileset,
-		i,
-		ix;
-	for ( i = tilesets.length - 1; i >= 0; i-- ) {
+function findTileset ( gid, tilesets ) {
+	var tileset;
+	for ( var i = tilesets.length - 1; i >= 0; i-- ) {
 		tileset = tilesets[ i ];
 		if ( tileset.firstGID <= gid ) {
 			break;
 		}
 	}
-	ix = gid - tileset.firstGID;
-	return tileset.textures[ ix ];
+	return tileset;
 }
 
 var Layer = function ( tileWidth, tileHeight, layerData, tilesets ) {
@@ -46,7 +43,8 @@ var Layer = function ( tileWidth, tileHeight, layerData, tilesets ) {
 			// Clear the flags
 			gid &= ~(FLIPPED_HORIZONTALLY_FLAG | FLIPPED_VERTICALLY_FLAG | FLIPPED_DIAGONALLY_FLAG);
 
-			var texture = findTexture( gid, tilesets );
+			var tileset = findTileset( gid, tilesets );
+			var texture = tileset.textures[ gid - tileset.firstGID ];
 
 			if ( gid !== 0 && texture ) {
 				tile = new Tile( {
@@ -61,6 +59,11 @@ var Layer = function ( tileWidth, tileHeight, layerData, tilesets ) {
 
 				tile.x = x * tileWidth;
 				tile.y = y * tileHeight;
+
+				if ( tileset.tileOffset ) {
+					tile.x += tileset.tileOffset.x;
+					tile.y += tileset.tileOffset.y;
+				}
 
 				this.tiles.push( tile );
 				this.addTile( tile );
