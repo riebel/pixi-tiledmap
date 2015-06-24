@@ -22,7 +22,7 @@ function findTexture ( gid, tilesets ) {
 	return tileset.textures[ ix ];
 }
 
-var Layer = function ( layerData, tilesets ) {
+var Layer = function ( tileWidth, tileHeight, layerData, tilesets ) {
 	PIXI.Container.call( this );
 	this.name = layerData.name;
 	this.visible = layerData.visible;
@@ -30,12 +30,6 @@ var Layer = function ( layerData, tilesets ) {
 	this.data = layerData.data;
 	this.tilesets = tilesets;
 	this.tiles = [];
-	this.createTiles( layerData, tilesets );
-};
-
-Layer.prototype = Object.create( PIXI.Container.prototype );
-
-Layer.prototype.createTiles = function ( layerData, tilesets ) {
 	// Bits on the far end of the 32-bit global tile ID are used for tile flags
 	var FLIPPED_HORIZONTALLY_FLAG = 0x80000000,
 		FLIPPED_VERTICALLY_FLAG = 0x40000000,
@@ -72,14 +66,18 @@ Layer.prototype.createTiles = function ( layerData, tilesets ) {
 					flippedVertically: flippedVertically,
 					flippedDiagonally: flippedDiagonally
 				} );
-				tile.x = x * texture.width;
-				tile.y = y * texture.height;
+
+				tile.x = x * tileWidth;
+				tile.y = y * tileHeight;
+
 				this.tiles.push( tile );
 				this.addTile( tile );
 			}
 		}
 	}
 };
+
+Layer.prototype = Object.create( PIXI.Container.prototype );
 
 Layer.prototype.addTile = function ( tile ) {
 	this.addChild( tile );
@@ -159,7 +157,7 @@ var TiledMap = function ( resourceName ) {
 	}, this );
 
 	data.layers.forEach( function ( layerData ) {
-		var layer = new Layer( layerData, this.tilesets );
+		var layer = new Layer( data.tilewidth, data.tileheight, layerData, this.tilesets );
 		this.layers[ layerData.name ] = layer;
 		this.addLayer( layer );
 	}, this );
