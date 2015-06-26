@@ -1,16 +1,19 @@
-var TileSet = require( "./TileSet" );
-var Layer = require( "./Layer" );
+var TileSet = require( "./TileSet" ),
+	Layer = require( "./Layer" ),
+	path = require( "path" );
 
-var TiledMap = function ( resourceName ) {
+var TiledMap = function ( resourceUrl ) {
 	PIXI.Container.call( this );
 
 	this.layers = [];
 	this.tilesets = [];
 
-	var data = PIXI.loader.resources[ resourceName ].data;
+	var route = path.dirname( resourceUrl );
+
+	var data = PIXI.loader.resources[ resourceUrl ].data;
 
 	data.tilesets.forEach( function ( tilesetData ) {
-		this.tilesets.push( new TileSet( tilesetData ) );
+		this.tilesets.push( new TileSet( route, tilesetData ) );
 	}, this );
 
 	data.layers.forEach( function ( layerData ) {
