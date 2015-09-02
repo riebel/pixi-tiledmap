@@ -1,14 +1,14 @@
 var Tileset = function ( route, tilesetData ) {
-	this.baseTexture = PIXI.Texture.fromImage( route + "/" + tilesetData.image );
-	this.name = tilesetData.name;
-	this.firstGID = tilesetData.firstgid;
-	this.imageHeight = tilesetData.imageheight;
-	this.imageWidth = tilesetData.imagewidth;
-	this.tileHeight = tilesetData.tileheight;
-	this.tileWidth = tilesetData.tilewidth;
-	this.tileOffset = tilesetData.tileoffset;
-	this.margin = tilesetData.margin;
-	this.spacing = tilesetData.spacing;
+	this.baseTexture = PIXI.Texture.fromImage( route + "/" + tilesetData.image[ 0 ].$.source, false, PIXI.SCALE_MODES.NEAREST );
+	this.name = tilesetData.$.name;
+	this.firstGID = parseInt(tilesetData.$.firstgid);
+	this.imageHeight = parseInt(tilesetData.image[ 0 ].$.height);
+	this.imageWidth = parseInt(tilesetData.image[ 0 ].$.width);
+	this.tileHeight = parseInt(tilesetData.$.tileheight);
+	this.tileWidth = parseInt(tilesetData.$.tilewidth);
+	this.tileOffset = parseInt(tilesetData.$.tileoffset) || 0;
+	this.margin = parseInt(tilesetData.$.margin) || 0;
+	this.spacing = parseInt(tilesetData.$.spacing) || 0;
 	this.textures = [];
 
 	for ( var y = this.margin; y < this.imageHeight; y += this.tileHeight + this.spacing ) {

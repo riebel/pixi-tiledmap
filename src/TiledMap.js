@@ -12,12 +12,12 @@ var TiledMap = function ( resourceUrl ) {
 
 	var data = PIXI.loader.resources[ resourceUrl ].data;
 
-	data.tilesets.forEach( function ( tilesetData ) {
+	data.map.tileset.forEach( function ( tilesetData ) {
 		this.tilesets.push( new TileSet( route, tilesetData ) );
 	}, this );
 
-	data.layers.forEach( function ( layerData ) {
-		var layer = new Layer( data.tilewidth, data.tileheight, layerData, this.tilesets );
+	data.map.layer.forEach( function ( layerData ) {
+		var layer = new Layer( data.map.$.tilewidth, data.map.$.tileheight, layerData, this.tilesets );
 		this.layers[ layerData.name ] = layer;
 		this.addLayer( layer );
 	}, this );
