@@ -47,5 +47,7 @@ PIXI.loader
 
 1.4.0 Switched from JSON to TMX as input format
 
+1.4.5 Added support for animated tiles
+
 [npm-url]: https://npmjs.org/package/pixi-tiledmap
 [npm-image]: http://img.shields.io/npm/v/pixi-tiledmap.svg?style=flat
