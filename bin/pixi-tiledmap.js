@@ -24737,7 +24737,7 @@ var STATE_COUNT = 0;
 var STATE_START              = STATE_COUNT++;
 var STATE_MAP                = STATE_COUNT++;
 var STATE_COLLECT_PROPS      = STATE_COUNT++;
-var STATE_COLLECT_AIMATIONS  = STATE_COUNT++;
+var STATE_COLLECT_ANIMATIONS = STATE_COUNT++;
 var STATE_WAIT_FOR_CLOSE     = STATE_COUNT++;
 var STATE_TILESET            = STATE_COUNT++;
 var STATE_TILE               = STATE_COUNT++;
@@ -24764,6 +24764,8 @@ function parse(content, pathToFile, cb) {
   var waitForCloseOpenCount = 0;
   var propertiesObject = null;
   var propertiesNextState = 0;
+  var animationsObject = null;
+  var animationsNextState = 0;
   var tileIndex = 0;
   var tileSet = null;
   var tileSetNextState = 0;
@@ -24897,18 +24899,18 @@ function parse(content, pathToFile, cb) {
     },
     text: noop,
   };
-  states[STATE_COLLECT_AIMATIONS] = {
+  states[STATE_COLLECT_ANIMATIONS] = {
     opentag: function(tag) {
       if (tag.name === 'FRAME') {
-          animationsObject.push({
-              'tileId': tag.attributes.TILEID,
-              'duration': tag.attributes.DURATION
-          });
+        animationsObject.push({
+          'tileId': tag.attributes.TILEID,
+          'duration': tag.attributes.DURATION
+        });
       }
       waitForClose();
     },
     closetag: function(name) {
-      state = propertiesNextState;
+      state = animationsNextState;
     },
     text: noop,
   };
@@ -24928,7 +24930,7 @@ function parse(content, pathToFile, cb) {
         collectProperties(tile.properties);
       } else if (tag.name === 'IMAGE') {
         tile.image = collectImage(tag);
-     } else if (tag.name === 'ANIMATION') {
+      } else if (tag.name === 'ANIMATION') {
         tile.animation = collectAnimations(tile.animations);
       } else {
         waitForClose();
@@ -25213,8 +25215,8 @@ function parse(content, pathToFile, cb) {
     layer.diagonalFlips[tileIndex]   = !!(gid & FLIPPED_DIAGONALLY_FLAG);
 
     gid &= ~(FLIPPED_HORIZONTALLY_FLAG |
-             FLIPPED_VERTICALLY_FLAG |
-             FLIPPED_DIAGONALLY_FLAG);
+    FLIPPED_VERTICALLY_FLAG |
+    FLIPPED_DIAGONALLY_FLAG);
 
     unresolvedLayer.tiles[tileIndex] = gid;
 
@@ -25263,7 +25265,7 @@ function parse(content, pathToFile, cb) {
   function collectAnimations(obj) {
     animationsObject = obj;
     animationsNextState = state;
-    state = STATE_COLLECT_AIMATIONS;
+    state = STATE_COLLECT_ANIMATIONS;
   }
 
   function waitForClose() {
@@ -25297,7 +25299,7 @@ function parse(content, pathToFile, cb) {
     for (var i = 0; i < unresolvedLayer.tiles.length; i += 1) {
       var globalTileId = unresolvedLayer.tiles[i];
       for (var tileSetIndex = map.tileSets.length - 1;
-          tileSetIndex >= 0; tileSetIndex -= 1)
+           tileSetIndex >= 0; tileSetIndex -= 1)
       {
         var tileSet = map.tileSets[tileSetIndex];
         if (tileSet.firstGid <= globalTileId) {
@@ -25321,7 +25323,7 @@ function parse(content, pathToFile, cb) {
     var expectedCount = map.width * map.height * 4;
     if (buf.length !== expectedCount) {
       error(new Error("Expected " + expectedCount +
-            " bytes of tile data; received " + buf.length));
+          " bytes of tile data; received " + buf.length));
       return;
     }
     tileIndex = 0;
@@ -27013,21 +27015,32 @@ var Layer = function ( tileWidth, tileHeight, layer, tilesets ) {
 	this.tiles = [];
 
 	var i,
+		tile,
+		duration= 1,
 		gid,
-		tile;
+		tileset,
+		texture,
+		textures;
 
 	for ( var y = 0; y < layer.map.height; y++ ) {
 		for ( var x = 0; x < layer.map.width; x++ ) {
 			i = x + (y * layer.map.width);
 
 			gid = layer.tiles[ i ] ? layer.tiles[ i ].gid : 0;
-
-			var tileset = findTileset( gid, tilesets );
-			var texture = tileset.textures[ gid - tileset.firstGID ];
+			tileset = findTileset( gid, tilesets );
+			texture = tileset.textures[ gid - tileset.firstGID ];
+			textures = [];
 
 			if ( gid !== 0 && texture ) {
+				layer.tiles[ i ].animations.forEach( function ( frame ) {
+					duration = frame.duration;
+					textures.push(tileset.textures[ parseInt(frame.tileId) ]);
+				});
+
 				tile = new Tile( {
 					gid: gid,
+					textures: textures,
+					duration: duration,
 					texture: texture,
 					width: texture.width,
 					height: texture.height,
@@ -27069,29 +27082,40 @@ Layer.prototype.getTilesByGid = function ( gids ) {
 module.exports = PIXI.extras.TileLayer = Layer;
 },{"./Tile":128,"pixi.js":106}],128:[function(require,module,exports){
 var PIXI = require("pixi.js");
+
 var Tile = function ( options ) {
-	PIXI.Sprite.call( this, options.texture );
+	PIXI.Container.call( this );
 
 	this.gid = options.gid;
-	this.width = options.width;
-	this.height = options.height;
-
 	this.flippedVertically = options.flippedVertically;
 	this.flippedHorizontally = options.flippedHorizontally;
 	this.flippedDiagonally = options.flippedDiagonally;
 
+	var tile = new PIXI.Sprite( options.texture );;
+
+	if (options.textures.length > 0) {
+		tile = new PIXI.extras.MovieClip( options.textures );
+		tile.animationSpeed = (1000 / 60) / options.duration;
+		tile.play();
+	}
+
+	tile.width = options.width;
+	tile.height = options.height;
+
+	this.addChild( tile );
+
 	if ( this.flippedHorizontally || this.flippedDiagonally ) {
-		this.scale.x = -1;
-		this.anchor.x = 1;
+		tile.scale.x = -1;
+		tile.anchor.x = 1;
 	}
 
 	if ( this.flippedVertically || this.flippedDiagonally ) {
-		this.scale.y = -1;
-		this.anchor.y = 1;
+		tile.scale.y = -1;
+		tile.anchor.y = 1;
 	}
 };
 
-Tile.prototype = Object.create( PIXI.Sprite.prototype );
+Tile.prototype = Object.create( PIXI.Container.prototype );
 
 module.exports = PIXI.extras.Tile = Tile;
 },{"pixi.js":106}],129:[function(require,module,exports){

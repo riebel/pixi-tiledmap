@@ -21,21 +21,32 @@ var Layer = function ( tileWidth, tileHeight, layer, tilesets ) {
 	this.tiles = [];
 
 	var i,
+		tile,
+		duration= 1,
 		gid,
-		tile;
+		tileset,
+		texture,
+		textures;
 
 	for ( var y = 0; y < layer.map.height; y++ ) {
 		for ( var x = 0; x < layer.map.width; x++ ) {
 			i = x + (y * layer.map.width);
 
 			gid = layer.tiles[ i ] ? layer.tiles[ i ].gid : 0;
-
-			var tileset = findTileset( gid, tilesets );
-			var texture = tileset.textures[ gid - tileset.firstGID ];
+			tileset = findTileset( gid, tilesets );
+			texture = tileset.textures[ gid - tileset.firstGID ];
+			textures = [];
 
 			if ( gid !== 0 && texture ) {
+				layer.tiles[ i ].animations.forEach( function ( frame ) {
+					duration = frame.duration;
+					textures.push(tileset.textures[ parseInt(frame.tileId) ]);
+				});
+
 				tile = new Tile( {
 					gid: gid,
+					textures: textures,
+					duration: duration,
 					texture: texture,
 					width: texture.width,
 					height: texture.height,

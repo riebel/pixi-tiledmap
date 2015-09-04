@@ -3,7 +3,8 @@
 Use [Tiled](http://www.mapeditor.org/) maps with PIXI v3.
 
 Uses the loader middleware to load Tiled TMX maps. 
-Creates a new PIXI class PIXI.extras.TiledMap which is an extended PIXI.Container() with all layers.
+
+Creates a new PIXI class PIXI.extras.TiledMap which is an extended PIXI.Container() containing all layers and animations.
 
 ## installation
 
