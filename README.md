@@ -4,9 +4,9 @@ Use [Tiled](http://www.mapeditor.org/) maps with PIXI v3.
 
 Uses the loader middleware to load Tiled TMX maps. 
 
-Creates a new PIXI class PIXI.extras.TiledMap which is an extended PIXI.Container() containing all layers and animations.
+Creates a new PIXI class PIXI.extras.TiledMap which is an extended PIXI.Container() containing all layers and tiles.
 
-## installation
+## Installation
 
 ```sh
 npm install pixi-tiledmap
@@ -18,7 +18,7 @@ or
 jspm install pixi-tiledmap
 ```
 
-## usage
+## Usage
 
 ```js
 var PIXI = require('pixi.js');

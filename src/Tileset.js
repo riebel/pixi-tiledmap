@@ -1,5 +1,3 @@
-var PIXI = require("pixi.js");
-
 var TileSet = function ( route, tileSet ) {
 	this.baseTexture = PIXI.Texture.fromImage( route + "/" + tileSet.image.source, false, PIXI.SCALE_MODES.NEAREST );
 	this.name = tileSet.name;

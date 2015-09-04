@@ -1,5 +1,3 @@
-var PIXI = require("pixi.js");
-
 var Tile = function ( options ) {
 	PIXI.Container.call( this );
 

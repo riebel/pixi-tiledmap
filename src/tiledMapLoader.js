@@ -1,5 +1,4 @@
-var PIXI = require("pixi.js" ),
-	path = require( "path" ),
+var path = require( "path" ),
 	tmx = require("tmx-parser");
 
 module.exports = function () {

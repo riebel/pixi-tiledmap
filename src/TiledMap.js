@@ -1,7 +1,6 @@
 var TileSet = require( "./TileSet" ),
 	Layer = require( "./Layer" ),
-	path = require( "path" ),
-	PIXI = require("pixi.js");
+	path = require( "path" );
 
 var TiledMap = function ( resourceUrl ) {
 	PIXI.Container.call( this );

@@ -1,4 +1,3 @@
-var PIXI = require("pixi.js");
 var Tile = require( "./Tile" );
 
 function findTileset ( gid, tilesets ) {
