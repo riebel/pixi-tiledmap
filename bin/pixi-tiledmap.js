@@ -27040,7 +27040,6 @@ var Layer = function ( tileWidth, tileHeight, layer, tilesets ) {
 				tile.y = y * tileHeight + ( tileHeight - texture.height );
 
 				if ( tileset.tileOffset ) {
-					console.log(tileset.tileOffset);
 					tile.x += tileset.tileOffset.x;
 					tile.y += tileset.tileOffset.y;
 				}
