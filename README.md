@@ -27,7 +27,7 @@ var renderer = PIXI.autoDetectRenderer( 1024, 768 );
 document.body.appendChild( renderer.view );
 
 /**
- * Simply load a Tiled map in json format like a usual resource
+ * Simply load a Tiled map in TMX format like a usual resource
  */
 PIXI.loader
     .add('map.tmx')
