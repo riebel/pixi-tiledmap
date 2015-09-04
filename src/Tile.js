@@ -1,3 +1,4 @@
+var PIXI = require("pixi.js");
 var Tile = function ( options ) {
 	PIXI.Sprite.call( this, options.texture );
 

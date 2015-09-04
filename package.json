@@ -7,7 +7,8 @@
     "pixi.js",
     "tiled",
     "tilemap",
-    "tiledmap"
+    "tiledmap",
+    "tmx"
   ],
   "author": "Hagen Sommerkorn",
   "repository": {
@@ -17,7 +18,7 @@
   "license": "MIT",
   "main": "index.js",
   "scripts": {
-    "build": "browserify index.js -o bin/pixi-tiledmap.js"
+    "build": "browserify index.js -o bin/pixi-tiledmap.js && cat bin/pixi-tiledmap.js | uglifyjs > bin/pixi-tiledmap.min.js"
   },
   "bugs": {
     "url": "https://github.com/riebel/pixi-tiledmap/issues"
@@ -28,7 +29,7 @@
   },
   "dependencies": {
     "pixi.js": "^3.0.2",
-    "xml2js": "^0.4.11"
+    "tmx-parser": "^1.3.0"
   },
   "registry": "npm"
 }

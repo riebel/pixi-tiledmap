@@ -1,6 +1,6 @@
-var Resource = PIXI.loaders.Resource,
+var PIXI = require("pixi.js" ),
 	path = require( "path" ),
-	xml2js  = require("xml2js" );
+	tmx = require("tmx-parser");
 
 module.exports = function () {
 	return function ( resource, next ) {
@@ -13,19 +13,18 @@ module.exports = function () {
 
 		var loadOptions = {
 			crossOrigin: resource.crossOrigin,
-			loadType: Resource.LOAD_TYPE.IMAGE
+			loadType: PIXI.loaders.Resource.LOAD_TYPE.IMAGE
 		};
+
 		var that = this;
 
-		var parser = new xml2js.Parser();
+		tmx.parse(resource.xhr.responseText, route, function(err, map) {
+			if (err) throw err;
+			map.tileSets.forEach( function ( tileset ) {
+				this.add( tileset.image.source , route + '/' + tileset.image.source, loadOptions );
+			}, that);
 
-		parser.parseString(resource.xhr.responseText, function (err, result) {
-
-			for ( var i = 0; i < result.map.tileset.length; i++ ) {
-				that.add( result.map.tileset[ i ].image[0].$.source , route + '/' + result.map.tileset[ i ].image[0].$.source, loadOptions );
-			}
-
-			resource.data = result;
+			resource.data = map;
 			next();
 		});
 	};

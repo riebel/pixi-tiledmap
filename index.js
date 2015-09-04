@@ -1,3 +1,4 @@
+var PIXI = require("pixi.js");
 var tiledMapLoader = require( "./src/tiledMapLoader" );
 
 PIXI.loaders.Loader.addPixiMiddleware( tiledMapLoader );
