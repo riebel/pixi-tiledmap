@@ -2377,35 +2377,40 @@ Layer.prototype.getTilesByGid = function ( gids ) {
 
 module.exports = PIXI.extras.TileLayer = Layer;
 },{"./Tile":6}],6:[function(require,module,exports){
-var Tile = function ( options ) {
-	PIXI.Container.call( this );
-
-	this.gid = options.gid;
-	this.flippedVertically = options.flippedVertically;
-	this.flippedHorizontally = options.flippedHorizontally;
-	this.flippedDiagonally = options.flippedDiagonally;
-
-	var tile = new PIXI.Sprite( options.texture );;
-
-	if (options.textures.length > 0) {
-		tile = new PIXI.extras.MovieClip( options.textures );
-		tile.animationSpeed = (1000 / 60) / options.duration;
-		tile.play();
-	}
-
+function positionTile( tile, options ) {
 	tile.width = options.width;
 	tile.height = options.height;
 
-	this.addChild( tile );
-
-	if ( this.flippedHorizontally || this.flippedDiagonally ) {
+	if ( options.flippedHorizontally || options.flippedDiagonally ) {
 		tile.scale.x = -1;
 		tile.anchor.x = 1;
 	}
 
-	if ( this.flippedVertically || this.flippedDiagonally ) {
+	if ( options.flippedVertically || options.flippedDiagonally ) {
 		tile.scale.y = -1;
 		tile.anchor.y = 1;
+	}
+}
+
+var Tile = function ( options ) {
+	PIXI.Container.call( this );
+
+	this.gid = options.gid;
+	this.animation = false;
+	this.sprite = false;
+
+	if (options.textures.length > 0) {
+		this.animation = new PIXI.extras.MovieClip( options.textures );
+
+		positionTile( this.animation, options );
+		this.animation.animationSpeed = (1000 / 60) / options.duration;
+		this.animation.play();
+		this.addChild( this.animation );
+	}
+	else {
+		this.sprite = new PIXI.Sprite( options.texture );
+		positionTile( this.sprite, options );
+		this.addChild( this.sprite );
 	}
 };
 
