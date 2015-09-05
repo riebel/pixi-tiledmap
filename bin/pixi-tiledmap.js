@@ -2295,68 +2295,77 @@ function findTileset ( gid, tilesets ) {
 	var tileset;
 	for ( var i = tilesets.length - 1; i >= 0; i-- ) {
 		tileset = tilesets[ i ];
-		if ( tileset.firstGID <= gid ) {
+		if ( tileset.firstGid <= gid ) {
 			break;
 		}
 	}
 	return tileset;
 }
 
-var Layer = function ( tileWidth, tileHeight, layer, tilesets ) {
+var Layer = function ( layer, tileSets ) {
 	PIXI.Container.call( this );
-	this.name = layer.name;
-	this.visible = layer.visible;
-	this.alpha = parseFloat(layer.opacity);
-	this.tilesets = tilesets;
-	this.tiles = [];
 
-	var i,
-		tile,
-		duration= 1,
-		gid,
-		tileset,
-		texture,
-		textures;
+	for ( var property in layer ) {
+		if ( layer.hasOwnProperty( property ) ) {
+			this[ property ] = layer[ property ];
+		}
+	}
+
+	this.alpha = parseFloat( layer.opacity );
+	this.tiles = [];
 
 	for ( var y = 0; y < layer.map.height; y++ ) {
 		for ( var x = 0; x < layer.map.width; x++ ) {
-			i = x + (y * layer.map.width);
+			var i = x + (y * layer.map.width);
 
-			gid = layer.tiles[ i ] ? layer.tiles[ i ].gid : 0;
-			tileset = findTileset( gid, tilesets );
-			texture = tileset.textures[ gid - tileset.firstGID ];
-			textures = [];
+			if ( layer.tiles[ i ] ) {
+				var gid = layer.tiles[ i ].gid || 0;
 
-			if ( gid !== 0 && texture ) {
-				layer.tiles[ i ].animations.forEach( function ( frame ) {
-					duration = frame.duration;
-					textures.push(tileset.textures[ parseInt(frame.tileId) ]);
-				});
+				if ( gid !== 0 ) {
+					var tileset = findTileset( gid, tileSets );
+					layer.tiles[ i ].textures = [];
 
-				tile = new Tile( {
-					gid: gid,
-					textures: textures,
-					duration: duration,
-					texture: texture,
-					width: texture.width,
-					height: texture.height,
-					properties: layer.tiles[i].properties,
-					flippedHorizontally: layer.horizontalFlips[i],
-					flippedVertically: layer.verticalFlips[i],
-					flippedDiagonally: layer.diagonalFlips[i]
-				} );
+					if ( layer.tiles[ i ].animations.length ) {
+						layer.tiles[ i ].animations.forEach( function ( frame ) {
+							layer.tiles[ i ].textures.push( tileset.textures[ frame.tileId ] );
 
-				tile.x = x * tileWidth;
-				tile.y = y * tileHeight + ( tileHeight - texture.height );
+						} );
+					}
+					else {
+						layer.tiles[ i ].textures.push( tileset.textures[ gid - tileset.firstGid ] );
+					}
 
-				if ( tileset.tileOffset ) {
-					tile.x += tileset.tileOffset.x;
-					tile.y += tileset.tileOffset.y;
+					var tile = new Tile( layer.tiles[ i ] );
+
+					if ( layer.horizontalFlips[ i ] || layer.diagonalFlips[ i ] ) {
+						tile.anchor.x = 1;
+						tile.scale.x = -1;
+					}
+
+					if ( layer.verticalFlips[ i ] || layer.diagonalFlips[ i ] ) {
+						tile.anchor.y = 1;
+						tile.scale.y = -1;
+					}
+
+					tile.x = x * layer.map.tileWidth;
+					tile.y = y * layer.map.tileHeight + ( layer.map.tileHeight - tile.textures[ 0 ].height );
+
+					if ( tileset.tileOffset ) {
+						tile.x += tileset.tileOffset.x;
+						tile.y += tileset.tileOffset.y;
+					}
+
+					if ( tile.textures.length > 1 ) {
+						tile.animationSpeed = 1000 / 60 / tile.animations[ 0 ].duration;
+						tile.gotoAndPlay( 0 );
+					}
+
+					this.tiles.push( tile );
+
+					this.addTile( tile );
 				}
-
-				this.tiles.push( tile );
-				this.addTile( tile );
 			}
+
 		}
 	}
 };
@@ -2367,74 +2376,36 @@ Layer.prototype.addTile = function ( tile ) {
 	this.addChild( tile );
 };
 
-Layer.prototype.getTilesByGid = function ( gids ) {
-	if ( !Array.isArray( gids ) ) {
-		gids = [ gids ];
-	}
-	return this.children.filter( function ( tile ) {
-		return gids.indexOf( tile.gid ) > -1;
-	} );
-};
-
 module.exports = PIXI.extras.TileLayer = Layer;
 },{"./Tile":6}],6:[function(require,module,exports){
-function positionTile( tile, options ) {
-	tile.width = options.width;
-	tile.height = options.height;
+var Tile = function ( tile ) {
 
-	if ( options.flippedHorizontally || options.flippedDiagonally ) {
-		tile.scale.x = -1;
-		tile.anchor.x = 1;
-	}
+	PIXI.extras.MovieClip.call( this, tile.textures );
 
-	if ( options.flippedVertically || options.flippedDiagonally ) {
-		tile.scale.y = -1;
-		tile.anchor.y = 1;
-	}
-}
-
-var Tile = function ( options ) {
-	PIXI.Container.call( this );
-
-	this.gid = options.gid;
-	this.animation = false;
-	this.sprite = false;
-	this.properties = options.properties;
-
-	if (options.textures.length > 0) {
-		this.animation = new PIXI.extras.MovieClip( options.textures );
-
-		positionTile( this.animation, options );
-		this.animation.animationSpeed = (1000 / 60) / options.duration;
-		this.animation.play();
-		this.addChild( this.animation );
-	}
-	else {
-		this.sprite = new PIXI.Sprite( options.texture );
-		positionTile( this.sprite, options );
-		this.addChild( this.sprite );
+	for ( var property in tile ) {
+		if ( tile.hasOwnProperty( property ) ) {
+			this[ property ] = tile[ property ];
+		}
 	}
 };
 
-Tile.prototype = Object.create( PIXI.Container.prototype );
+Tile.prototype = Object.create( PIXI.extras.MovieClip.prototype );
 
 module.exports = PIXI.extras.Tile = Tile;
 },{}],7:[function(require,module,exports){
 var TileSet = function ( route, tileSet ) {
+
+	for ( var property in tileSet ) {
+		if ( tileSet.hasOwnProperty( property ) ) {
+			this[ property ] = tileSet[ property ];
+		}
+	}
+
 	this.baseTexture = PIXI.Texture.fromImage( route + "/" + tileSet.image.source, false, PIXI.SCALE_MODES.NEAREST );
-	this.name = tileSet.name;
-	this.firstGID = parseInt(tileSet.firstGid) || 0;
-	this.imageHeight = parseInt(tileSet.image.height) || 0;
-	this.imageWidth = parseInt(tileSet.image.width) || 0;
-	this.tileHeight = parseInt(tileSet.tileHeight) || 0;
-	this.tileWidth = parseInt(tileSet.tileWidth) || 0;
-	this.tileOffset = tileSet.tileOffset;
-	this.margin = tileSet.margin;
-	this.spacing = tileSet.spacing;
 	this.textures = [];
 
-	for ( var y = this.margin; y < this.imageHeight; y += this.tileHeight + this.spacing ) {
-		for ( var x = this.margin; x < this.imageWidth; x += this.tileWidth + this.spacing ) {
+	for ( var y = this.margin; y < this.image.height; y += this.tileHeight + this.spacing ) {
+		for ( var x = this.margin; x < this.image.width; x += this.tileWidth + this.spacing ) {
 			this.textures.push( new PIXI.Texture( this.baseTexture, new PIXI.Rectangle( x, y, this.tileWidth, this.tileHeight ) ) );
 		}
 	}
@@ -2449,19 +2420,24 @@ var TileSet = require( "./TileSet" ),
 var TiledMap = function ( resourceUrl ) {
 	PIXI.Container.call( this );
 
-	this.layers = [];
-	this.tileSets = [];
-
 	var route = path.dirname( resourceUrl );
-
 	var data = PIXI.loader.resources[ resourceUrl ].data;
+
+	for ( var property in data ) {
+		if ( data.hasOwnProperty( property ) ) {
+			this[ property ] = data[ property ];
+		}
+	}
+
+	this.tileSets = [];
+	this.layers = [];
 
 	data.tileSets.forEach( function ( tilesetData ) {
 		this.tileSets.push( new TileSet( route, tilesetData ) );
 	}, this );
 
 	data.layers.forEach( function ( layerData ) {
-		var layer = new Layer( data.tileWidth, data.tileHeight, layerData, this.tileSets );
+		var layer = new Layer( layerData, this.tileSets );
 		this.layers[ layerData.name ] = layer;
 		this.addLayer( layer );
 	}, this );
@@ -2471,16 +2447,6 @@ TiledMap.prototype = Object.create( PIXI.Container.prototype );
 
 TiledMap.prototype.addLayer = function ( layer ) {
 	this.addChild( layer );
-};
-
-TiledMap.prototype.getTilesByGid = function ( gids ) {
-	var tiles = [];
-
-	this.layers.forEach( function ( layer ) {
-		tiles = tiles.concat( layer.getTilesByGid( gids ) );
-	} );
-
-	return tiles;
 };
 
 module.exports = TiledMap;
@@ -2506,6 +2472,7 @@ module.exports = function () {
 
 		tmx.parse(resource.xhr.responseText, route, function(err, map) {
 			if (err) throw err;
+
 			map.tileSets.forEach( function ( tileset ) {
 				this.add( tileset.image.source , route + '/' + tileset.image.source, loadOptions );
 			}, that);

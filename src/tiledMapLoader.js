@@ -19,6 +19,7 @@ module.exports = function () {
 
 		tmx.parse(resource.xhr.responseText, route, function(err, map) {
 			if (err) throw err;
+
 			map.tileSets.forEach( function ( tileset ) {
 				this.add( tileset.image.source , route + '/' + tileset.image.source, loadOptions );
 			}, that);
