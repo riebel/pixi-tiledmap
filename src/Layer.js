@@ -49,6 +49,7 @@ var Layer = function ( tileWidth, tileHeight, layer, tilesets ) {
 					texture: texture,
 					width: texture.width,
 					height: texture.height,
+					properties: layer.tiles[i].properties,
 					flippedHorizontally: layer.horizontalFlips[i],
 					flippedVertically: layer.verticalFlips[i],
 					flippedDiagonally: layer.diagonalFlips[i]

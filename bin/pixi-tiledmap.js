@@ -2340,6 +2340,7 @@ var Layer = function ( tileWidth, tileHeight, layer, tilesets ) {
 					texture: texture,
 					width: texture.width,
 					height: texture.height,
+					properties: layer.tiles[i].properties,
 					flippedHorizontally: layer.horizontalFlips[i],
 					flippedVertically: layer.verticalFlips[i],
 					flippedDiagonally: layer.diagonalFlips[i]
@@ -2398,6 +2399,7 @@ var Tile = function ( options ) {
 	this.gid = options.gid;
 	this.animation = false;
 	this.sprite = false;
+	this.properties = options.properties;
 
 	if (options.textures.length > 0) {
 		this.animation = new PIXI.extras.MovieClip( options.textures );

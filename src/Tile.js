@@ -19,6 +19,7 @@ var Tile = function ( options ) {
 	this.gid = options.gid;
 	this.animation = false;
 	this.sprite = false;
+	this.properties = options.properties;
 
 	if (options.textures.length > 0) {
 		this.animation = new PIXI.extras.MovieClip( options.textures );
