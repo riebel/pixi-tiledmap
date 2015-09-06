@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Pixi.js Tiled map editor plugin",
   "keywords": [
     "pixi",
