@@ -199,10 +199,10 @@ function parse(content, pathToFile, cb) {
   states[STATE_COLLECT_ANIMATIONS] = {
     opentag: function(tag) {
       if (tag.name === 'FRAME') {
-        animationsObject.push({
-          'tileId': tag.attributes.TILEID,
-          'duration': tag.attributes.DURATION
-        });
+          animationsObject.push({
+              'tileId': tag.attributes.TILEID,
+              'duration': tag.attributes.DURATION
+          });
       }
       waitForClose();
     },
@@ -227,7 +227,7 @@ function parse(content, pathToFile, cb) {
         collectProperties(tile.properties);
       } else if (tag.name === 'IMAGE') {
         tile.image = collectImage(tag);
-      } else if (tag.name === 'ANIMATION') {
+     } else if (tag.name === 'ANIMATION') {
         tile.animation = collectAnimations(tile.animations);
       } else {
         waitForClose();
@@ -374,16 +374,9 @@ function parse(content, pathToFile, cb) {
       state = STATE_TILE_LAYER;
     },
     text: function(text) {
-      var buffer = "";
-      for (var i = 0; i < text.length; i += 1) {
-        var c = text[i];
-        if (c === ',') {
-          saveTile(parseInt(buffer, 10));
-          buffer = "";
-        } else {
-          buffer += c;
-        }
-      }
+      text.split(",").forEach(function(c) {
+        saveTile(parseInt(c, 10));
+      });
     },
   };
   states[STATE_TILE_DATA_B64_RAW] = {
@@ -512,8 +505,8 @@ function parse(content, pathToFile, cb) {
     layer.diagonalFlips[tileIndex]   = !!(gid & FLIPPED_DIAGONALLY_FLAG);
 
     gid &= ~(FLIPPED_HORIZONTALLY_FLAG |
-    FLIPPED_VERTICALLY_FLAG |
-    FLIPPED_DIAGONALLY_FLAG);
+             FLIPPED_VERTICALLY_FLAG |
+             FLIPPED_DIAGONALLY_FLAG);
 
     unresolvedLayer.tiles[tileIndex] = gid;
 
@@ -596,7 +589,7 @@ function parse(content, pathToFile, cb) {
     for (var i = 0; i < unresolvedLayer.tiles.length; i += 1) {
       var globalTileId = unresolvedLayer.tiles[i];
       for (var tileSetIndex = map.tileSets.length - 1;
-           tileSetIndex >= 0; tileSetIndex -= 1)
+          tileSetIndex >= 0; tileSetIndex -= 1)
       {
         var tileSet = map.tileSets[tileSetIndex];
         if (tileSet.firstGid <= globalTileId) {
@@ -620,7 +613,7 @@ function parse(content, pathToFile, cb) {
     var expectedCount = map.width * map.height * 4;
     if (buf.length !== expectedCount) {
       error(new Error("Expected " + expectedCount +
-          " bytes of tile data; received " + buf.length));
+            " bytes of tile data; received " + buf.length));
       return;
     }
     tileIndex = 0;
