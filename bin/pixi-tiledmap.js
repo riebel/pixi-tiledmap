@@ -2437,9 +2437,11 @@ var TiledMap = function ( resourceUrl ) {
 	}, this );
 
 	data.layers.forEach( function ( layerData ) {
-		var layer = new Layer( layerData, this.tileSets );
-		this.layers[ layerData.name ] = layer;
-		this.addLayer( layer );
+		if (layerData.type && layerData.type == "tile") {
+			var layer = new Layer( layerData, this.tileSets );
+			this.layers[ layerData.name ] = layer;
+			this.addLayer( layer );
+		}
 	}, this );
 };
 
