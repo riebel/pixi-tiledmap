@@ -49,5 +49,9 @@ PIXI.loader
 
 1.4.5 Added support for animated tiles
 
+1.5.0 Mayor code refactoring. TileMap now has all properties of the TMX object.
+
+1.5.1 Fixed crash if layer is not of type tile
+
 [npm-url]: https://npmjs.org/package/pixi-tiledmap
 [npm-image]: http://img.shields.io/npm/v/pixi-tiledmap.svg?style=flat
