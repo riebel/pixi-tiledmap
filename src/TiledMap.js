@@ -2,7 +2,7 @@ var TileSet = require( "./TileSet" ),
 	Layer = require( "./Layer" ),
 	path = require( "path" );
 
-var TiledMap = function ( resourceUrl ) {
+function TiledMap( resourceUrl ) {
 	PIXI.Container.call( this );
 
 	var route = path.dirname( resourceUrl );
@@ -28,7 +28,7 @@ var TiledMap = function ( resourceUrl ) {
 			this.addLayer( layer );
 		}
 	}, this );
-};
+}
 
 TiledMap.prototype = Object.create( PIXI.Container.prototype );
 
