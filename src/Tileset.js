@@ -1,5 +1,4 @@
-var TileSet = function ( route, tileSet ) {
-
+function TileSet( route, tileSet ) {
 	for ( var property in tileSet ) {
 		if ( tileSet.hasOwnProperty( property ) ) {
 			this[ property ] = tileSet[ property ];
@@ -14,6 +13,6 @@ var TileSet = function ( route, tileSet ) {
 			this.textures.push( new PIXI.Texture( this.baseTexture, new PIXI.Rectangle( x, y, this.tileWidth, this.tileHeight ) ) );
 		}
 	}
-};
+}
 
-module.exports = PIXI.extras.TileSet = TileSet;
+module.exports = TileSet;

@@ -28,23 +28,11 @@ var Layer = function ( layer, tileSets ) {
 			var i = x + (y * layer.map.width);
 
 			if ( layer.tiles[ i ] ) {
-				var gid = layer.tiles[ i ].gid || 0;
 
-				if ( gid !== 0 ) {
-					var tileset = findTileset( gid, tileSets );
-					layer.tiles[ i ].textures = [];
+				if ( layer.tiles[ i ].gid && layer.tiles[ i ].gid !== 0 ) {
 
-					if ( layer.tiles[ i ].animations.length ) {
-						layer.tiles[ i ].animations.forEach( function ( frame ) {
-							layer.tiles[ i ].textures.push( tileset.textures[ frame.tileId ] );
-
-						} );
-					}
-					else {
-						layer.tiles[ i ].textures.push( tileset.textures[ gid - tileset.firstGid ] );
-					}
-
-					var tile = new Tile( layer.tiles[ i ] );
+					var tileset = findTileset( layer.tiles[ i ].gid, tileSets );
+					var tile = new Tile( layer.tiles[ i ], tileset );
 
 					if ( layer.horizontalFlips[ i ] || layer.diagonalFlips[ i ] ) {
 						tile.anchor.x = 1;
@@ -85,4 +73,4 @@ Layer.prototype.addTile = function ( tile ) {
 	this.addChild( tile );
 };
 
-module.exports = PIXI.extras.TileLayer = Layer;
+module.exports = Layer;
