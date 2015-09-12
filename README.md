@@ -52,15 +52,13 @@ PIXI.loader
 
 ## Changelog
 
-1.6.0 internal API changes
-
-1.5.1 Fixed crash if layer is not of type tile
+1.6.5 Added support for image layer.
 
 1.5.0 TileMap now has all properties of the TMX object.
 
-1.4.5 Added support for animated tiles
+1.4.5 Added support for animated tiles.
 
-1.4.0 Switched from JSON to TMX as input format
+1.4.0 Switched from JSON to TMX as input format.
 
 [npm-url]: https://npmjs.org/package/pixi-tiledmap
 [npm-image]: http://img.shields.io/npm/v/pixi-tiledmap.svg?style=flat
