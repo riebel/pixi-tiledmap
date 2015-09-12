@@ -51,7 +51,7 @@ PIXI.loader
 
 ## Changelog
 
-1.6.0 API changes
+1.6.0 internal API changes
 
 1.5.1 Fixed crash if layer is not of type tile
 
