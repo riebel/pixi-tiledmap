@@ -50,17 +50,148 @@ PIXI.loader
 );
 ```
 
-## Changelog
+## Documentation
 
-1.6.9 Added partial support for object layer.
+Example TiledMap object
 
-1.6.5 Added support for image layer.
+```js
+{
+    alpha: 1
+    backgroundColor: undefined
+    cacheAsBitmap: (...)
+    children: Array[3]
+        0: ImageLayer
+            alpha: 1
+            cacheAsBitmap: (...)
+            children: Array[1]
+            filterArea: null
+            filters: (...)
+            height: (...)
+            image: Image
+            mask: (...)
+            name: "background"
+            opacity: 1
+            parent: TiledMap
+            pivot: Point
+            position: Point
+            properties: Object
+            renderable: true
+            rotation: 0
+            scale: Point
+            type: "image"
+            visible: true
+            width: (...)
+            worldAlpha: 1
+            worldTransform: Matrix
+            worldVisible: (...)
+            x: (...)
+            y: (...)
+        1: TileLayer
+        2: TileLayer
+            alpha: 1
+            cacheAsBitmap: (...)
+            children: Array[4]
+            diagonalFlips: Array[187]
+            filterArea: null
+            filters: (...)
+            height: (...)
+            horizontalFlips: Array[187]
+            map: Map
+            mask: null
+            name: "fire"
+            opacity: 1
+            parent: TiledMap
+            pivot: Point
+            position: Point
+            properties: Object
+            renderable: true
+            rotation: 0
+            scale: Point
+            tiles: Array[4]
+                0: Tile
+                    alpha: 1
+                    anchor: Point
+                    animation: undefined
+                    animationSpeed: 0.16666666666666669
+                    animations: Array[6]
+                    blendMode: 0
+                    cacheAsBitmap: (...)
+                    cachedTint: 16777215
+                    children: Array[0]
+                    currentFrame: (...)
+                    filterArea: null
+                    filters: (...)
+                    gid: 33
+                    height: (...)
+                    id: 0
+                    image: null
+                    loop: true
+                    mask: (...)
+                    onComplete: null
+                    parent: TileLayer
+                    pivot: Point
+                    playing: true
+                    position: Point
+                    probability: null
+                    properties: Object
+                    renderable: true
+                    rotation: 0
+                    scale: Point
+                    shader: null
+                    terrain: Array[0]
+                    texture: (...)
+                    textures: (...)
+                    tint: 16777215
+                    totalFrames: (...)
+                    visible: true
+                    width: (...)
+                    worldAlpha: 1
+                    worldTransform: Matrix
+                    worldVisible: (...)
+                    x: (...)
+                    y: (...)
+                1: Tile
+                2: Tile
+                3: Tile
+            type: "tile"
+            verticalFlips: Array[187]
+            visible: true
+            width: (...)
+            worldAlpha: 1
+            worldTransform: Matrix
+            worldVisible: (...)
+            x: (...)
+            y: (...)
+    filterArea: null
+    filters: (...)
+    height: (...)
+    layers: Array[0]
+    mask: (...)
+    orientation: "orthogonal"
+    parent: Container
+    pivot: Point
+    position: Point
+    properties: Object
+    renderable: true
+    rotation: 0
+    scale: Point
+    tileHeight: 26
+    tileSets: Array[2]
+    tileWidth: 26
+    version: "1.0"
+    visible: true
+    width: (...)
+    worldAlpha: 1
+    worldTransform: Matrix
+    worldVisible: (...)
+    x: (...)
+    y: (...)
+}
+```
 
-1.5.0 TileMap now has all properties of the TMX object.
+## To do
 
-1.4.5 Added support for animated tiles.
-
-1.4.0 Switched from JSON to TMX as input format.
+support isometric and hexagonal orientation
 
 [npm-url]: https://npmjs.org/package/pixi-tiledmap
 [npm-image]: http://img.shields.io/npm/v/pixi-tiledmap.svg?style=flat
