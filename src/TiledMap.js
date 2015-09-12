@@ -23,15 +23,19 @@ function TiledMap( resourceUrl ) {
 	}, this );
 
 	data.layers.forEach( function ( layerData ) {
-		if (layerData.type && layerData.type == "tile") {
-			var tileLayer = new TileLayer( layerData, this.tileSets );
-			this.layers[ layerData.name ] = tileLayer;
-			this.addLayer( tileLayer );
-		}
-		else if (layerData.type == "image") {
-			var imageLayer = new ImageLayer( layerData, route );
-			this.layers[ layerData.name ] = imageLayer;
-			this.addLayer( imageLayer );
+		switch (layerData.type) {
+			case "tile":
+				var tileLayer = new TileLayer( layerData, this.tileSets );
+				this.layers[ layerData.name ] = tileLayer;
+				this.addLayer( tileLayer );
+				break;
+			case "image":
+				var imageLayer = new ImageLayer( layerData, route );
+				this.layers[ layerData.name ] = imageLayer;
+				this.addLayer( imageLayer );
+				break;
+			default:
+				this.layers[ layerData.name ] = layerData;
 		}
 	}, this );
 }
