@@ -52,6 +52,8 @@ PIXI.loader
 
 ## Changelog
 
+1.6.9 Added partial support for object layer.
+
 1.6.5 Added support for image layer.
 
 1.5.0 TileMap now has all properties of the TMX object.
