@@ -1,11 +1,10 @@
 # pixi-tiledmap [![NPM version][npm-image]][npm-url]
 
-Use [Tiled](http://www.mapeditor.org/) maps with PIXI v3.
+Use [Tiled Map Editor](http://www.mapeditor.org/) maps with [pixi.js](https://www.npmjs.com/package/pixi.js).
 
-Uses the loader middleware to load Tiled [TMX maps](http://doc.mapeditor.org/reference/tmx-map-format/) and parsing them with [node-tmx-parser](https://www.npmjs.com/package/tmx-parser). 
-
-Creates a new PIXI class PIXI.extras.TiledMap which is an extended PIXI.Container containing
-all layers (as PIXI.Container) and tiles (as PIXI.extras.MovieClip).
+pixi-tiledmap is a Pixi loader middleware which loads Tiled Map Editor [TMX maps](http://doc.mapeditor.org/reference/tmx-map-format/), parses them with [node-tmx-parser](https://www.npmjs.com/package/tmx-parser) and  
+creates a new pixi.js class PIXI.extras.TiledMap which is an extended PIXI.Container containing 
+all layers of the tilemap as an instance of PIXI.Container and all tiles within as an instance of PIXI.extras.MovieClip.
 
 ## Installation
 
