@@ -1,5 +1,6 @@
 var TileSet = require( "./TileSet" ),
-	Layer = require( "./Layer" ),
+	TileLayer = require( "./TileLayer" ),
+	ImageLayer = require( "./ImageLayer" ),
 	path = require( "path" );
 
 function TiledMap( resourceUrl ) {
@@ -23,9 +24,14 @@ function TiledMap( resourceUrl ) {
 
 	data.layers.forEach( function ( layerData ) {
 		if (layerData.type && layerData.type == "tile") {
-			var layer = new Layer( layerData, this.tileSets );
-			this.layers[ layerData.name ] = layer;
-			this.addLayer( layer );
+			var tileLayer = new TileLayer( layerData, this.tileSets );
+			this.layers[ layerData.name ] = tileLayer;
+			this.addLayer( tileLayer );
+		}
+		else if (layerData.type == "image") {
+			var imageLayer = new ImageLayer( layerData, route );
+			this.layers[ layerData.name ] = imageLayer;
+			this.addLayer( imageLayer );
 		}
 	}, this );
 }
