@@ -2507,7 +2507,9 @@ module.exports = function () {
 			if (err) throw err;
 
 			map.tileSets.forEach( function ( tileset ) {
-				this.add( tileset.image.source , route + '/' + tileset.image.source, loadOptions );
+				if ( !(tileset.image.source in this.resources) ) {
+					this.add( tileset.image.source , route + '/' + tileset.image.source, loadOptions );
+				}
 			}, that);
 
 			resource.data = map;
