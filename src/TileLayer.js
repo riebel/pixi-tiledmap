@@ -11,7 +11,7 @@ function findTileset ( gid, tilesets ) {
 	return tileset;
 }
 
-var Layer = function ( layer, tileSets ) {
+var TileLayer = function ( layer, tileSets ) {
 	PIXI.Container.call( this );
 
 	for ( var property in layer ) {
@@ -57,10 +57,10 @@ var Layer = function ( layer, tileSets ) {
 	}
 };
 
-Layer.prototype = Object.create( PIXI.Container.prototype );
+TileLayer.prototype = Object.create( PIXI.Container.prototype );
 
-Layer.prototype.addTile = function ( tile ) {
+TileLayer.prototype.addTile = function ( tile ) {
 	this.addChild( tile );
 };
 
-module.exports = Layer;
+module.exports = TileLayer;
