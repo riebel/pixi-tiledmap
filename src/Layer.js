@@ -32,17 +32,7 @@ var Layer = function ( layer, tileSets ) {
 				if ( layer.tiles[ i ].gid && layer.tiles[ i ].gid !== 0 ) {
 
 					var tileset = findTileset( layer.tiles[ i ].gid, tileSets );
-					var tile = new Tile( layer.tiles[ i ], tileset );
-
-					if ( layer.horizontalFlips[ i ] || layer.diagonalFlips[ i ] ) {
-						tile.anchor.x = 1;
-						tile.scale.x = -1;
-					}
-
-					if ( layer.verticalFlips[ i ] || layer.diagonalFlips[ i ] ) {
-						tile.anchor.y = 1;
-						tile.scale.y = -1;
-					}
+					var tile = new Tile( layer.tiles[ i ], tileset,	layer.horizontalFlips[ i ], layer.verticalFlips[ i ], layer.diagonalFlips[ i ] );
 
 					tile.x = x * layer.map.tileWidth;
 					tile.y = y * layer.map.tileHeight + ( layer.map.tileHeight - tile.textures[ 0 ].height );

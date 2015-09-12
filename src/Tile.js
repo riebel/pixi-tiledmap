@@ -1,4 +1,4 @@
-function Tile ( tile, tileSet ) {
+function Tile ( tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip ) {
 	var textures = [];
 
 	if ( tile.animations.length ) {
@@ -16,6 +16,16 @@ function Tile ( tile, tileSet ) {
 		if ( tile.hasOwnProperty( property ) ) {
 			this[ property ] = tile[ property ];
 		}
+	}
+
+	if ( horizontalFlip || diagonalFlip ) {
+		this.anchor.x = 1;
+		this.scale.x = -1;
+	}
+
+	if ( verticalFlip || diagonalFlip ) {
+		this.anchor.y = 1;
+		this.scale.y = -1;
 	}
 
 	this.textures = textures;
