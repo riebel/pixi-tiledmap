@@ -31,24 +31,26 @@ var FLIPPED_VERTICALLY_FLAG   = 0x40000000;
 var FLIPPED_DIAGONALLY_FLAG   = 0x20000000;
 
 var STATE_COUNT = 0;
-var STATE_START              = STATE_COUNT++;
-var STATE_MAP                = STATE_COUNT++;
-var STATE_COLLECT_PROPS      = STATE_COUNT++;
-var STATE_COLLECT_ANIMATIONS = STATE_COUNT++;
-var STATE_WAIT_FOR_CLOSE     = STATE_COUNT++;
-var STATE_TILESET            = STATE_COUNT++;
-var STATE_TILE               = STATE_COUNT++;
-var STATE_TILE_LAYER         = STATE_COUNT++;
-var STATE_OBJECT_LAYER       = STATE_COUNT++;
-var STATE_OBJECT             = STATE_COUNT++;
-var STATE_IMAGE_LAYER        = STATE_COUNT++;
-var STATE_TILE_DATA_XML      = STATE_COUNT++;
-var STATE_TILE_DATA_CSV      = STATE_COUNT++;
-var STATE_TILE_DATA_B64_RAW  = STATE_COUNT++;
-var STATE_TILE_DATA_B64_GZIP = STATE_COUNT++;
-var STATE_TILE_DATA_B64_ZLIB = STATE_COUNT++;
-var STATE_TERRAIN_TYPES      = STATE_COUNT++;
-var STATE_TERRAIN            = STATE_COUNT++;
+var STATE_START                = STATE_COUNT++;
+var STATE_MAP                  = STATE_COUNT++;
+var STATE_COLLECT_PROPS        = STATE_COUNT++;
+var STATE_COLLECT_ANIMATIONS   = STATE_COUNT++;
+var STATE_COLLECT_OBJECT_GROUPS = STATE_COUNT++;
+var STATE_WAIT_FOR_CLOSE       = STATE_COUNT++;
+var STATE_TILESET              = STATE_COUNT++;
+var STATE_TILE                 = STATE_COUNT++;
+var STATE_TILE_LAYER           = STATE_COUNT++;
+var STATE_OBJECT_LAYER         = STATE_COUNT++;
+var STATE_OBJECT               = STATE_COUNT++;
+var STATE_TILE_OBJECT          = STATE_COUNT++;
+var STATE_IMAGE_LAYER          = STATE_COUNT++;
+var STATE_TILE_DATA_XML        = STATE_COUNT++;
+var STATE_TILE_DATA_CSV        = STATE_COUNT++;
+var STATE_TILE_DATA_B64_RAW    = STATE_COUNT++;
+var STATE_TILE_DATA_B64_GZIP   = STATE_COUNT++;
+var STATE_TILE_DATA_B64_ZLIB   = STATE_COUNT++;
+var STATE_TERRAIN_TYPES        = STATE_COUNT++;
+var STATE_TERRAIN              = STATE_COUNT++;
 
 function parse(content, pathToFile, cb) {
   var pathToDir = path.dirname(pathToFile);
@@ -63,6 +65,8 @@ function parse(content, pathToFile, cb) {
   var propertiesNextState = 0;
   var animationsObject = null;
   var animationsNextState = 0;
+  var objectGroupsObject = null;
+  var objectGroupsNextState = 0;
   var tileIndex = 0;
   var tileSet = null;
   var tileSetNextState = 0;
@@ -213,6 +217,30 @@ function parse(content, pathToFile, cb) {
     },
     text: noop,
   };
+  states[STATE_COLLECT_OBJECT_GROUPS] = {
+    opentag: function(tag) {
+      if (tag.name === 'OBJECT') {
+        object = new TmxObject();
+        object.name = tag.attributes.NAME;
+        object.type = tag.attributes.TYPE;
+        object.x = int(tag.attributes.X);
+        object.y = int(tag.attributes.Y);
+        object.width = int(tag.attributes.WIDTH, 0);
+        object.height = int(tag.attributes.HEIGHT, 0);
+        object.rotation = float(tag.attributes.ROTATION, 0);
+        object.gid = int(tag.attributes.GID);
+        object.visible = bool(tag.attributes.VISIBLE, true);
+        objectGroupsObject.push(object);
+        state = STATE_TILE_OBJECT;
+      } else {
+        waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = objectGroupsNextState;
+    },
+    text: noop
+  };
   states[STATE_WAIT_FOR_CLOSE] = {
     opentag: function(tag) {
       waitForCloseOpenCount += 1;
@@ -229,8 +257,10 @@ function parse(content, pathToFile, cb) {
         collectProperties(tile.properties);
       } else if (tag.name === 'IMAGE') {
         tile.image = collectImage(tag);
-     } else if (tag.name === 'ANIMATION') {
+      } else if (tag.name === 'ANIMATION') {
         tile.animation = collectAnimations(tile.animations);
+      } else if (tag.name === 'OBJECTGROUP') {
+        tile.objectGroup = collectObjectGroups(tile.objectGroups);
       } else {
         waitForClose();
       }
@@ -355,6 +385,36 @@ function parse(content, pathToFile, cb) {
       state = STATE_OBJECT_LAYER;
     },
     text: noop,
+  };
+  states[STATE_TILE_OBJECT] = {
+    opentag: function(tag) {
+      switch (tag.name) {
+        case 'PROPERTIES':
+          collectProperties(object.properties);
+          break;
+        case 'ELLIPSE':
+          object.ellipse = true;
+          waitForClose();
+          break;
+        case 'POLYGON':
+          object.polygon = parsePoints(tag.attributes.POINTS);
+          waitForClose();
+          break;
+        case 'POLYLINE':
+          object.polyline = parsePoints(tag.attributes.POINTS);
+          waitForClose();
+          break;
+        case 'IMAGE':
+          object.image = collectImage(tag);
+          break;
+        default:
+          waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = STATE_COLLECT_OBJECT_GROUPS;
+    },
+    text: noop
   };
   states[STATE_TILE_DATA_XML] = {
     opentag: function(tag) {
@@ -560,6 +620,12 @@ function parse(content, pathToFile, cb) {
     state = STATE_COLLECT_ANIMATIONS;
   }
 
+  function collectObjectGroups(obj) {
+    objectGroupsObject = obj;
+    objectGroupsNextState = state;
+    state = STATE_COLLECT_OBJECT_GROUPS;
+  }
+
   function waitForClose() {
     waitForCloseNextState = state;
     state = STATE_WAIT_FOR_CLOSE;
@@ -725,6 +791,7 @@ function Tile() {
   this.probability = null;
   this.properties = {};
   this.animations = [];
+  this.objectGroups = [];
   this.image = null;
 }
 
