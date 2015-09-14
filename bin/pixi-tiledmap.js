@@ -2409,6 +2409,7 @@ function Tile ( tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip ) {
 	}
 
 	this.textures = textures;
+	this.tileSet = tileSet;
 }
 
 Tile.prototype = Object.create( PIXI.extras.MovieClip.prototype );
