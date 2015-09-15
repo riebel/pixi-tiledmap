@@ -18,6 +18,12 @@ function TiledMap( resourceUrl ) {
 	this.tileSets = [];
 	this.layers = [];
 
+	this.background = new PIXI.Graphics();
+	this.background.beginFill( 0x000000, 0);
+	this.background.drawRect(0,0, this._width * this.tileWidth , this._height * this.tileHeight);
+	this.background.endFill();
+	this.addLayer( this.background );
+
 	data.tileSets.forEach( function ( tilesetData ) {
 		this.tileSets.push( new TileSet( route, tilesetData ) );
 	}, this );
