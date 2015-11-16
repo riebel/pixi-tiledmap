@@ -1,2599 +1,6 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var tiledMapLoader = require( "./src/tiledMapLoader" );
 
-PIXI.loaders.Loader.addPixiMiddleware( tiledMapLoader );
-PIXI.loader.use( tiledMapLoader() );
-
-module.exports = PIXI.extras.TiledMap = require( "./src/TiledMap" );
-},{"./src/TiledMap":9,"./src/tiledMapLoader":10}],2:[function(require,module,exports){
-(function (Buffer){
-var sax = require('sax');
-var fs = require('fs');
-var path = require('path');
-var zlib = require('zlib');
-var Pend = require('pend');
-
-exports.readFile = defaultReadFile;
-exports.parseFile = parseFile;
-exports.parse = parse;
-exports.Map = Map;
-exports.TileSet = TileSet;
-exports.Image = Image;
-exports.Tile = Tile;
-exports.TileLayer = TileLayer;
-exports.ObjectLayer = ObjectLayer;
-exports.ImageLayer = ImageLayer;
-exports.TmxObject = TmxObject;
-exports.Terrain = Terrain;
-
-var FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
-var FLIPPED_VERTICALLY_FLAG   = 0x40000000;
-var FLIPPED_DIAGONALLY_FLAG   = 0x20000000;
-
-var STATE_COUNT = 0;
-var STATE_START                = STATE_COUNT++;
-var STATE_MAP                  = STATE_COUNT++;
-var STATE_COLLECT_PROPS        = STATE_COUNT++;
-var STATE_COLLECT_ANIMATIONS   = STATE_COUNT++;
-var STATE_COLLECT_OBJECT_GROUPS = STATE_COUNT++;
-var STATE_WAIT_FOR_CLOSE       = STATE_COUNT++;
-var STATE_TILESET              = STATE_COUNT++;
-var STATE_TILE                 = STATE_COUNT++;
-var STATE_TILE_LAYER           = STATE_COUNT++;
-var STATE_OBJECT_LAYER         = STATE_COUNT++;
-var STATE_OBJECT               = STATE_COUNT++;
-var STATE_TILE_OBJECT          = STATE_COUNT++;
-var STATE_IMAGE_LAYER          = STATE_COUNT++;
-var STATE_TILE_DATA_XML        = STATE_COUNT++;
-var STATE_TILE_DATA_CSV        = STATE_COUNT++;
-var STATE_TILE_DATA_B64_RAW    = STATE_COUNT++;
-var STATE_TILE_DATA_B64_GZIP   = STATE_COUNT++;
-var STATE_TILE_DATA_B64_ZLIB   = STATE_COUNT++;
-var STATE_TERRAIN_TYPES        = STATE_COUNT++;
-var STATE_TERRAIN              = STATE_COUNT++;
-
-function parse(content, pathToFile, cb) {
-  var pathToDir = path.dirname(pathToFile);
-  var parser = sax.parser();
-  var map;
-  var topLevelObject = null;
-  var state = STATE_START;
-  var states = new Array(STATE_COUNT);
-  var waitForCloseNextState = 0;
-  var waitForCloseOpenCount = 0;
-  var propertiesObject = null;
-  var propertiesNextState = 0;
-  var animationsObject = null;
-  var animationsNextState = 0;
-  var objectGroupsObject = null;
-  var objectGroupsNextState = 0;
-  var tileIndex = 0;
-  var tileSet = null;
-  var tileSetNextState = 0;
-  var tile;
-  var layer;
-  var object;
-  var terrain;
-  var pend = new Pend();
-  // this holds the numerical tile ids
-  // later we use it to resolve the real tiles
-  var unresolvedLayers = [];
-  var unresolvedLayer;
-  states[STATE_START] = {
-    opentag: function(tag) {
-      if (tag.name === 'MAP') {
-        map = new Map();
-        topLevelObject = map;
-        map.version = tag.attributes.VERSION;
-        map.orientation = tag.attributes.ORIENTATION;
-        map.width = int(tag.attributes.WIDTH);
-        map.height = int(tag.attributes.HEIGHT);
-        map.tileWidth = int(tag.attributes.TILEWIDTH);
-        map.tileHeight = int(tag.attributes.TILEHEIGHT);
-        map.backgroundColor = tag.attributes.BACKGROUNDCOLOR;
-
-        state = STATE_MAP;
-      } else if (tag.name === 'TILESET') {
-        collectTileSet(tag, STATE_START);
-        topLevelObject = tileSet;
-      } else {
-        waitForClose();
-      }
-    },
-    closetag: noop,
-    text: noop,
-  };
-  states[STATE_MAP] = {
-    opentag: function(tag) {
-      switch (tag.name) {
-        case 'PROPERTIES':
-          collectProperties(map.properties);
-          break;
-        case 'TILESET':
-          collectTileSet(tag, STATE_MAP);
-          map.tileSets.push(tileSet);
-          break;
-        case 'LAYER':
-          layer = new TileLayer(map);
-          tileIndex = 0;
-          layer.name = tag.attributes.NAME;
-          layer.opacity = float(tag.attributes.OPACITY, 1);
-          layer.visible = bool(tag.attributes.VISIBLE, true);
-          map.layers.push(layer);
-          unresolvedLayer = {
-            layer: layer,
-            tiles: new Array(map.width * map.height),
-          };
-          unresolvedLayers.push(unresolvedLayer);
-          state = STATE_TILE_LAYER;
-          break;
-        case 'OBJECTGROUP':
-          layer = new ObjectLayer();
-          layer.name = tag.attributes.NAME;
-          layer.color = tag.attributes.COLOR;
-          layer.opacity = float(tag.attributes.OPACITY, 1);
-          layer.visible = bool(tag.attributes.VISIBLE, true);
-          map.layers.push(layer);
-          state = STATE_OBJECT_LAYER;
-          break;
-        case 'IMAGELAYER':
-          layer = new ImageLayer();
-          layer.name = tag.attributes.NAME;
-          layer.x = int(tag.attributes.X);
-          layer.y = int(tag.attributes.Y);
-          layer.opacity = float(tag.attributes.OPACITY, 1);
-          layer.visible = bool(tag.attributes.VISIBLE, true);
-          map.layers.push(layer);
-          state = STATE_IMAGE_LAYER;
-          break;
-        default:
-          waitForClose();
-      }
-    },
-    closetag: noop,
-    text: noop,
-  };
-  states[STATE_TILESET] = {
-    opentag: function(tag) {
-      switch (tag.name) {
-        case 'TILEOFFSET':
-          tileSet.tileOffset.x = int(tag.attributes.X);
-          tileSet.tileOffset.y = int(tag.attributes.Y);
-          waitForClose();
-          break;
-        case 'PROPERTIES':
-          collectProperties(tileSet.properties);
-          break;
-        case 'IMAGE':
-          tileSet.image = collectImage(tag);
-          break;
-        case 'TERRAINTYPES':
-          state = STATE_TERRAIN_TYPES;
-          break;
-        case 'TILE':
-          tile = new Tile();
-          tile.id = int(tag.attributes.ID);
-          if (tag.attributes.TERRAIN) {
-            var indexes = tag.attributes.TERRAIN.split(",");
-            tile.terrain = indexes.map(resolveTerrain);
-          }
-          tile.probability = float(tag.attributes.PROBABILITY);
-          tileSet.tiles[tile.id] = tile;
-          state = STATE_TILE;
-          break;
-        default:
-          waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = tileSetNextState;
-    },
-    text: noop,
-  };
-  states[STATE_COLLECT_PROPS] = {
-    opentag: function(tag) {
-      if (tag.name === 'PROPERTY') {
-        propertiesObject[tag.attributes.NAME] = tag.attributes.VALUE;
-      }
-      waitForClose();
-    },
-    closetag: function(name) {
-      state = propertiesNextState;
-    },
-    text: noop,
-  };
-  states[STATE_COLLECT_ANIMATIONS] = {
-    opentag: function(tag) {
-      if (tag.name === 'FRAME') {
-          animationsObject.push({
-              'tileId': tag.attributes.TILEID,
-              'duration': tag.attributes.DURATION
-          });
-      }
-      waitForClose();
-    },
-    closetag: function(name) {
-      state = animationsNextState;
-    },
-    text: noop,
-  };
-  states[STATE_COLLECT_OBJECT_GROUPS] = {
-    opentag: function(tag) {
-      if (tag.name === 'OBJECT') {
-        object = new TmxObject();
-        object.name = tag.attributes.NAME;
-        object.type = tag.attributes.TYPE;
-        object.x = int(tag.attributes.X);
-        object.y = int(tag.attributes.Y);
-        object.width = int(tag.attributes.WIDTH, 0);
-        object.height = int(tag.attributes.HEIGHT, 0);
-        object.rotation = float(tag.attributes.ROTATION, 0);
-        object.gid = int(tag.attributes.GID);
-        object.visible = bool(tag.attributes.VISIBLE, true);
-        objectGroupsObject.push(object);
-        state = STATE_TILE_OBJECT;
-      } else {
-        waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = objectGroupsNextState;
-    },
-    text: noop
-  };
-  states[STATE_WAIT_FOR_CLOSE] = {
-    opentag: function(tag) {
-      waitForCloseOpenCount += 1;
-    },
-    closetag: function(name) {
-      waitForCloseOpenCount -= 1;
-      if (waitForCloseOpenCount === 0) state = waitForCloseNextState;
-    },
-    text: noop,
-  };
-  states[STATE_TILE] = {
-    opentag: function(tag) {
-      if (tag.name === 'PROPERTIES') {
-        collectProperties(tile.properties);
-      } else if (tag.name === 'IMAGE') {
-        tile.image = collectImage(tag);
-      } else if (tag.name === 'ANIMATION') {
-        tile.animation = collectAnimations(tile.animations);
-      } else if (tag.name === 'OBJECTGROUP') {
-        tile.objectGroup = collectObjectGroups(tile.objectGroups);
-      } else {
-        waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = STATE_TILESET
-    },
-    text: noop,
-  };
-  states[STATE_TILE_LAYER] = {
-    opentag: function(tag) {
-      if (tag.name === 'PROPERTIES') {
-        collectProperties(layer.properties);
-      } else if (tag.name === 'DATA') {
-        var dataEncoding = tag.attributes.ENCODING;
-        var dataCompression = tag.attributes.COMPRESSION;
-        switch (dataEncoding) {
-          case undefined:
-          case null:
-            state = STATE_TILE_DATA_XML;
-            break;
-          case 'csv':
-            state = STATE_TILE_DATA_CSV;
-            break;
-          case 'base64':
-            switch (dataCompression) {
-              case undefined:
-              case null:
-                state = STATE_TILE_DATA_B64_RAW;
-                break;
-              case 'gzip':
-                state = STATE_TILE_DATA_B64_GZIP;
-                break;
-              case 'zlib':
-                state = STATE_TILE_DATA_B64_ZLIB;
-                break;
-              default:
-                error(new Error("unsupported data compression: " + dataCompression));
-                return;
-            }
-            break;
-          default:
-            error(new Error("unsupported data encoding: " + dataEncoding));
-            return;
-        }
-      } else {
-        waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = STATE_MAP;
-    },
-    text: noop,
-  };
-  states[STATE_OBJECT_LAYER] = {
-    opentag: function(tag) {
-      if (tag.name === 'PROPERTIES') {
-        collectProperties(layer.properties);
-      } else if (tag.name === 'OBJECT') {
-        object = new TmxObject();
-        object.name = tag.attributes.NAME;
-        object.type = tag.attributes.TYPE;
-        object.x = int(tag.attributes.X);
-        object.y = int(tag.attributes.Y);
-        object.width = int(tag.attributes.WIDTH, 0);
-        object.height = int(tag.attributes.HEIGHT, 0);
-        object.rotation = float(tag.attributes.ROTATION, 0);
-        object.gid = int(tag.attributes.GID);
-        object.visible = bool(tag.attributes.VISIBLE, true);
-        layer.objects.push(object);
-        state = STATE_OBJECT;
-      } else {
-        waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = STATE_MAP;
-    },
-    text: noop,
-  };
-  states[STATE_IMAGE_LAYER] = {
-    opentag: function(tag) {
-      if (tag.name === 'PROPERTIES') {
-        collectProperties(layer.properties);
-      } else if (tag.name === 'IMAGE') {
-        layer.image = collectImage(tag);
-      } else {
-        waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = STATE_MAP;
-    },
-    text: noop,
-  };
-  states[STATE_OBJECT] = {
-    opentag: function(tag) {
-      switch (tag.name) {
-        case 'PROPERTIES':
-          collectProperties(object.properties);
-          break;
-        case 'ELLIPSE':
-          object.ellipse = true;
-          waitForClose();
-          break;
-        case 'POLYGON':
-          object.polygon = parsePoints(tag.attributes.POINTS);
-          waitForClose();
-          break;
-        case 'POLYLINE':
-          object.polyline = parsePoints(tag.attributes.POINTS);
-          waitForClose();
-          break;
-        case 'IMAGE':
-          object.image = collectImage(tag);
-          break;
-        default:
-          waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = STATE_OBJECT_LAYER;
-    },
-    text: noop,
-  };
-  states[STATE_TILE_OBJECT] = {
-    opentag: function(tag) {
-      switch (tag.name) {
-        case 'PROPERTIES':
-          collectProperties(object.properties);
-          break;
-        case 'ELLIPSE':
-          object.ellipse = true;
-          waitForClose();
-          break;
-        case 'POLYGON':
-          object.polygon = parsePoints(tag.attributes.POINTS);
-          waitForClose();
-          break;
-        case 'POLYLINE':
-          object.polyline = parsePoints(tag.attributes.POINTS);
-          waitForClose();
-          break;
-        case 'IMAGE':
-          object.image = collectImage(tag);
-          break;
-        default:
-          waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = STATE_COLLECT_OBJECT_GROUPS;
-    },
-    text: noop
-  };
-  states[STATE_TILE_DATA_XML] = {
-    opentag: function(tag) {
-      if (tag.name === 'TILE') {
-        saveTile(int(tag.attributes.GID, 0));
-      }
-      waitForClose();
-    },
-    closetag: function(name) {
-      state = STATE_TILE_LAYER;
-    },
-    text: noop,
-  };
-  states[STATE_TILE_DATA_CSV] = {
-    opentag: function(tag) {
-      waitForClose();
-    },
-    closetag: function(name) {
-      state = STATE_TILE_LAYER;
-    },
-    text: function(text) {
-      text.split(",").forEach(function(c) {
-        saveTile(parseInt(c, 10));
-      });
-    },
-  };
-  states[STATE_TILE_DATA_B64_RAW] = {
-    opentag: function(tag) {
-      waitForClose();
-    },
-    closetag: function(name) {
-      state = STATE_TILE_LAYER;
-    },
-    text: function(text) {
-      unpackTileBytes(new Buffer(text.trim(), 'base64'));
-    },
-  };
-  states[STATE_TILE_DATA_B64_GZIP] = {
-    opentag: function(tag) {
-      waitForClose();
-    },
-    closetag: function(name) {
-      state = STATE_TILE_LAYER;
-    },
-    text: function(text) {
-      var zipped = new Buffer(text.trim(), 'base64');
-      var oldUnresolvedLayer = unresolvedLayer;
-      var oldLayer = layer;
-      pend.go(function(cb) {
-        zlib.gunzip(zipped, function(err, buf) {
-          if (err) {
-            cb(err);
-            return;
-          }
-          unresolvedLayer = oldUnresolvedLayer;
-          layer = oldLayer;
-          unpackTileBytes(buf);
-          cb();
-        });
-      });
-    },
-  };
-  states[STATE_TILE_DATA_B64_ZLIB] = {
-    opentag: function(tag) {
-      waitForClose();
-    },
-    closetag: function(name) {
-      state = STATE_TILE_LAYER;
-    },
-    text: function(text) {
-      var zipped = new Buffer(text.trim(), 'base64');
-      var oldUnresolvedLayer = unresolvedLayer;
-      var oldLayer = layer;
-      pend.go(function(cb) {
-        zlib.inflate(zipped, function(err, buf) {
-          if (err) {
-            cb(err);
-            return;
-          }
-          layer = oldLayer;
-          unresolvedLayer = oldUnresolvedLayer;
-          unpackTileBytes(buf);
-          cb();
-        });
-      });
-    },
-  };
-  states[STATE_TERRAIN_TYPES] = {
-    opentag: function(tag) {
-      if (tag.name === 'TERRAIN') {
-        terrain = new Terrain();
-        terrain.name = tag.attributes.NAME;
-        terrain.tile = int(tag.attributes.TILE);
-        tileSet.terrainTypes.push(terrain);
-        state = STATE_TERRAIN;
-      } else {
-        waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = STATE_TILESET;
-    },
-    text: noop,
-  };
-  states[STATE_TERRAIN] = {
-    opentag: function(tag) {
-      if (tag.name === 'PROPERTIES') {
-        collectProperties(terrain.properties);
-      } else {
-        waitForClose();
-      }
-    },
-    closetag: function(name) {
-      state = STATE_TERRAIN_TYPES;
-    },
-    text: noop,
-  };
-
-  parser.onerror = cb;
-  parser.onopentag = function(tag) {
-    states[state].opentag(tag);
-  };
-  parser.onclosetag = function(name) {
-    states[state].closetag(name);
-  };
-  parser.ontext = function(text) {
-    states[state].text(text);
-  };
-  parser.onend = function() {
-    // wait until async stuff has finished
-    pend.wait(function(err) {
-      if (err) {
-        cb(err);
-        return;
-      }
-      // now all tilesets are resolved and all data is decoded
-      unresolvedLayers.forEach(resolveLayer);
-      cb(null, topLevelObject);
-    });
-  };
-  parser.write(content).close();
-
-  function resolveTerrain(terrainIndexStr) {
-    return tileSet.terrainTypes[parseInt(terrainIndexStr, 10)];
-  }
-
-  function saveTile(gid) {
-    layer.horizontalFlips[tileIndex] = !!(gid & FLIPPED_HORIZONTALLY_FLAG);
-    layer.verticalFlips[tileIndex]   = !!(gid & FLIPPED_VERTICALLY_FLAG);
-    layer.diagonalFlips[tileIndex]   = !!(gid & FLIPPED_DIAGONALLY_FLAG);
-
-    gid &= ~(FLIPPED_HORIZONTALLY_FLAG |
-             FLIPPED_VERTICALLY_FLAG |
-             FLIPPED_DIAGONALLY_FLAG);
-
-    unresolvedLayer.tiles[tileIndex] = gid;
-
-    tileIndex += 1;
-  }
-
-  function collectImage(tag) {
-    var img = new Image();
-    img.format = tag.attributes.FORMAT;
-    img.source = tag.attributes.SOURCE;
-    img.trans = tag.attributes.TRANS;
-    img.width = int(tag.attributes.WIDTH);
-    img.height = int(tag.attributes.HEIGHT);
-
-    // TODO: read possible <data>
-    waitForClose();
-    return img;
-  }
-
-  function collectTileSet(tag, nextState) {
-    tileSet = new TileSet();
-    tileSet.firstGid = int(tag.attributes.FIRSTGID);
-    tileSet.source = tag.attributes.SOURCE;
-    tileSet.name = tag.attributes.NAME;
-    tileSet.tileWidth = int(tag.attributes.TILEWIDTH);
-    tileSet.tileHeight = int(tag.attributes.TILEHEIGHT);
-    tileSet.spacing = int(tag.attributes.SPACING);
-    tileSet.margin = int(tag.attributes.MARGIN);
-
-    if (tileSet.source) {
-      pend.go(function(cb) {
-        resolveTileSet(tileSet, cb);
-      });
-    }
-
-    state = STATE_TILESET;
-    tileSetNextState = nextState;
-  }
-
-  function collectProperties(obj) {
-    propertiesObject = obj;
-    propertiesNextState = state;
-    state = STATE_COLLECT_PROPS;
-  }
-
-  function collectAnimations(obj) {
-    animationsObject = obj;
-    animationsNextState = state;
-    state = STATE_COLLECT_ANIMATIONS;
-  }
-
-  function collectObjectGroups(obj) {
-    objectGroupsObject = obj;
-    objectGroupsNextState = state;
-    state = STATE_COLLECT_OBJECT_GROUPS;
-  }
-
-  function waitForClose() {
-    waitForCloseNextState = state;
-    state = STATE_WAIT_FOR_CLOSE;
-    waitForCloseOpenCount = 1;
-  }
-
-  function error(err) {
-    parser.onerror = null;
-    parser.onopentag = null;
-    parser.onclosetag = null;
-    parser.ontext = null;
-    parser.onend = null;
-    cb(err);
-  }
-
-  function resolveTileSet(unresolvedTileSet, cb) {
-    var target = path.join(pathToDir, unresolvedTileSet.source);
-    parseFile(target, function(err, resolvedTileSet) {
-      if (err) {
-        cb(err);
-        return;
-      }
-      resolvedTileSet.mergeTo(unresolvedTileSet);
-      cb();
-    });
-  }
-
-  function resolveLayer(unresolvedLayer) {
-    for (var i = 0; i < unresolvedLayer.tiles.length; i += 1) {
-      var globalTileId = unresolvedLayer.tiles[i];
-      for (var tileSetIndex = map.tileSets.length - 1;
-          tileSetIndex >= 0; tileSetIndex -= 1)
-      {
-        var tileSet = map.tileSets[tileSetIndex];
-        if (tileSet.firstGid <= globalTileId) {
-          var tileId = globalTileId - tileSet.firstGid;
-          var tile = tileSet.tiles[tileId];
-          if (!tile) {
-            // implicit tile
-            tile = new Tile();
-            tile.id = tileId;
-            tileSet.tiles[tileId] = tile;
-          }
-          tile.gid = globalTileId;
-          unresolvedLayer.layer.tiles[i] = tile;
-          break;
-        }
-      }
-    }
-  }
-
-  function unpackTileBytes(buf) {
-    var expectedCount = map.width * map.height * 4;
-    if (buf.length !== expectedCount) {
-      error(new Error("Expected " + expectedCount +
-            " bytes of tile data; received " + buf.length));
-      return;
-    }
-    tileIndex = 0;
-    for (var i = 0; i < expectedCount; i += 4) {
-      saveTile(buf.readUInt32LE(i));
-    }
-  }
-}
-
-function defaultReadFile(name, cb) {
-  fs.readFile(name, { encoding: 'utf8' }, cb);
-}
-
-function parseFile(name, cb) {
-  exports.readFile(name, function(err, content) {
-    if (err) {
-      cb(err);
-    } else {
-      parse(content, name, cb);
-    }
-  });
-}
-
-function parsePoints(str) {
-  var points = str.split(" ");
-  return points.map(function(pt) {
-    var xy = pt.split(",");
-    return {
-      x: xy[0],
-      y: xy[1],
-    };
-  });
-}
-
-function noop() {}
-
-function int(value, defaultValue) {
-  defaultValue = defaultValue == null ? null : defaultValue;
-  return value == null ? defaultValue : parseInt(value, 10);
-}
-
-function bool(value, defaultValue) {
-  defaultValue = defaultValue == null ? null : defaultValue;
-  return value == null ? defaultValue : !!parseInt(value, 10);
-}
-
-function float(value, defaultValue) {
-  defaultValue = defaultValue == null ? null : defaultValue;
-  return value == null ? defaultValue : parseFloat(value, 10);
-}
-
-function Map() {
-  this.version = null;
-  this.orientation = "orthogonal";
-  this.width = 0;
-  this.height = 0;
-  this.tileWidth = 0;
-  this.tileHeight = 0;
-  this.backgroundColor = null;
-
-  this.layers = [];
-  this.properties = {};
-  this.tileSets = [];
-}
-
-function TileSet() {
-  this.firstGid = 0;
-  this.source = "";
-  this.name = "";
-  this.tileWidth = 0;
-  this.tileHeight = 0;
-  this.spacing = 0;
-  this.margin = 0;
-  this.tileOffset = {x: 0, y: 0};
-  this.properties = {};
-  this.image = null;
-  this.tiles = [];
-  this.terrainTypes = [];
-}
-
-TileSet.prototype.mergeTo = function(other) {
-  other.firstGid = this.firstGid == null ? other.firstGid : this.firstGid;
-  other.source = this.source == null ? other.source : this.source;
-  other.name = this.name == null ? other.name : this.name;
-  other.tileWidth = this.tileWidth == null ? other.tileWidth : this.tileWidth;
-  other.tileHeight = this.tileHeight == null ? other.tileHeight : this.tileHeight;
-  other.spacing = this.spacing == null ? other.spacing : this.spacing;
-  other.margin = this.margin == null ? other.margin : this.margin;
-  other.tileOffset = this.tileOffset == null ? other.tileOffset : this.tileOffset;
-  other.properties = this.properties == null ? other.properties : this.properties;
-  other.image = this.image == null ? other.image : this.image;
-  other.tiles = this.tiles == null ? other.tiles : this.tiles;
-  other.terrainTypes = this.terrainTypes == null ? other.terrainTypes : this.terrainTypes;
-};
-
-function Image() {
-  this.format = null;
-  this.source = "";
-  this.trans = null;
-  this.width = 0;
-  this.height = 0;
-}
-
-function Tile() {
-  this.id = 0;
-  this.terrain = [];
-  this.probability = null;
-  this.properties = {};
-  this.animations = [];
-  this.objectGroups = [];
-  this.image = null;
-}
-
-function TileLayer(map) {
-  var tileCount = map.width * map.height;
-  this.map = map;
-  this.type = "tile";
-  this.name = null;
-  this.opacity = 1;
-  this.visible = true;
-  this.properties = {};
-  this.tiles = new Array(tileCount);
-  this.horizontalFlips = new Array(tileCount);
-  this.verticalFlips = new Array(tileCount);
-  this.diagonalFlips = new Array(tileCount);
-}
-
-TileLayer.prototype.tileAt = function(x, y) {
-  return this.tiles[y * this.map.width + x];
-};
-
-TileLayer.prototype.setTileAt = function(x, y, tile) {
-  this.tiles[y * this.map.width + x] = tile;
-};
-
-function ObjectLayer() {
-  this.type = "object";
-  this.name = null;
-  this.color = null;
-  this.opacity = 1;
-  this.visible = true;
-  this.properties = {};
-  this.objects = [];
-}
-
-function ImageLayer() {
-  this.type = "image";
-  this.name = null;
-  this.x = 0;
-  this.y = 0;
-  this.opacity = 1;
-  this.visible = true;
-  this.properties = {};
-  this.image = null;
-}
-
-function TmxObject() {
-  this.name = null;
-  this.type = null;
-  this.x = 0;
-  this.y = 0;
-  this.width = 0;
-  this.height = 0;
-  this.rotation = 0;
-  this.properties = {};
-  this.gid = null;
-  this.visible = true;
-  this.ellipse = false;
-  this.polygon = null;
-  this.polyline = null;
-}
-
-function Terrain() {
-  this.name = "";
-  this.tile = 0;
-  this.properties = {};
-}
-
-}).call(this,require("buffer").Buffer)
-},{"buffer":27,"fs":11,"path":34,"pend":3,"sax":4,"zlib":26}],3:[function(require,module,exports){
-module.exports = Pend;
-
-function Pend() {
-  this.pending = 0;
-  this.max = Infinity;
-  this.listeners = [];
-  this.waiting = [];
-  this.error = null;
-}
-
-Pend.prototype.go = function(fn) {
-  if (this.pending < this.max) {
-    pendGo(this, fn);
-  } else {
-    this.waiting.push(fn);
-  }
-};
-
-Pend.prototype.wait = function(cb) {
-  if (this.pending === 0) {
-    cb(this.error);
-  } else {
-    this.listeners.push(cb);
-  }
-};
-
-Pend.prototype.hold = function() {
-  return pendHold(this);
-};
-
-function pendHold(self) {
-  self.pending += 1;
-  var called = false;
-  return onCb;
-  function onCb(err) {
-    if (called) throw new Error("callback called twice");
-    called = true;
-    self.error = self.error || err;
-    self.pending -= 1;
-    if (self.waiting.length > 0 && self.pending < self.max) {
-      pendGo(self, self.waiting.shift());
-    } else if (self.pending === 0) {
-      var listeners = self.listeners;
-      self.listeners = [];
-      listeners.forEach(cbListener);
-    }
-  }
-  function cbListener(listener) {
-    listener(self.error);
-  }
-}
-
-function pendGo(self, fn) {
-  fn(pendHold(self));
-}
-
-},{}],4:[function(require,module,exports){
-(function (Buffer){
-// wrapper for non-node envs
-;(function (sax) {
-
-sax.parser = function (strict, opt) { return new SAXParser(strict, opt) }
-sax.SAXParser = SAXParser
-sax.SAXStream = SAXStream
-sax.createStream = createStream
-
-// When we pass the MAX_BUFFER_LENGTH position, start checking for buffer overruns.
-// When we check, schedule the next check for MAX_BUFFER_LENGTH - (max(buffer lengths)),
-// since that's the earliest that a buffer overrun could occur.  This way, checks are
-// as rare as required, but as often as necessary to ensure never crossing this bound.
-// Furthermore, buffers are only tested at most once per write(), so passing a very
-// large string into write() might have undesirable effects, but this is manageable by
-// the caller, so it is assumed to be safe.  Thus, a call to write() may, in the extreme
-// edge case, result in creating at most one complete copy of the string passed in.
-// Set to Infinity to have unlimited buffers.
-sax.MAX_BUFFER_LENGTH = 64 * 1024
-
-var buffers = [
-  "comment", "sgmlDecl", "textNode", "tagName", "doctype",
-  "procInstName", "procInstBody", "entity", "attribName",
-  "attribValue", "cdata", "script"
-]
-
-sax.EVENTS = // for discoverability.
-  [ "text"
-  , "processinginstruction"
-  , "sgmldeclaration"
-  , "doctype"
-  , "comment"
-  , "attribute"
-  , "opentag"
-  , "closetag"
-  , "opencdata"
-  , "cdata"
-  , "closecdata"
-  , "error"
-  , "end"
-  , "ready"
-  , "script"
-  , "opennamespace"
-  , "closenamespace"
-  ]
-
-function SAXParser (strict, opt) {
-  if (!(this instanceof SAXParser)) return new SAXParser(strict, opt)
-
-  var parser = this
-  clearBuffers(parser)
-  parser.q = parser.c = ""
-  parser.bufferCheckPosition = sax.MAX_BUFFER_LENGTH
-  parser.opt = opt || {}
-  parser.opt.lowercase = parser.opt.lowercase || parser.opt.lowercasetags
-  parser.looseCase = parser.opt.lowercase ? "toLowerCase" : "toUpperCase"
-  parser.tags = []
-  parser.closed = parser.closedRoot = parser.sawRoot = false
-  parser.tag = parser.error = null
-  parser.strict = !!strict
-  parser.noscript = !!(strict || parser.opt.noscript)
-  parser.state = S.BEGIN
-  parser.strictEntities = parser.opt.strictEntities
-  parser.ENTITIES = parser.strictEntities ? Object.create(sax.XML_ENTITIES) : Object.create(sax.ENTITIES)
-  parser.attribList = []
-
-  // namespaces form a prototype chain.
-  // it always points at the current tag,
-  // which protos to its parent tag.
-  if (parser.opt.xmlns) parser.ns = Object.create(rootNS)
-
-  // mostly just for error reporting
-  parser.trackPosition = parser.opt.position !== false
-  if (parser.trackPosition) {
-    parser.position = parser.line = parser.column = 0
-  }
-  emit(parser, "onready")
-}
-
-if (!Object.create) Object.create = function (o) {
-  function f () { this.__proto__ = o }
-  f.prototype = o
-  return new f
-}
-
-if (!Object.getPrototypeOf) Object.getPrototypeOf = function (o) {
-  return o.__proto__
-}
-
-if (!Object.keys) Object.keys = function (o) {
-  var a = []
-  for (var i in o) if (o.hasOwnProperty(i)) a.push(i)
-  return a
-}
-
-function checkBufferLength (parser) {
-  var maxAllowed = Math.max(sax.MAX_BUFFER_LENGTH, 10)
-    , maxActual = 0
-  for (var i = 0, l = buffers.length; i < l; i ++) {
-    var len = parser[buffers[i]].length
-    if (len > maxAllowed) {
-      // Text/cdata nodes can get big, and since they're buffered,
-      // we can get here under normal conditions.
-      // Avoid issues by emitting the text node now,
-      // so at least it won't get any bigger.
-      switch (buffers[i]) {
-        case "textNode":
-          closeText(parser)
-        break
-
-        case "cdata":
-          emitNode(parser, "oncdata", parser.cdata)
-          parser.cdata = ""
-        break
-
-        case "script":
-          emitNode(parser, "onscript", parser.script)
-          parser.script = ""
-        break
-
-        default:
-          error(parser, "Max buffer length exceeded: "+buffers[i])
-      }
-    }
-    maxActual = Math.max(maxActual, len)
-  }
-  // schedule the next check for the earliest possible buffer overrun.
-  parser.bufferCheckPosition = (sax.MAX_BUFFER_LENGTH - maxActual)
-                             + parser.position
-}
-
-function clearBuffers (parser) {
-  for (var i = 0, l = buffers.length; i < l; i ++) {
-    parser[buffers[i]] = ""
-  }
-}
-
-function flushBuffers (parser) {
-  closeText(parser)
-  if (parser.cdata !== "") {
-    emitNode(parser, "oncdata", parser.cdata)
-    parser.cdata = ""
-  }
-  if (parser.script !== "") {
-    emitNode(parser, "onscript", parser.script)
-    parser.script = ""
-  }
-}
-
-SAXParser.prototype =
-  { end: function () { end(this) }
-  , write: write
-  , resume: function () { this.error = null; return this }
-  , close: function () { return this.write(null) }
-  , flush: function () { flushBuffers(this) }
-  }
-
-try {
-  var Stream = require("stream").Stream
-} catch (ex) {
-  var Stream = function () {}
-}
-
-
-var streamWraps = sax.EVENTS.filter(function (ev) {
-  return ev !== "error" && ev !== "end"
-})
-
-function createStream (strict, opt) {
-  return new SAXStream(strict, opt)
-}
-
-function SAXStream (strict, opt) {
-  if (!(this instanceof SAXStream)) return new SAXStream(strict, opt)
-
-  Stream.apply(this)
-
-  this._parser = new SAXParser(strict, opt)
-  this.writable = true
-  this.readable = true
-
-
-  var me = this
-
-  this._parser.onend = function () {
-    me.emit("end")
-  }
-
-  this._parser.onerror = function (er) {
-    me.emit("error", er)
-
-    // if didn't throw, then means error was handled.
-    // go ahead and clear error, so we can write again.
-    me._parser.error = null
-  }
-
-  this._decoder = null;
-
-  streamWraps.forEach(function (ev) {
-    Object.defineProperty(me, "on" + ev, {
-      get: function () { return me._parser["on" + ev] },
-      set: function (h) {
-        if (!h) {
-          me.removeAllListeners(ev)
-          return me._parser["on"+ev] = h
-        }
-        me.on(ev, h)
-      },
-      enumerable: true,
-      configurable: false
-    })
-  })
-}
-
-SAXStream.prototype = Object.create(Stream.prototype,
-  { constructor: { value: SAXStream } })
-
-SAXStream.prototype.write = function (data) {
-  if (typeof Buffer === 'function' &&
-      typeof Buffer.isBuffer === 'function' &&
-      Buffer.isBuffer(data)) {
-    if (!this._decoder) {
-      var SD = require('string_decoder').StringDecoder
-      this._decoder = new SD('utf8')
-    }
-    data = this._decoder.write(data);
-  }
-
-  this._parser.write(data.toString())
-  this.emit("data", data)
-  return true
-}
-
-SAXStream.prototype.end = function (chunk) {
-  if (chunk && chunk.length) this.write(chunk)
-  this._parser.end()
-  return true
-}
-
-SAXStream.prototype.on = function (ev, handler) {
-  var me = this
-  if (!me._parser["on"+ev] && streamWraps.indexOf(ev) !== -1) {
-    me._parser["on"+ev] = function () {
-      var args = arguments.length === 1 ? [arguments[0]]
-               : Array.apply(null, arguments)
-      args.splice(0, 0, ev)
-      me.emit.apply(me, args)
-    }
-  }
-
-  return Stream.prototype.on.call(me, ev, handler)
-}
-
-
-
-// character classes and tokens
-var whitespace = "\r\n\t "
-  // this really needs to be replaced with character classes.
-  // XML allows all manner of ridiculous numbers and digits.
-  , number = "0124356789"
-  , letter = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-  // (Letter | "_" | ":")
-  , quote = "'\""
-  , entity = number+letter+"#"
-  , attribEnd = whitespace + ">"
-  , CDATA = "[CDATA["
-  , DOCTYPE = "DOCTYPE"
-  , XML_NAMESPACE = "http://www.w3.org/XML/1998/namespace"
-  , XMLNS_NAMESPACE = "http://www.w3.org/2000/xmlns/"
-  , rootNS = { xml: XML_NAMESPACE, xmlns: XMLNS_NAMESPACE }
-
-// turn all the string character sets into character class objects.
-whitespace = charClass(whitespace)
-number = charClass(number)
-letter = charClass(letter)
-
-// http://www.w3.org/TR/REC-xml/#NT-NameStartChar
-// This implementation works on strings, a single character at a time
-// as such, it cannot ever support astral-plane characters (10000-EFFFF)
-// without a significant breaking change to either this  parser, or the
-// JavaScript language.  Implementation of an emoji-capable xml parser
-// is left as an exercise for the reader.
-var nameStart = /[:_A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]/
-
-var nameBody = /[:_A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u00B7\u0300-\u036F\u203F-\u2040\.\d-]/
-
-quote = charClass(quote)
-entity = charClass(entity)
-attribEnd = charClass(attribEnd)
-
-function charClass (str) {
-  return str.split("").reduce(function (s, c) {
-    s[c] = true
-    return s
-  }, {})
-}
-
-function isRegExp (c) {
-  return Object.prototype.toString.call(c) === '[object RegExp]'
-}
-
-function is (charclass, c) {
-  return isRegExp(charclass) ? !!c.match(charclass) : charclass[c]
-}
-
-function not (charclass, c) {
-  return !is(charclass, c)
-}
-
-var S = 0
-sax.STATE =
-{ BEGIN                     : S++ // leading byte order mark or whitespace
-, BEGIN_WHITESPACE          : S++ // leading whitespace
-, TEXT                      : S++ // general stuff
-, TEXT_ENTITY               : S++ // &amp and such.
-, OPEN_WAKA                 : S++ // <
-, SGML_DECL                 : S++ // <!BLARG
-, SGML_DECL_QUOTED          : S++ // <!BLARG foo "bar
-, DOCTYPE                   : S++ // <!DOCTYPE
-, DOCTYPE_QUOTED            : S++ // <!DOCTYPE "//blah
-, DOCTYPE_DTD               : S++ // <!DOCTYPE "//blah" [ ...
-, DOCTYPE_DTD_QUOTED        : S++ // <!DOCTYPE "//blah" [ "foo
-, COMMENT_STARTING          : S++ // <!-
-, COMMENT                   : S++ // <!--
-, COMMENT_ENDING            : S++ // <!-- blah -
-, COMMENT_ENDED             : S++ // <!-- blah --
-, CDATA                     : S++ // <![CDATA[ something
-, CDATA_ENDING              : S++ // ]
-, CDATA_ENDING_2            : S++ // ]]
-, PROC_INST                 : S++ // <?hi
-, PROC_INST_BODY            : S++ // <?hi there
-, PROC_INST_ENDING          : S++ // <?hi "there" ?
-, OPEN_TAG                  : S++ // <strong
-, OPEN_TAG_SLASH            : S++ // <strong /
-, ATTRIB                    : S++ // <a
-, ATTRIB_NAME               : S++ // <a foo
-, ATTRIB_NAME_SAW_WHITE     : S++ // <a foo _
-, ATTRIB_VALUE              : S++ // <a foo=
-, ATTRIB_VALUE_QUOTED       : S++ // <a foo="bar
-, ATTRIB_VALUE_CLOSED       : S++ // <a foo="bar"
-, ATTRIB_VALUE_UNQUOTED     : S++ // <a foo=bar
-, ATTRIB_VALUE_ENTITY_Q     : S++ // <foo bar="&quot;"
-, ATTRIB_VALUE_ENTITY_U     : S++ // <foo bar=&quot;
-, CLOSE_TAG                 : S++ // </a
-, CLOSE_TAG_SAW_WHITE       : S++ // </a   >
-, SCRIPT                    : S++ // <script> ...
-, SCRIPT_ENDING             : S++ // <script> ... <
-}
-
-sax.XML_ENTITIES =
-{ "amp" : "&"
-, "gt" : ">"
-, "lt" : "<"
-, "quot" : "\""
-, "apos" : "'"
-}
-
-sax.ENTITIES =
-{ "amp" : "&"
-, "gt" : ">"
-, "lt" : "<"
-, "quot" : "\""
-, "apos" : "'"
-, "AElig" : 198
-, "Aacute" : 193
-, "Acirc" : 194
-, "Agrave" : 192
-, "Aring" : 197
-, "Atilde" : 195
-, "Auml" : 196
-, "Ccedil" : 199
-, "ETH" : 208
-, "Eacute" : 201
-, "Ecirc" : 202
-, "Egrave" : 200
-, "Euml" : 203
-, "Iacute" : 205
-, "Icirc" : 206
-, "Igrave" : 204
-, "Iuml" : 207
-, "Ntilde" : 209
-, "Oacute" : 211
-, "Ocirc" : 212
-, "Ograve" : 210
-, "Oslash" : 216
-, "Otilde" : 213
-, "Ouml" : 214
-, "THORN" : 222
-, "Uacute" : 218
-, "Ucirc" : 219
-, "Ugrave" : 217
-, "Uuml" : 220
-, "Yacute" : 221
-, "aacute" : 225
-, "acirc" : 226
-, "aelig" : 230
-, "agrave" : 224
-, "aring" : 229
-, "atilde" : 227
-, "auml" : 228
-, "ccedil" : 231
-, "eacute" : 233
-, "ecirc" : 234
-, "egrave" : 232
-, "eth" : 240
-, "euml" : 235
-, "iacute" : 237
-, "icirc" : 238
-, "igrave" : 236
-, "iuml" : 239
-, "ntilde" : 241
-, "oacute" : 243
-, "ocirc" : 244
-, "ograve" : 242
-, "oslash" : 248
-, "otilde" : 245
-, "ouml" : 246
-, "szlig" : 223
-, "thorn" : 254
-, "uacute" : 250
-, "ucirc" : 251
-, "ugrave" : 249
-, "uuml" : 252
-, "yacute" : 253
-, "yuml" : 255
-, "copy" : 169
-, "reg" : 174
-, "nbsp" : 160
-, "iexcl" : 161
-, "cent" : 162
-, "pound" : 163
-, "curren" : 164
-, "yen" : 165
-, "brvbar" : 166
-, "sect" : 167
-, "uml" : 168
-, "ordf" : 170
-, "laquo" : 171
-, "not" : 172
-, "shy" : 173
-, "macr" : 175
-, "deg" : 176
-, "plusmn" : 177
-, "sup1" : 185
-, "sup2" : 178
-, "sup3" : 179
-, "acute" : 180
-, "micro" : 181
-, "para" : 182
-, "middot" : 183
-, "cedil" : 184
-, "ordm" : 186
-, "raquo" : 187
-, "frac14" : 188
-, "frac12" : 189
-, "frac34" : 190
-, "iquest" : 191
-, "times" : 215
-, "divide" : 247
-, "OElig" : 338
-, "oelig" : 339
-, "Scaron" : 352
-, "scaron" : 353
-, "Yuml" : 376
-, "fnof" : 402
-, "circ" : 710
-, "tilde" : 732
-, "Alpha" : 913
-, "Beta" : 914
-, "Gamma" : 915
-, "Delta" : 916
-, "Epsilon" : 917
-, "Zeta" : 918
-, "Eta" : 919
-, "Theta" : 920
-, "Iota" : 921
-, "Kappa" : 922
-, "Lambda" : 923
-, "Mu" : 924
-, "Nu" : 925
-, "Xi" : 926
-, "Omicron" : 927
-, "Pi" : 928
-, "Rho" : 929
-, "Sigma" : 931
-, "Tau" : 932
-, "Upsilon" : 933
-, "Phi" : 934
-, "Chi" : 935
-, "Psi" : 936
-, "Omega" : 937
-, "alpha" : 945
-, "beta" : 946
-, "gamma" : 947
-, "delta" : 948
-, "epsilon" : 949
-, "zeta" : 950
-, "eta" : 951
-, "theta" : 952
-, "iota" : 953
-, "kappa" : 954
-, "lambda" : 955
-, "mu" : 956
-, "nu" : 957
-, "xi" : 958
-, "omicron" : 959
-, "pi" : 960
-, "rho" : 961
-, "sigmaf" : 962
-, "sigma" : 963
-, "tau" : 964
-, "upsilon" : 965
-, "phi" : 966
-, "chi" : 967
-, "psi" : 968
-, "omega" : 969
-, "thetasym" : 977
-, "upsih" : 978
-, "piv" : 982
-, "ensp" : 8194
-, "emsp" : 8195
-, "thinsp" : 8201
-, "zwnj" : 8204
-, "zwj" : 8205
-, "lrm" : 8206
-, "rlm" : 8207
-, "ndash" : 8211
-, "mdash" : 8212
-, "lsquo" : 8216
-, "rsquo" : 8217
-, "sbquo" : 8218
-, "ldquo" : 8220
-, "rdquo" : 8221
-, "bdquo" : 8222
-, "dagger" : 8224
-, "Dagger" : 8225
-, "bull" : 8226
-, "hellip" : 8230
-, "permil" : 8240
-, "prime" : 8242
-, "Prime" : 8243
-, "lsaquo" : 8249
-, "rsaquo" : 8250
-, "oline" : 8254
-, "frasl" : 8260
-, "euro" : 8364
-, "image" : 8465
-, "weierp" : 8472
-, "real" : 8476
-, "trade" : 8482
-, "alefsym" : 8501
-, "larr" : 8592
-, "uarr" : 8593
-, "rarr" : 8594
-, "darr" : 8595
-, "harr" : 8596
-, "crarr" : 8629
-, "lArr" : 8656
-, "uArr" : 8657
-, "rArr" : 8658
-, "dArr" : 8659
-, "hArr" : 8660
-, "forall" : 8704
-, "part" : 8706
-, "exist" : 8707
-, "empty" : 8709
-, "nabla" : 8711
-, "isin" : 8712
-, "notin" : 8713
-, "ni" : 8715
-, "prod" : 8719
-, "sum" : 8721
-, "minus" : 8722
-, "lowast" : 8727
-, "radic" : 8730
-, "prop" : 8733
-, "infin" : 8734
-, "ang" : 8736
-, "and" : 8743
-, "or" : 8744
-, "cap" : 8745
-, "cup" : 8746
-, "int" : 8747
-, "there4" : 8756
-, "sim" : 8764
-, "cong" : 8773
-, "asymp" : 8776
-, "ne" : 8800
-, "equiv" : 8801
-, "le" : 8804
-, "ge" : 8805
-, "sub" : 8834
-, "sup" : 8835
-, "nsub" : 8836
-, "sube" : 8838
-, "supe" : 8839
-, "oplus" : 8853
-, "otimes" : 8855
-, "perp" : 8869
-, "sdot" : 8901
-, "lceil" : 8968
-, "rceil" : 8969
-, "lfloor" : 8970
-, "rfloor" : 8971
-, "lang" : 9001
-, "rang" : 9002
-, "loz" : 9674
-, "spades" : 9824
-, "clubs" : 9827
-, "hearts" : 9829
-, "diams" : 9830
-}
-
-Object.keys(sax.ENTITIES).forEach(function (key) {
-    var e = sax.ENTITIES[key]
-    var s = typeof e === 'number' ? String.fromCharCode(e) : e
-    sax.ENTITIES[key] = s
-})
-
-for (var S in sax.STATE) sax.STATE[sax.STATE[S]] = S
-
-// shorthand
-S = sax.STATE
-
-function emit (parser, event, data) {
-  parser[event] && parser[event](data)
-}
-
-function emitNode (parser, nodeType, data) {
-  if (parser.textNode) closeText(parser)
-  emit(parser, nodeType, data)
-}
-
-function closeText (parser) {
-  parser.textNode = textopts(parser.opt, parser.textNode)
-  if (parser.textNode) emit(parser, "ontext", parser.textNode)
-  parser.textNode = ""
-}
-
-function textopts (opt, text) {
-  if (opt.trim) text = text.trim()
-  if (opt.normalize) text = text.replace(/\s+/g, " ")
-  return text
-}
-
-function error (parser, er) {
-  closeText(parser)
-  if (parser.trackPosition) {
-    er += "\nLine: "+parser.line+
-          "\nColumn: "+parser.column+
-          "\nChar: "+parser.c
-  }
-  er = new Error(er)
-  parser.error = er
-  emit(parser, "onerror", er)
-  return parser
-}
-
-function end (parser) {
-  if (parser.sawRoot && !parser.closedRoot) strictFail(parser, "Unclosed root tag")
-  if ((parser.state !== S.BEGIN) &&
-      (parser.state !== S.BEGIN_WHITESPACE) &&
-      (parser.state !== S.TEXT))
-    error(parser, "Unexpected end")
-  closeText(parser)
-  parser.c = ""
-  parser.closed = true
-  emit(parser, "onend")
-  SAXParser.call(parser, parser.strict, parser.opt)
-  return parser
-}
-
-function strictFail (parser, message) {
-  if (typeof parser !== 'object' || !(parser instanceof SAXParser))
-    throw new Error('bad call to strictFail');
-  if (parser.strict) error(parser, message)
-}
-
-function newTag (parser) {
-  if (!parser.strict) parser.tagName = parser.tagName[parser.looseCase]()
-  var parent = parser.tags[parser.tags.length - 1] || parser
-    , tag = parser.tag = { name : parser.tagName, attributes : {} }
-
-  // will be overridden if tag contails an xmlns="foo" or xmlns:foo="bar"
-  if (parser.opt.xmlns) tag.ns = parent.ns
-  parser.attribList.length = 0
-}
-
-function qname (name, attribute) {
-  var i = name.indexOf(":")
-    , qualName = i < 0 ? [ "", name ] : name.split(":")
-    , prefix = qualName[0]
-    , local = qualName[1]
-
-  // <x "xmlns"="http://foo">
-  if (attribute && name === "xmlns") {
-    prefix = "xmlns"
-    local = ""
-  }
-
-  return { prefix: prefix, local: local }
-}
-
-function attrib (parser) {
-  if (!parser.strict) parser.attribName = parser.attribName[parser.looseCase]()
-
-  if (parser.attribList.indexOf(parser.attribName) !== -1 ||
-      parser.tag.attributes.hasOwnProperty(parser.attribName)) {
-    return parser.attribName = parser.attribValue = ""
-  }
-
-  if (parser.opt.xmlns) {
-    var qn = qname(parser.attribName, true)
-      , prefix = qn.prefix
-      , local = qn.local
-
-    if (prefix === "xmlns") {
-      // namespace binding attribute; push the binding into scope
-      if (local === "xml" && parser.attribValue !== XML_NAMESPACE) {
-        strictFail( parser
-                  , "xml: prefix must be bound to " + XML_NAMESPACE + "\n"
-                  + "Actual: " + parser.attribValue )
-      } else if (local === "xmlns" && parser.attribValue !== XMLNS_NAMESPACE) {
-        strictFail( parser
-                  , "xmlns: prefix must be bound to " + XMLNS_NAMESPACE + "\n"
-                  + "Actual: " + parser.attribValue )
-      } else {
-        var tag = parser.tag
-          , parent = parser.tags[parser.tags.length - 1] || parser
-        if (tag.ns === parent.ns) {
-          tag.ns = Object.create(parent.ns)
-        }
-        tag.ns[local] = parser.attribValue
-      }
-    }
-
-    // defer onattribute events until all attributes have been seen
-    // so any new bindings can take effect; preserve attribute order
-    // so deferred events can be emitted in document order
-    parser.attribList.push([parser.attribName, parser.attribValue])
-  } else {
-    // in non-xmlns mode, we can emit the event right away
-    parser.tag.attributes[parser.attribName] = parser.attribValue
-    emitNode( parser
-            , "onattribute"
-            , { name: parser.attribName
-              , value: parser.attribValue } )
-  }
-
-  parser.attribName = parser.attribValue = ""
-}
-
-function openTag (parser, selfClosing) {
-  if (parser.opt.xmlns) {
-    // emit namespace binding events
-    var tag = parser.tag
-
-    // add namespace info to tag
-    var qn = qname(parser.tagName)
-    tag.prefix = qn.prefix
-    tag.local = qn.local
-    tag.uri = tag.ns[qn.prefix] || ""
-
-    if (tag.prefix && !tag.uri) {
-      strictFail(parser, "Unbound namespace prefix: "
-                       + JSON.stringify(parser.tagName))
-      tag.uri = qn.prefix
-    }
-
-    var parent = parser.tags[parser.tags.length - 1] || parser
-    if (tag.ns && parent.ns !== tag.ns) {
-      Object.keys(tag.ns).forEach(function (p) {
-        emitNode( parser
-                , "onopennamespace"
-                , { prefix: p , uri: tag.ns[p] } )
-      })
-    }
-
-    // handle deferred onattribute events
-    // Note: do not apply default ns to attributes:
-    //   http://www.w3.org/TR/REC-xml-names/#defaulting
-    for (var i = 0, l = parser.attribList.length; i < l; i ++) {
-      var nv = parser.attribList[i]
-      var name = nv[0]
-        , value = nv[1]
-        , qualName = qname(name, true)
-        , prefix = qualName.prefix
-        , local = qualName.local
-        , uri = prefix == "" ? "" : (tag.ns[prefix] || "")
-        , a = { name: name
-              , value: value
-              , prefix: prefix
-              , local: local
-              , uri: uri
-              }
-
-      // if there's any attributes with an undefined namespace,
-      // then fail on them now.
-      if (prefix && prefix != "xmlns" && !uri) {
-        strictFail(parser, "Unbound namespace prefix: "
-                         + JSON.stringify(prefix))
-        a.uri = prefix
-      }
-      parser.tag.attributes[name] = a
-      emitNode(parser, "onattribute", a)
-    }
-    parser.attribList.length = 0
-  }
-
-  parser.tag.isSelfClosing = !!selfClosing
-
-  // process the tag
-  parser.sawRoot = true
-  parser.tags.push(parser.tag)
-  emitNode(parser, "onopentag", parser.tag)
-  if (!selfClosing) {
-    // special case for <script> in non-strict mode.
-    if (!parser.noscript && parser.tagName.toLowerCase() === "script") {
-      parser.state = S.SCRIPT
-    } else {
-      parser.state = S.TEXT
-    }
-    parser.tag = null
-    parser.tagName = ""
-  }
-  parser.attribName = parser.attribValue = ""
-  parser.attribList.length = 0
-}
-
-function closeTag (parser) {
-  if (!parser.tagName) {
-    strictFail(parser, "Weird empty close tag.")
-    parser.textNode += "</>"
-    parser.state = S.TEXT
-    return
-  }
-
-  if (parser.script) {
-    if (parser.tagName !== "script") {
-      parser.script += "</" + parser.tagName + ">"
-      parser.tagName = ""
-      parser.state = S.SCRIPT
-      return
-    }
-    emitNode(parser, "onscript", parser.script)
-    parser.script = ""
-  }
-
-  // first make sure that the closing tag actually exists.
-  // <a><b></c></b></a> will close everything, otherwise.
-  var t = parser.tags.length
-  var tagName = parser.tagName
-  if (!parser.strict) tagName = tagName[parser.looseCase]()
-  var closeTo = tagName
-  while (t --) {
-    var close = parser.tags[t]
-    if (close.name !== closeTo) {
-      // fail the first time in strict mode
-      strictFail(parser, "Unexpected close tag")
-    } else break
-  }
-
-  // didn't find it.  we already failed for strict, so just abort.
-  if (t < 0) {
-    strictFail(parser, "Unmatched closing tag: "+parser.tagName)
-    parser.textNode += "</" + parser.tagName + ">"
-    parser.state = S.TEXT
-    return
-  }
-  parser.tagName = tagName
-  var s = parser.tags.length
-  while (s --> t) {
-    var tag = parser.tag = parser.tags.pop()
-    parser.tagName = parser.tag.name
-    emitNode(parser, "onclosetag", parser.tagName)
-
-    var x = {}
-    for (var i in tag.ns) x[i] = tag.ns[i]
-
-    var parent = parser.tags[parser.tags.length - 1] || parser
-    if (parser.opt.xmlns && tag.ns !== parent.ns) {
-      // remove namespace bindings introduced by tag
-      Object.keys(tag.ns).forEach(function (p) {
-        var n = tag.ns[p]
-        emitNode(parser, "onclosenamespace", { prefix: p, uri: n })
-      })
-    }
-  }
-  if (t === 0) parser.closedRoot = true
-  parser.tagName = parser.attribValue = parser.attribName = ""
-  parser.attribList.length = 0
-  parser.state = S.TEXT
-}
-
-function parseEntity (parser) {
-  var entity = parser.entity
-    , entityLC = entity.toLowerCase()
-    , num
-    , numStr = ""
-  if (parser.ENTITIES[entity])
-    return parser.ENTITIES[entity]
-  if (parser.ENTITIES[entityLC])
-    return parser.ENTITIES[entityLC]
-  entity = entityLC
-  if (entity.charAt(0) === "#") {
-    if (entity.charAt(1) === "x") {
-      entity = entity.slice(2)
-      num = parseInt(entity, 16)
-      numStr = num.toString(16)
-    } else {
-      entity = entity.slice(1)
-      num = parseInt(entity, 10)
-      numStr = num.toString(10)
-    }
-  }
-  entity = entity.replace(/^0+/, "")
-  if (numStr.toLowerCase() !== entity) {
-    strictFail(parser, "Invalid character entity")
-    return "&"+parser.entity + ";"
-  }
-
-  return String.fromCodePoint(num)
-}
-
-function write (chunk) {
-  var parser = this
-  if (this.error) throw this.error
-  if (parser.closed) return error(parser,
-    "Cannot write after close. Assign an onready handler.")
-  if (chunk === null) return end(parser)
-  var i = 0, c = ""
-  while (parser.c = c = chunk.charAt(i++)) {
-    if (parser.trackPosition) {
-      parser.position ++
-      if (c === "\n") {
-        parser.line ++
-        parser.column = 0
-      } else parser.column ++
-    }
-    switch (parser.state) {
-
-      case S.BEGIN:
-        parser.state = S.BEGIN_WHITESPACE
-        if (c === "\uFEFF") {
-          continue;
-        }
-      // no continue - fall through
-
-      case S.BEGIN_WHITESPACE:
-        if (c === "<") {
-          parser.state = S.OPEN_WAKA
-          parser.startTagPosition = parser.position
-        } else if (not(whitespace,c)) {
-          // have to process this as a text node.
-          // weird, but happens.
-          strictFail(parser, "Non-whitespace before first tag.")
-          parser.textNode = c
-          parser.state = S.TEXT
-        }
-      continue
-
-      case S.TEXT:
-        if (parser.sawRoot && !parser.closedRoot) {
-          var starti = i-1
-          while (c && c!=="<" && c!=="&") {
-            c = chunk.charAt(i++)
-            if (c && parser.trackPosition) {
-              parser.position ++
-              if (c === "\n") {
-                parser.line ++
-                parser.column = 0
-              } else parser.column ++
-            }
-          }
-          parser.textNode += chunk.substring(starti, i-1)
-        }
-        if (c === "<" && !(parser.sawRoot && parser.closedRoot && !parser.strict)) {
-          parser.state = S.OPEN_WAKA
-          parser.startTagPosition = parser.position
-        } else {
-          if (not(whitespace, c) && (!parser.sawRoot || parser.closedRoot))
-            strictFail(parser, "Text data outside of root node.")
-          if (c === "&") parser.state = S.TEXT_ENTITY
-          else parser.textNode += c
-        }
-      continue
-
-      case S.SCRIPT:
-        // only non-strict
-        if (c === "<") {
-          parser.state = S.SCRIPT_ENDING
-        } else parser.script += c
-      continue
-
-      case S.SCRIPT_ENDING:
-        if (c === "/") {
-          parser.state = S.CLOSE_TAG
-        } else {
-          parser.script += "<" + c
-          parser.state = S.SCRIPT
-        }
-      continue
-
-      case S.OPEN_WAKA:
-        // either a /, ?, !, or text is coming next.
-        if (c === "!") {
-          parser.state = S.SGML_DECL
-          parser.sgmlDecl = ""
-        } else if (is(whitespace, c)) {
-          // wait for it...
-        } else if (is(nameStart,c)) {
-          parser.state = S.OPEN_TAG
-          parser.tagName = c
-        } else if (c === "/") {
-          parser.state = S.CLOSE_TAG
-          parser.tagName = ""
-        } else if (c === "?") {
-          parser.state = S.PROC_INST
-          parser.procInstName = parser.procInstBody = ""
-        } else {
-          strictFail(parser, "Unencoded <")
-          // if there was some whitespace, then add that in.
-          if (parser.startTagPosition + 1 < parser.position) {
-            var pad = parser.position - parser.startTagPosition
-            c = new Array(pad).join(" ") + c
-          }
-          parser.textNode += "<" + c
-          parser.state = S.TEXT
-        }
-      continue
-
-      case S.SGML_DECL:
-        if ((parser.sgmlDecl+c).toUpperCase() === CDATA) {
-          emitNode(parser, "onopencdata")
-          parser.state = S.CDATA
-          parser.sgmlDecl = ""
-          parser.cdata = ""
-        } else if (parser.sgmlDecl+c === "--") {
-          parser.state = S.COMMENT
-          parser.comment = ""
-          parser.sgmlDecl = ""
-        } else if ((parser.sgmlDecl+c).toUpperCase() === DOCTYPE) {
-          parser.state = S.DOCTYPE
-          if (parser.doctype || parser.sawRoot) strictFail(parser,
-            "Inappropriately located doctype declaration")
-          parser.doctype = ""
-          parser.sgmlDecl = ""
-        } else if (c === ">") {
-          emitNode(parser, "onsgmldeclaration", parser.sgmlDecl)
-          parser.sgmlDecl = ""
-          parser.state = S.TEXT
-        } else if (is(quote, c)) {
-          parser.state = S.SGML_DECL_QUOTED
-          parser.sgmlDecl += c
-        } else parser.sgmlDecl += c
-      continue
-
-      case S.SGML_DECL_QUOTED:
-        if (c === parser.q) {
-          parser.state = S.SGML_DECL
-          parser.q = ""
-        }
-        parser.sgmlDecl += c
-      continue
-
-      case S.DOCTYPE:
-        if (c === ">") {
-          parser.state = S.TEXT
-          emitNode(parser, "ondoctype", parser.doctype)
-          parser.doctype = true // just remember that we saw it.
-        } else {
-          parser.doctype += c
-          if (c === "[") parser.state = S.DOCTYPE_DTD
-          else if (is(quote, c)) {
-            parser.state = S.DOCTYPE_QUOTED
-            parser.q = c
-          }
-        }
-      continue
-
-      case S.DOCTYPE_QUOTED:
-        parser.doctype += c
-        if (c === parser.q) {
-          parser.q = ""
-          parser.state = S.DOCTYPE
-        }
-      continue
-
-      case S.DOCTYPE_DTD:
-        parser.doctype += c
-        if (c === "]") parser.state = S.DOCTYPE
-        else if (is(quote,c)) {
-          parser.state = S.DOCTYPE_DTD_QUOTED
-          parser.q = c
-        }
-      continue
-
-      case S.DOCTYPE_DTD_QUOTED:
-        parser.doctype += c
-        if (c === parser.q) {
-          parser.state = S.DOCTYPE_DTD
-          parser.q = ""
-        }
-      continue
-
-      case S.COMMENT:
-        if (c === "-") parser.state = S.COMMENT_ENDING
-        else parser.comment += c
-      continue
-
-      case S.COMMENT_ENDING:
-        if (c === "-") {
-          parser.state = S.COMMENT_ENDED
-          parser.comment = textopts(parser.opt, parser.comment)
-          if (parser.comment) emitNode(parser, "oncomment", parser.comment)
-          parser.comment = ""
-        } else {
-          parser.comment += "-" + c
-          parser.state = S.COMMENT
-        }
-      continue
-
-      case S.COMMENT_ENDED:
-        if (c !== ">") {
-          strictFail(parser, "Malformed comment")
-          // allow <!-- blah -- bloo --> in non-strict mode,
-          // which is a comment of " blah -- bloo "
-          parser.comment += "--" + c
-          parser.state = S.COMMENT
-        } else parser.state = S.TEXT
-      continue
-
-      case S.CDATA:
-        if (c === "]") parser.state = S.CDATA_ENDING
-        else parser.cdata += c
-      continue
-
-      case S.CDATA_ENDING:
-        if (c === "]") parser.state = S.CDATA_ENDING_2
-        else {
-          parser.cdata += "]" + c
-          parser.state = S.CDATA
-        }
-      continue
-
-      case S.CDATA_ENDING_2:
-        if (c === ">") {
-          if (parser.cdata) emitNode(parser, "oncdata", parser.cdata)
-          emitNode(parser, "onclosecdata")
-          parser.cdata = ""
-          parser.state = S.TEXT
-        } else if (c === "]") {
-          parser.cdata += "]"
-        } else {
-          parser.cdata += "]]" + c
-          parser.state = S.CDATA
-        }
-      continue
-
-      case S.PROC_INST:
-        if (c === "?") parser.state = S.PROC_INST_ENDING
-        else if (is(whitespace, c)) parser.state = S.PROC_INST_BODY
-        else parser.procInstName += c
-      continue
-
-      case S.PROC_INST_BODY:
-        if (!parser.procInstBody && is(whitespace, c)) continue
-        else if (c === "?") parser.state = S.PROC_INST_ENDING
-        else parser.procInstBody += c
-      continue
-
-      case S.PROC_INST_ENDING:
-        if (c === ">") {
-          emitNode(parser, "onprocessinginstruction", {
-            name : parser.procInstName,
-            body : parser.procInstBody
-          })
-          parser.procInstName = parser.procInstBody = ""
-          parser.state = S.TEXT
-        } else {
-          parser.procInstBody += "?" + c
-          parser.state = S.PROC_INST_BODY
-        }
-      continue
-
-      case S.OPEN_TAG:
-        if (is(nameBody, c)) parser.tagName += c
-        else {
-          newTag(parser)
-          if (c === ">") openTag(parser)
-          else if (c === "/") parser.state = S.OPEN_TAG_SLASH
-          else {
-            if (not(whitespace, c)) strictFail(
-              parser, "Invalid character in tag name")
-            parser.state = S.ATTRIB
-          }
-        }
-      continue
-
-      case S.OPEN_TAG_SLASH:
-        if (c === ">") {
-          openTag(parser, true)
-          closeTag(parser)
-        } else {
-          strictFail(parser, "Forward-slash in opening tag not followed by >")
-          parser.state = S.ATTRIB
-        }
-      continue
-
-      case S.ATTRIB:
-        // haven't read the attribute name yet.
-        if (is(whitespace, c)) continue
-        else if (c === ">") openTag(parser)
-        else if (c === "/") parser.state = S.OPEN_TAG_SLASH
-        else if (is(nameStart, c)) {
-          parser.attribName = c
-          parser.attribValue = ""
-          parser.state = S.ATTRIB_NAME
-        } else strictFail(parser, "Invalid attribute name")
-      continue
-
-      case S.ATTRIB_NAME:
-        if (c === "=") parser.state = S.ATTRIB_VALUE
-        else if (c === ">") {
-          strictFail(parser, "Attribute without value")
-          parser.attribValue = parser.attribName
-          attrib(parser)
-          openTag(parser)
-        }
-        else if (is(whitespace, c)) parser.state = S.ATTRIB_NAME_SAW_WHITE
-        else if (is(nameBody, c)) parser.attribName += c
-        else strictFail(parser, "Invalid attribute name")
-      continue
-
-      case S.ATTRIB_NAME_SAW_WHITE:
-        if (c === "=") parser.state = S.ATTRIB_VALUE
-        else if (is(whitespace, c)) continue
-        else {
-          strictFail(parser, "Attribute without value")
-          parser.tag.attributes[parser.attribName] = ""
-          parser.attribValue = ""
-          emitNode(parser, "onattribute",
-                   { name : parser.attribName, value : "" })
-          parser.attribName = ""
-          if (c === ">") openTag(parser)
-          else if (is(nameStart, c)) {
-            parser.attribName = c
-            parser.state = S.ATTRIB_NAME
-          } else {
-            strictFail(parser, "Invalid attribute name")
-            parser.state = S.ATTRIB
-          }
-        }
-      continue
-
-      case S.ATTRIB_VALUE:
-        if (is(whitespace, c)) continue
-        else if (is(quote, c)) {
-          parser.q = c
-          parser.state = S.ATTRIB_VALUE_QUOTED
-        } else {
-          strictFail(parser, "Unquoted attribute value")
-          parser.state = S.ATTRIB_VALUE_UNQUOTED
-          parser.attribValue = c
-        }
-      continue
-
-      case S.ATTRIB_VALUE_QUOTED:
-        if (c !== parser.q) {
-          if (c === "&") parser.state = S.ATTRIB_VALUE_ENTITY_Q
-          else parser.attribValue += c
-          continue
-        }
-        attrib(parser)
-        parser.q = ""
-        parser.state = S.ATTRIB_VALUE_CLOSED
-      continue
-
-      case S.ATTRIB_VALUE_CLOSED:
-        if (is(whitespace, c)) {
-          parser.state = S.ATTRIB
-        } else if (c === ">") openTag(parser)
-        else if (c === "/") parser.state = S.OPEN_TAG_SLASH
-        else if (is(nameStart, c)) {
-          strictFail(parser, "No whitespace between attributes")
-          parser.attribName = c
-          parser.attribValue = ""
-          parser.state = S.ATTRIB_NAME
-        } else strictFail(parser, "Invalid attribute name")
-      continue
-
-      case S.ATTRIB_VALUE_UNQUOTED:
-        if (not(attribEnd,c)) {
-          if (c === "&") parser.state = S.ATTRIB_VALUE_ENTITY_U
-          else parser.attribValue += c
-          continue
-        }
-        attrib(parser)
-        if (c === ">") openTag(parser)
-        else parser.state = S.ATTRIB
-      continue
-
-      case S.CLOSE_TAG:
-        if (!parser.tagName) {
-          if (is(whitespace, c)) continue
-          else if (not(nameStart, c)) {
-            if (parser.script) {
-              parser.script += "</" + c
-              parser.state = S.SCRIPT
-            } else {
-              strictFail(parser, "Invalid tagname in closing tag.")
-            }
-          } else parser.tagName = c
-        }
-        else if (c === ">") closeTag(parser)
-        else if (is(nameBody, c)) parser.tagName += c
-        else if (parser.script) {
-          parser.script += "</" + parser.tagName
-          parser.tagName = ""
-          parser.state = S.SCRIPT
-        } else {
-          if (not(whitespace, c)) strictFail(parser,
-            "Invalid tagname in closing tag")
-          parser.state = S.CLOSE_TAG_SAW_WHITE
-        }
-      continue
-
-      case S.CLOSE_TAG_SAW_WHITE:
-        if (is(whitespace, c)) continue
-        if (c === ">") closeTag(parser)
-        else strictFail(parser, "Invalid characters in closing tag")
-      continue
-
-      case S.TEXT_ENTITY:
-      case S.ATTRIB_VALUE_ENTITY_Q:
-      case S.ATTRIB_VALUE_ENTITY_U:
-        switch(parser.state) {
-          case S.TEXT_ENTITY:
-            var returnState = S.TEXT, buffer = "textNode"
-          break
-
-          case S.ATTRIB_VALUE_ENTITY_Q:
-            var returnState = S.ATTRIB_VALUE_QUOTED, buffer = "attribValue"
-          break
-
-          case S.ATTRIB_VALUE_ENTITY_U:
-            var returnState = S.ATTRIB_VALUE_UNQUOTED, buffer = "attribValue"
-          break
-        }
-        if (c === ";") {
-          parser[buffer] += parseEntity(parser)
-          parser.entity = ""
-          parser.state = returnState
-        }
-        else if (is(entity, c)) parser.entity += c
-        else {
-          strictFail(parser, "Invalid character entity")
-          parser[buffer] += "&" + parser.entity + c
-          parser.entity = ""
-          parser.state = returnState
-        }
-      continue
-
-      default:
-        throw new Error(parser, "Unknown state: " + parser.state)
-    }
-  } // while
-  // cdata blocks can get very big under normal conditions. emit and move on.
-  // if (parser.state === S.CDATA && parser.cdata) {
-  //   emitNode(parser, "oncdata", parser.cdata)
-  //   parser.cdata = ""
-  // }
-  if (parser.position >= parser.bufferCheckPosition) checkBufferLength(parser)
-  return parser
-}
-
-/*! http://mths.be/fromcodepoint v0.1.0 by @mathias */
-if (!String.fromCodePoint) {
-        (function() {
-                var stringFromCharCode = String.fromCharCode;
-                var floor = Math.floor;
-                var fromCodePoint = function() {
-                        var MAX_SIZE = 0x4000;
-                        var codeUnits = [];
-                        var highSurrogate;
-                        var lowSurrogate;
-                        var index = -1;
-                        var length = arguments.length;
-                        if (!length) {
-                                return '';
-                        }
-                        var result = '';
-                        while (++index < length) {
-                                var codePoint = Number(arguments[index]);
-                                if (
-                                        !isFinite(codePoint) || // `NaN`, `+Infinity`, or `-Infinity`
-                                        codePoint < 0 || // not a valid Unicode code point
-                                        codePoint > 0x10FFFF || // not a valid Unicode code point
-                                        floor(codePoint) != codePoint // not an integer
-                                ) {
-                                        throw RangeError('Invalid code point: ' + codePoint);
-                                }
-                                if (codePoint <= 0xFFFF) { // BMP code point
-                                        codeUnits.push(codePoint);
-                                } else { // Astral code point; split in surrogate halves
-                                        // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
-                                        codePoint -= 0x10000;
-                                        highSurrogate = (codePoint >> 10) + 0xD800;
-                                        lowSurrogate = (codePoint % 0x400) + 0xDC00;
-                                        codeUnits.push(highSurrogate, lowSurrogate);
-                                }
-                                if (index + 1 == length || codeUnits.length > MAX_SIZE) {
-                                        result += stringFromCharCode.apply(null, codeUnits);
-                                        codeUnits.length = 0;
-                                }
-                        }
-                        return result;
-                };
-                if (Object.defineProperty) {
-                        Object.defineProperty(String, 'fromCodePoint', {
-                                'value': fromCodePoint,
-                                'configurable': true,
-                                'writable': true
-                        });
-                } else {
-                        String.fromCodePoint = fromCodePoint;
-                }
-        }());
-}
-
-})(typeof exports === "undefined" ? sax = {} : exports);
-
-}).call(this,require("buffer").Buffer)
-},{"buffer":27,"stream":49,"string_decoder":50}],5:[function(require,module,exports){
-var ImageLayer = function ( layer , route ) {
-	PIXI.Container.call( this );
-
-	for ( var property in layer ) {
-		if ( layer.hasOwnProperty( property ) ) {
-			this[ property ] = layer[ property ];
-		}
-	}
-
-	this.alpha = parseFloat( layer.opacity );
-
-	if (layer.image && layer.image.source) {
-		var sprite = new PIXI.Sprite.fromImage( route + "/" + layer.image.source );
-		this.addSprite( sprite );
-	}
-};
-
-ImageLayer.prototype = Object.create( PIXI.Container.prototype );
-
-ImageLayer.prototype.addSprite = function ( sprite ) {
-	this.addChild( sprite );
-};
-
-module.exports = ImageLayer;
-},{}],6:[function(require,module,exports){
-function Tile ( tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip ) {
-	var textures = [];
-
-	if ( tile.animations.length ) {
-		tile.animations.forEach( function ( frame ) {
-			textures.push( tileSet.textures[ frame.tileId ] );
-		}, this );
-	}
-	else {
-		textures.push( tileSet.textures[ tile.gid - tileSet.firstGid ] );
-	}
-
-	PIXI.extras.MovieClip.call( this, textures );
-
-	for ( var property in tile ) {
-		if ( tile.hasOwnProperty( property ) ) {
-			this[ property ] = tile[ property ];
-		}
-	}
-
-	if ( horizontalFlip || diagonalFlip ) {
-		this.anchor.x = 1;
-		this.scale.x = -1;
-	}
-
-	if ( verticalFlip || diagonalFlip ) {
-		this.anchor.y = 1;
-		this.scale.y = -1;
-	}
-
-	this.textures = textures;
-	this.tileSet = tileSet;
-}
-
-Tile.prototype = Object.create( PIXI.extras.MovieClip.prototype );
-
-module.exports = Tile;
-},{}],7:[function(require,module,exports){
-var Tile = require( "./Tile" );
-
-function findTileset ( gid, tilesets ) {
-	var tileset;
-	for ( var i = tilesets.length - 1; i >= 0; i-- ) {
-		tileset = tilesets[ i ];
-		if ( tileset.firstGid <= gid ) {
-			break;
-		}
-	}
-	return tileset;
-}
-
-var TileLayer = function ( layer, tileSets ) {
-	PIXI.Container.call( this );
-
-	for ( var property in layer ) {
-		if ( layer.hasOwnProperty( property ) ) {
-			this[ property ] = layer[ property ];
-		}
-	}
-
-	this.alpha = parseFloat( layer.opacity );
-	this.tiles = [];
-
-	for ( var y = 0; y < layer.map.height; y++ ) {
-		for ( var x = 0; x < layer.map.width; x++ ) {
-			var i = x + (y * layer.map.width);
-
-			if ( layer.tiles[ i ] ) {
-
-				if ( layer.tiles[ i ].gid && layer.tiles[ i ].gid !== 0 ) {
-
-					var tileset = findTileset( layer.tiles[ i ].gid, tileSets );
-					var tile = new Tile( layer.tiles[ i ], tileset,	layer.horizontalFlips[ i ], layer.verticalFlips[ i ], layer.diagonalFlips[ i ] );
-
-					tile.x = x * layer.map.tileWidth;
-					tile.y = y * layer.map.tileHeight + ( layer.map.tileHeight - tile.textures[ 0 ].height );
-
-					if ( tileset.tileOffset ) {
-						tile.x += tileset.tileOffset.x;
-						tile.y += tileset.tileOffset.y;
-					}
-
-					if ( tile.textures.length > 1 ) {
-						tile.animationSpeed = 1000 / 60 / tile.animations[ 0 ].duration;
-						tile.gotoAndPlay( 0 );
-					}
-
-					this.tiles.push( tile );
-
-					this.addTile( tile );
-				}
-			}
-
-		}
-	}
-};
-
-TileLayer.prototype = Object.create( PIXI.Container.prototype );
-
-TileLayer.prototype.addTile = function ( tile ) {
-	this.addChild( tile );
-};
-
-module.exports = TileLayer;
-},{"./Tile":6}],8:[function(require,module,exports){
-function TileSet( route, tileSet ) {
-	for ( var property in tileSet ) {
-		if ( tileSet.hasOwnProperty( property ) ) {
-			this[ property ] = tileSet[ property ];
-		}
-	}
-
-	this.baseTexture = PIXI.Texture.fromImage( route + "/" + tileSet.image.source, false, PIXI.SCALE_MODES.NEAREST );
-	this.textures = [];
-
-	for ( var y = this.margin; y < this.image.height; y += this.tileHeight + this.spacing ) {
-		for ( var x = this.margin; x < this.image.width; x += this.tileWidth + this.spacing ) {
-			this.textures.push( new PIXI.Texture( this.baseTexture, new PIXI.Rectangle( x, y, this.tileWidth, this.tileHeight ) ) );
-		}
-	}
-}
-
-module.exports = TileSet;
-},{}],9:[function(require,module,exports){
-var TileSet = require( "./TileSet" ),
-	TileLayer = require( "./TileLayer" ),
-	ImageLayer = require( "./ImageLayer" ),
-	path = require( "path" );
-
-function TiledMap( resourceUrl ) {
-	PIXI.Container.call( this );
-
-	var route = path.dirname( resourceUrl );
-	var data = PIXI.loader.resources[ resourceUrl ].data;
-
-	for ( var property in data ) {
-		if ( data.hasOwnProperty( property ) ) {
-			this[ property ] = data[ property ];
-		}
-	}
-
-	this.tileSets = [];
-	this.layers = [];
-
-	this.background = new PIXI.Graphics();
-	this.background.beginFill( 0x000000, 0);
-	this.background.drawRect(0,0, this._width * this.tileWidth , this._height * this.tileHeight);
-	this.background.endFill();
-	this.addLayer( this.background );
-
-	data.tileSets.forEach( function ( tilesetData ) {
-		this.tileSets.push( new TileSet( route, tilesetData ) );
-	}, this );
-
-	data.layers.forEach( function ( layerData ) {
-		switch (layerData.type) {
-			case "tile":
-				var tileLayer = new TileLayer( layerData, this.tileSets );
-				this.layers[ layerData.name ] = tileLayer;
-				this.addLayer( tileLayer );
-				break;
-			case "image":
-				var imageLayer = new ImageLayer( layerData, route );
-				this.layers[ layerData.name ] = imageLayer;
-				this.addLayer( imageLayer );
-				break;
-			default:
-				this.layers[ layerData.name ] = layerData;
-		}
-	}, this );
-}
-
-TiledMap.prototype = Object.create( PIXI.Container.prototype );
-
-TiledMap.prototype.addLayer = function ( layer ) {
-	this.addChild( layer );
-};
-
-module.exports = TiledMap;
-},{"./ImageLayer":5,"./TileLayer":7,"./TileSet":8,"path":34}],10:[function(require,module,exports){
-var path = require( "path" ),
-	tmx = require("tmx-parser");
-
-module.exports = function () {
-	return function ( resource, next ) {
-
-		if ( !resource.data || !resource.isXml || !resource.data.children[ 0 ].getElementsByTagName("tileset") ) {
-			return next();
-		}
-
-		var route = path.dirname( resource.url.replace( this.baseUrl, '' ) );
-
-		var loadOptions = {
-			crossOrigin: resource.crossOrigin,
-			loadType: PIXI.loaders.Resource.LOAD_TYPE.IMAGE
-		};
-
-		var that = this;
-
-		tmx.parse(resource.xhr.responseText, route, function(err, map) {
-			if (err) throw err;
-
-			map.tileSets.forEach( function ( tileset ) {
-				if ( !(tileset.image.source in this.resources) ) {
-					this.add( tileset.image.source , route + '/' + tileset.image.source, loadOptions );
-				}
-			}, that);
-
-			resource.data = map;
-			next();
-		});
-	};
-};
-},{"path":34,"tmx-parser":2}],11:[function(require,module,exports){
-
-},{}],12:[function(require,module,exports){
+},{}],2:[function(require,module,exports){
 // http://wiki.commonjs.org/wiki/Unit_Testing/1.0
 //
 // THIS IS NOT TESTED NOR LIKELY TO WORK OUTSIDE V8!
@@ -2954,9 +361,9 @@ var objectKeys = Object.keys || function (obj) {
   return keys;
 };
 
-},{"util/":52}],13:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],14:[function(require,module,exports){
+},{"util/":42}],3:[function(require,module,exports){
+arguments[4][1][0].apply(exports,arguments)
+},{"dup":1}],4:[function(require,module,exports){
 'use strict';
 
 
@@ -3060,7 +467,7 @@ exports.setTyped = function (on) {
 
 exports.setTyped(TYPED_OK);
 
-},{}],15:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 'use strict';
 
 // Note: adler32 takes 12% for level 0 and 2% for level 6.
@@ -3094,7 +501,7 @@ function adler32(adler, buf, len, pos) {
 
 module.exports = adler32;
 
-},{}],16:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 module.exports = {
 
   /* Allowed flush values; see deflate() and inflate() below for details */
@@ -3143,7 +550,7 @@ module.exports = {
   //Z_NULL:                 null // Use -1 or null inline, depending on var type
 };
 
-},{}],17:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 'use strict';
 
 // Note: we can't get significant speed boost here.
@@ -3186,7 +593,7 @@ function crc32(crc, buf, len, pos) {
 
 module.exports = crc32;
 
-},{}],18:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 'use strict';
 
 var utils   = require('../utils/common');
@@ -4953,7 +2360,7 @@ exports.deflatePrime = deflatePrime;
 exports.deflateTune = deflateTune;
 */
 
-},{"../utils/common":14,"./adler32":15,"./crc32":17,"./messages":22,"./trees":23}],19:[function(require,module,exports){
+},{"../utils/common":4,"./adler32":5,"./crc32":7,"./messages":12,"./trees":13}],9:[function(require,module,exports){
 'use strict';
 
 // See state defs from inflate.js
@@ -5280,7 +2687,7 @@ module.exports = function inflate_fast(strm, start) {
   return;
 };
 
-},{}],20:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 'use strict';
 
 
@@ -6785,7 +4192,7 @@ exports.inflateSyncPoint = inflateSyncPoint;
 exports.inflateUndermine = inflateUndermine;
 */
 
-},{"../utils/common":14,"./adler32":15,"./crc32":17,"./inffast":19,"./inftrees":21}],21:[function(require,module,exports){
+},{"../utils/common":4,"./adler32":5,"./crc32":7,"./inffast":9,"./inftrees":11}],11:[function(require,module,exports){
 'use strict';
 
 
@@ -7114,7 +4521,7 @@ module.exports = function inflate_table(type, lens, lens_index, codes, table, ta
   return 0;
 };
 
-},{"../utils/common":14}],22:[function(require,module,exports){
+},{"../utils/common":4}],12:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -7129,7 +4536,7 @@ module.exports = {
   '-6':   'incompatible version' /* Z_VERSION_ERROR (-6) */
 };
 
-},{}],23:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 'use strict';
 
 
@@ -8330,7 +5737,7 @@ exports._tr_flush_block  = _tr_flush_block;
 exports._tr_tally = _tr_tally;
 exports._tr_align = _tr_align;
 
-},{"../utils/common":14}],24:[function(require,module,exports){
+},{"../utils/common":4}],14:[function(require,module,exports){
 'use strict';
 
 
@@ -8361,7 +5768,7 @@ function ZStream() {
 
 module.exports = ZStream;
 
-},{}],25:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 (function (process,Buffer){
 var msg = require('pako/lib/zlib/messages');
 var zstream = require('pako/lib/zlib/zstream');
@@ -8601,7 +6008,7 @@ Zlib.prototype._error = function(status) {
 exports.Zlib = Zlib;
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"_process":35,"buffer":27,"pako/lib/zlib/constants":16,"pako/lib/zlib/deflate.js":18,"pako/lib/zlib/inflate.js":20,"pako/lib/zlib/messages":22,"pako/lib/zlib/zstream":24}],26:[function(require,module,exports){
+},{"_process":25,"buffer":17,"pako/lib/zlib/constants":6,"pako/lib/zlib/deflate.js":8,"pako/lib/zlib/inflate.js":10,"pako/lib/zlib/messages":12,"pako/lib/zlib/zstream":14}],16:[function(require,module,exports){
 (function (process,Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -9215,7 +6622,7 @@ util.inherits(InflateRaw, Zlib);
 util.inherits(Unzip, Zlib);
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./binding":25,"_process":35,"_stream_transform":47,"assert":12,"buffer":27,"util":52}],27:[function(require,module,exports){
+},{"./binding":15,"_process":25,"_stream_transform":37,"assert":2,"buffer":17,"util":42}],17:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.
  *
@@ -10750,7 +8157,7 @@ function blitBuffer (src, dst, offset, length) {
   return i
 }
 
-},{"base64-js":28,"ieee754":29,"is-array":30}],28:[function(require,module,exports){
+},{"base64-js":18,"ieee754":19,"is-array":20}],18:[function(require,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -10876,7 +8283,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 	exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],29:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = nBytes * 8 - mLen - 1
@@ -10962,7 +8369,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],30:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 
 /**
  * isArray
@@ -10997,7 +8404,7 @@ module.exports = isArray || function (val) {
   return !! val && '[object Array]' == str.call(val);
 };
 
-},{}],31:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -11300,7 +8707,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],32:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -11325,12 +8732,12 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],33:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],34:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -11558,7 +8965,7 @@ var substr = 'ab'.substr(-1) === 'b'
 ;
 
 }).call(this,require('_process'))
-},{"_process":35}],35:[function(require,module,exports){
+},{"_process":25}],25:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -11650,10 +9057,10 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],36:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 module.exports = require("./lib/_stream_duplex.js")
 
-},{"./lib/_stream_duplex.js":37}],37:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":27}],27:[function(require,module,exports){
 // a duplex stream is just a stream that is both readable and writable.
 // Since JS doesn't have multiple prototypal inheritance, this class
 // prototypally inherits from Readable, and then parasitically from
@@ -11737,7 +9144,7 @@ function forEach (xs, f) {
   }
 }
 
-},{"./_stream_readable":39,"./_stream_writable":41,"core-util-is":42,"inherits":32,"process-nextick-args":43}],38:[function(require,module,exports){
+},{"./_stream_readable":29,"./_stream_writable":31,"core-util-is":32,"inherits":22,"process-nextick-args":33}],28:[function(require,module,exports){
 // a passthrough stream.
 // basically just the most minimal sort of Transform stream.
 // Every written chunk gets output as-is.
@@ -11766,7 +9173,7 @@ PassThrough.prototype._transform = function(chunk, encoding, cb) {
   cb(null, chunk);
 };
 
-},{"./_stream_transform":40,"core-util-is":42,"inherits":32}],39:[function(require,module,exports){
+},{"./_stream_transform":30,"core-util-is":32,"inherits":22}],29:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -12729,7 +10136,7 @@ function indexOf (xs, x) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_duplex":37,"_process":35,"buffer":27,"core-util-is":42,"events":31,"inherits":32,"isarray":33,"process-nextick-args":43,"string_decoder/":50,"util":13}],40:[function(require,module,exports){
+},{"./_stream_duplex":27,"_process":25,"buffer":17,"core-util-is":32,"events":21,"inherits":22,"isarray":23,"process-nextick-args":33,"string_decoder/":40,"util":3}],30:[function(require,module,exports){
 // a transform stream is a readable/writable stream where you do
 // something with the data.  Sometimes it's called a "filter",
 // but that's not a great name for it, since that implies a thing where
@@ -12928,7 +10335,7 @@ function done(stream, er) {
   return stream.push(null);
 }
 
-},{"./_stream_duplex":37,"core-util-is":42,"inherits":32}],41:[function(require,module,exports){
+},{"./_stream_duplex":27,"core-util-is":32,"inherits":22}],31:[function(require,module,exports){
 // A bit simpler than readable streams.
 // Implement an async ._write(chunk, cb), and it'll handle all
 // the drain event emission and buffering.
@@ -13450,7 +10857,7 @@ function endWritable(stream, state, cb) {
   state.ended = true;
 }
 
-},{"./_stream_duplex":37,"buffer":27,"core-util-is":42,"events":31,"inherits":32,"process-nextick-args":43,"util-deprecate":44}],42:[function(require,module,exports){
+},{"./_stream_duplex":27,"buffer":17,"core-util-is":32,"events":21,"inherits":22,"process-nextick-args":33,"util-deprecate":34}],32:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -13560,7 +10967,7 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":27}],43:[function(require,module,exports){
+},{"buffer":17}],33:[function(require,module,exports){
 (function (process){
 'use strict';
 module.exports = nextTick;
@@ -13577,7 +10984,7 @@ function nextTick(fn) {
 }
 
 }).call(this,require('_process'))
-},{"_process":35}],44:[function(require,module,exports){
+},{"_process":25}],34:[function(require,module,exports){
 (function (global){
 
 /**
@@ -13643,10 +11050,10 @@ function config (name) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],45:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 module.exports = require("./lib/_stream_passthrough.js")
 
-},{"./lib/_stream_passthrough.js":38}],46:[function(require,module,exports){
+},{"./lib/_stream_passthrough.js":28}],36:[function(require,module,exports){
 var Stream = (function (){
   try {
     return require('st' + 'ream'); // hack to fix a circular dependency issue when used with browserify
@@ -13660,13 +11067,13 @@ exports.Duplex = require('./lib/_stream_duplex.js');
 exports.Transform = require('./lib/_stream_transform.js');
 exports.PassThrough = require('./lib/_stream_passthrough.js');
 
-},{"./lib/_stream_duplex.js":37,"./lib/_stream_passthrough.js":38,"./lib/_stream_readable.js":39,"./lib/_stream_transform.js":40,"./lib/_stream_writable.js":41}],47:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":27,"./lib/_stream_passthrough.js":28,"./lib/_stream_readable.js":29,"./lib/_stream_transform.js":30,"./lib/_stream_writable.js":31}],37:[function(require,module,exports){
 module.exports = require("./lib/_stream_transform.js")
 
-},{"./lib/_stream_transform.js":40}],48:[function(require,module,exports){
+},{"./lib/_stream_transform.js":30}],38:[function(require,module,exports){
 module.exports = require("./lib/_stream_writable.js")
 
-},{"./lib/_stream_writable.js":41}],49:[function(require,module,exports){
+},{"./lib/_stream_writable.js":31}],39:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -13795,7 +11202,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":31,"inherits":32,"readable-stream/duplex.js":36,"readable-stream/passthrough.js":45,"readable-stream/readable.js":46,"readable-stream/transform.js":47,"readable-stream/writable.js":48}],50:[function(require,module,exports){
+},{"events":21,"inherits":22,"readable-stream/duplex.js":26,"readable-stream/passthrough.js":35,"readable-stream/readable.js":36,"readable-stream/transform.js":37,"readable-stream/writable.js":38}],40:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -14018,14 +11425,14 @@ function base64DetectIncompleteChar(buffer) {
   this.charLength = this.charReceived ? 3 : 0;
 }
 
-},{"buffer":27}],51:[function(require,module,exports){
+},{"buffer":17}],41:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],52:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -14615,4 +12022,2617 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":51,"_process":35,"inherits":32}]},{},[1]);
+},{"./support/isBuffer":41,"_process":25,"inherits":22}],43:[function(require,module,exports){
+var tiledMapLoader = require( "./src/tiledMapLoader" );
+
+PIXI.loaders.Loader.addPixiMiddleware( tiledMapLoader );
+PIXI.loader.use( tiledMapLoader() );
+
+module.exports = PIXI.extras.TiledMap = require( "./src/TiledMap" );
+},{"./src/TiledMap":51,"./src/tiledMapLoader":52}],44:[function(require,module,exports){
+(function (Buffer){
+var sax = require('sax');
+var fs = require('fs');
+var path = require('path');
+var zlib = require('zlib');
+var Pend = require('pend');
+
+exports.readFile = defaultReadFile;
+exports.parseFile = parseFile;
+exports.parse = parse;
+exports.Map = Map;
+exports.TileSet = TileSet;
+exports.Image = Image;
+exports.Tile = Tile;
+exports.TileLayer = TileLayer;
+exports.ObjectLayer = ObjectLayer;
+exports.ImageLayer = ImageLayer;
+exports.TmxObject = TmxObject;
+exports.Terrain = Terrain;
+
+var FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
+var FLIPPED_VERTICALLY_FLAG   = 0x40000000;
+var FLIPPED_DIAGONALLY_FLAG   = 0x20000000;
+
+var STATE_COUNT = 0;
+var STATE_START                = STATE_COUNT++;
+var STATE_MAP                  = STATE_COUNT++;
+var STATE_COLLECT_PROPS        = STATE_COUNT++;
+var STATE_COLLECT_ANIMATIONS   = STATE_COUNT++;
+var STATE_COLLECT_OBJECT_GROUPS = STATE_COUNT++;
+var STATE_WAIT_FOR_CLOSE       = STATE_COUNT++;
+var STATE_TILESET              = STATE_COUNT++;
+var STATE_TILE                 = STATE_COUNT++;
+var STATE_TILE_LAYER           = STATE_COUNT++;
+var STATE_OBJECT_LAYER         = STATE_COUNT++;
+var STATE_OBJECT               = STATE_COUNT++;
+var STATE_TILE_OBJECT          = STATE_COUNT++;
+var STATE_IMAGE_LAYER          = STATE_COUNT++;
+var STATE_TILE_DATA_XML        = STATE_COUNT++;
+var STATE_TILE_DATA_CSV        = STATE_COUNT++;
+var STATE_TILE_DATA_B64_RAW    = STATE_COUNT++;
+var STATE_TILE_DATA_B64_GZIP   = STATE_COUNT++;
+var STATE_TILE_DATA_B64_ZLIB   = STATE_COUNT++;
+var STATE_TERRAIN_TYPES        = STATE_COUNT++;
+var STATE_TERRAIN              = STATE_COUNT++;
+
+function parse(content, pathToFile, cb) {
+  var pathToDir = path.dirname(pathToFile);
+  var parser = sax.parser();
+  var map;
+  var topLevelObject = null;
+  var state = STATE_START;
+  var states = new Array(STATE_COUNT);
+  var waitForCloseNextState = 0;
+  var waitForCloseOpenCount = 0;
+  var propertiesObject = null;
+  var propertiesNextState = 0;
+  var animationsObject = null;
+  var animationsNextState = 0;
+  var objectGroupsObject = null;
+  var objectGroupsNextState = 0;
+  var tileIndex = 0;
+  var tileSet = null;
+  var tileSetNextState = 0;
+  var tile;
+  var layer;
+  var object;
+  var terrain;
+  var pend = new Pend();
+  // this holds the numerical tile ids
+  // later we use it to resolve the real tiles
+  var unresolvedLayers = [];
+  var unresolvedLayer;
+  states[STATE_START] = {
+    opentag: function(tag) {
+      if (tag.name === 'MAP') {
+        map = new Map();
+        topLevelObject = map;
+        map.version = tag.attributes.VERSION;
+        map.orientation = tag.attributes.ORIENTATION;
+        map.width = int(tag.attributes.WIDTH);
+        map.height = int(tag.attributes.HEIGHT);
+        map.tileWidth = int(tag.attributes.TILEWIDTH);
+        map.tileHeight = int(tag.attributes.TILEHEIGHT);
+        map.backgroundColor = tag.attributes.BACKGROUNDCOLOR;
+
+        state = STATE_MAP;
+      } else if (tag.name === 'TILESET') {
+        collectTileSet(tag, STATE_START);
+        topLevelObject = tileSet;
+      } else {
+        waitForClose();
+      }
+    },
+    closetag: noop,
+    text: noop,
+  };
+  states[STATE_MAP] = {
+    opentag: function(tag) {
+      switch (tag.name) {
+        case 'PROPERTIES':
+          collectProperties(map.properties);
+          break;
+        case 'TILESET':
+          collectTileSet(tag, STATE_MAP);
+          map.tileSets.push(tileSet);
+          break;
+        case 'LAYER':
+          layer = new TileLayer(map);
+          tileIndex = 0;
+          layer.name = tag.attributes.NAME;
+          layer.opacity = float(tag.attributes.OPACITY, 1);
+          layer.visible = bool(tag.attributes.VISIBLE, true);
+          map.layers.push(layer);
+          unresolvedLayer = {
+            layer: layer,
+            tiles: new Array(map.width * map.height),
+          };
+          unresolvedLayers.push(unresolvedLayer);
+          state = STATE_TILE_LAYER;
+          break;
+        case 'OBJECTGROUP':
+          layer = new ObjectLayer();
+          layer.name = tag.attributes.NAME;
+          layer.color = tag.attributes.COLOR;
+          layer.opacity = float(tag.attributes.OPACITY, 1);
+          layer.visible = bool(tag.attributes.VISIBLE, true);
+          map.layers.push(layer);
+          state = STATE_OBJECT_LAYER;
+          break;
+        case 'IMAGELAYER':
+          layer = new ImageLayer();
+          layer.name = tag.attributes.NAME;
+          layer.x = int(tag.attributes.X);
+          layer.y = int(tag.attributes.Y);
+          layer.opacity = float(tag.attributes.OPACITY, 1);
+          layer.visible = bool(tag.attributes.VISIBLE, true);
+          map.layers.push(layer);
+          state = STATE_IMAGE_LAYER;
+          break;
+        default:
+          waitForClose();
+      }
+    },
+    closetag: noop,
+    text: noop,
+  };
+  states[STATE_TILESET] = {
+    opentag: function(tag) {
+      switch (tag.name) {
+        case 'TILEOFFSET':
+          tileSet.tileOffset.x = int(tag.attributes.X);
+          tileSet.tileOffset.y = int(tag.attributes.Y);
+          waitForClose();
+          break;
+        case 'PROPERTIES':
+          collectProperties(tileSet.properties);
+          break;
+        case 'IMAGE':
+          tileSet.image = collectImage(tag);
+          break;
+        case 'TERRAINTYPES':
+          state = STATE_TERRAIN_TYPES;
+          break;
+        case 'TILE':
+          tile = new Tile();
+          tile.id = int(tag.attributes.ID);
+          if (tag.attributes.TERRAIN) {
+            var indexes = tag.attributes.TERRAIN.split(",");
+            tile.terrain = indexes.map(resolveTerrain);
+          }
+          tile.probability = float(tag.attributes.PROBABILITY);
+          tileSet.tiles[tile.id] = tile;
+          state = STATE_TILE;
+          break;
+        default:
+          waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = tileSetNextState;
+    },
+    text: noop,
+  };
+  states[STATE_COLLECT_PROPS] = {
+    opentag: function(tag) {
+      if (tag.name === 'PROPERTY') {
+        propertiesObject[tag.attributes.NAME] = tag.attributes.VALUE;
+      }
+      waitForClose();
+    },
+    closetag: function(name) {
+      state = propertiesNextState;
+    },
+    text: noop,
+  };
+  states[STATE_COLLECT_ANIMATIONS] = {
+    opentag: function(tag) {
+      if (tag.name === 'FRAME') {
+          animationsObject.push({
+              'tileId': tag.attributes.TILEID,
+              'duration': tag.attributes.DURATION
+          });
+      }
+      waitForClose();
+    },
+    closetag: function(name) {
+      state = animationsNextState;
+    },
+    text: noop,
+  };
+  states[STATE_COLLECT_OBJECT_GROUPS] = {
+    opentag: function(tag) {
+      if (tag.name === 'OBJECT') {
+        object = new TmxObject();
+        object.name = tag.attributes.NAME;
+        object.type = tag.attributes.TYPE;
+        object.x = int(tag.attributes.X);
+        object.y = int(tag.attributes.Y);
+        object.width = int(tag.attributes.WIDTH, 0);
+        object.height = int(tag.attributes.HEIGHT, 0);
+        object.rotation = float(tag.attributes.ROTATION, 0);
+        object.gid = int(tag.attributes.GID);
+        object.visible = bool(tag.attributes.VISIBLE, true);
+        objectGroupsObject.push(object);
+        state = STATE_TILE_OBJECT;
+      } else {
+        waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = objectGroupsNextState;
+    },
+    text: noop
+  };
+  states[STATE_WAIT_FOR_CLOSE] = {
+    opentag: function(tag) {
+      waitForCloseOpenCount += 1;
+    },
+    closetag: function(name) {
+      waitForCloseOpenCount -= 1;
+      if (waitForCloseOpenCount === 0) state = waitForCloseNextState;
+    },
+    text: noop,
+  };
+  states[STATE_TILE] = {
+    opentag: function(tag) {
+      if (tag.name === 'PROPERTIES') {
+        collectProperties(tile.properties);
+      } else if (tag.name === 'IMAGE') {
+        tile.image = collectImage(tag);
+      } else if (tag.name === 'ANIMATION') {
+        tile.animation = collectAnimations(tile.animations);
+      } else if (tag.name === 'OBJECTGROUP') {
+        tile.objectGroup = collectObjectGroups(tile.objectGroups);
+      } else {
+        waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = STATE_TILESET
+    },
+    text: noop,
+  };
+  states[STATE_TILE_LAYER] = {
+    opentag: function(tag) {
+      if (tag.name === 'PROPERTIES') {
+        collectProperties(layer.properties);
+      } else if (tag.name === 'DATA') {
+        var dataEncoding = tag.attributes.ENCODING;
+        var dataCompression = tag.attributes.COMPRESSION;
+        switch (dataEncoding) {
+          case undefined:
+          case null:
+            state = STATE_TILE_DATA_XML;
+            break;
+          case 'csv':
+            state = STATE_TILE_DATA_CSV;
+            break;
+          case 'base64':
+            switch (dataCompression) {
+              case undefined:
+              case null:
+                state = STATE_TILE_DATA_B64_RAW;
+                break;
+              case 'gzip':
+                state = STATE_TILE_DATA_B64_GZIP;
+                break;
+              case 'zlib':
+                state = STATE_TILE_DATA_B64_ZLIB;
+                break;
+              default:
+                error(new Error("unsupported data compression: " + dataCompression));
+                return;
+            }
+            break;
+          default:
+            error(new Error("unsupported data encoding: " + dataEncoding));
+            return;
+        }
+      } else {
+        waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = STATE_MAP;
+    },
+    text: noop,
+  };
+  states[STATE_OBJECT_LAYER] = {
+    opentag: function(tag) {
+      if (tag.name === 'PROPERTIES') {
+        collectProperties(layer.properties);
+      } else if (tag.name === 'OBJECT') {
+        object = new TmxObject();
+        object.name = tag.attributes.NAME;
+        object.type = tag.attributes.TYPE;
+        object.x = int(tag.attributes.X);
+        object.y = int(tag.attributes.Y);
+        object.width = int(tag.attributes.WIDTH, 0);
+        object.height = int(tag.attributes.HEIGHT, 0);
+        object.rotation = float(tag.attributes.ROTATION, 0);
+        object.gid = int(tag.attributes.GID);
+        object.visible = bool(tag.attributes.VISIBLE, true);
+        layer.objects.push(object);
+        state = STATE_OBJECT;
+      } else {
+        waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = STATE_MAP;
+    },
+    text: noop,
+  };
+  states[STATE_IMAGE_LAYER] = {
+    opentag: function(tag) {
+      if (tag.name === 'PROPERTIES') {
+        collectProperties(layer.properties);
+      } else if (tag.name === 'IMAGE') {
+        layer.image = collectImage(tag);
+      } else {
+        waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = STATE_MAP;
+    },
+    text: noop,
+  };
+  states[STATE_OBJECT] = {
+    opentag: function(tag) {
+      switch (tag.name) {
+        case 'PROPERTIES':
+          collectProperties(object.properties);
+          break;
+        case 'ELLIPSE':
+          object.ellipse = true;
+          waitForClose();
+          break;
+        case 'POLYGON':
+          object.polygon = parsePoints(tag.attributes.POINTS);
+          waitForClose();
+          break;
+        case 'POLYLINE':
+          object.polyline = parsePoints(tag.attributes.POINTS);
+          waitForClose();
+          break;
+        case 'IMAGE':
+          object.image = collectImage(tag);
+          break;
+        default:
+          waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = STATE_OBJECT_LAYER;
+    },
+    text: noop,
+  };
+  states[STATE_TILE_OBJECT] = {
+    opentag: function(tag) {
+      switch (tag.name) {
+        case 'PROPERTIES':
+          collectProperties(object.properties);
+          break;
+        case 'ELLIPSE':
+          object.ellipse = true;
+          waitForClose();
+          break;
+        case 'POLYGON':
+          object.polygon = parsePoints(tag.attributes.POINTS);
+          waitForClose();
+          break;
+        case 'POLYLINE':
+          object.polyline = parsePoints(tag.attributes.POINTS);
+          waitForClose();
+          break;
+        case 'IMAGE':
+          object.image = collectImage(tag);
+          break;
+        default:
+          waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = STATE_COLLECT_OBJECT_GROUPS;
+    },
+    text: noop
+  };
+  states[STATE_TILE_DATA_XML] = {
+    opentag: function(tag) {
+      if (tag.name === 'TILE') {
+        saveTile(int(tag.attributes.GID, 0));
+      }
+      waitForClose();
+    },
+    closetag: function(name) {
+      state = STATE_TILE_LAYER;
+    },
+    text: noop,
+  };
+  states[STATE_TILE_DATA_CSV] = {
+    opentag: function(tag) {
+      waitForClose();
+    },
+    closetag: function(name) {
+      state = STATE_TILE_LAYER;
+    },
+    text: function(text) {
+      text.split(",").forEach(function(c) {
+        saveTile(parseInt(c, 10));
+      });
+    },
+  };
+  states[STATE_TILE_DATA_B64_RAW] = {
+    opentag: function(tag) {
+      waitForClose();
+    },
+    closetag: function(name) {
+      state = STATE_TILE_LAYER;
+    },
+    text: function(text) {
+      unpackTileBytes(new Buffer(text.trim(), 'base64'));
+    },
+  };
+  states[STATE_TILE_DATA_B64_GZIP] = {
+    opentag: function(tag) {
+      waitForClose();
+    },
+    closetag: function(name) {
+      state = STATE_TILE_LAYER;
+    },
+    text: function(text) {
+      var zipped = new Buffer(text.trim(), 'base64');
+      var oldUnresolvedLayer = unresolvedLayer;
+      var oldLayer = layer;
+      pend.go(function(cb) {
+        zlib.gunzip(zipped, function(err, buf) {
+          if (err) {
+            cb(err);
+            return;
+          }
+          unresolvedLayer = oldUnresolvedLayer;
+          layer = oldLayer;
+          unpackTileBytes(buf);
+          cb();
+        });
+      });
+    },
+  };
+  states[STATE_TILE_DATA_B64_ZLIB] = {
+    opentag: function(tag) {
+      waitForClose();
+    },
+    closetag: function(name) {
+      state = STATE_TILE_LAYER;
+    },
+    text: function(text) {
+      var zipped = new Buffer(text.trim(), 'base64');
+      var oldUnresolvedLayer = unresolvedLayer;
+      var oldLayer = layer;
+      pend.go(function(cb) {
+        zlib.inflate(zipped, function(err, buf) {
+          if (err) {
+            cb(err);
+            return;
+          }
+          layer = oldLayer;
+          unresolvedLayer = oldUnresolvedLayer;
+          unpackTileBytes(buf);
+          cb();
+        });
+      });
+    },
+  };
+  states[STATE_TERRAIN_TYPES] = {
+    opentag: function(tag) {
+      if (tag.name === 'TERRAIN') {
+        terrain = new Terrain();
+        terrain.name = tag.attributes.NAME;
+        terrain.tile = int(tag.attributes.TILE);
+        tileSet.terrainTypes.push(terrain);
+        state = STATE_TERRAIN;
+      } else {
+        waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = STATE_TILESET;
+    },
+    text: noop,
+  };
+  states[STATE_TERRAIN] = {
+    opentag: function(tag) {
+      if (tag.name === 'PROPERTIES') {
+        collectProperties(terrain.properties);
+      } else {
+        waitForClose();
+      }
+    },
+    closetag: function(name) {
+      state = STATE_TERRAIN_TYPES;
+    },
+    text: noop,
+  };
+
+  parser.onerror = cb;
+  parser.onopentag = function(tag) {
+    states[state].opentag(tag);
+  };
+  parser.onclosetag = function(name) {
+    states[state].closetag(name);
+  };
+  parser.ontext = function(text) {
+    states[state].text(text);
+  };
+  parser.onend = function() {
+    // wait until async stuff has finished
+    pend.wait(function(err) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      // now all tilesets are resolved and all data is decoded
+      unresolvedLayers.forEach(resolveLayer);
+      cb(null, topLevelObject);
+    });
+  };
+  parser.write(content).close();
+
+  function resolveTerrain(terrainIndexStr) {
+    return tileSet.terrainTypes[parseInt(terrainIndexStr, 10)];
+  }
+
+  function saveTile(gid) {
+    layer.horizontalFlips[tileIndex] = !!(gid & FLIPPED_HORIZONTALLY_FLAG);
+    layer.verticalFlips[tileIndex]   = !!(gid & FLIPPED_VERTICALLY_FLAG);
+    layer.diagonalFlips[tileIndex]   = !!(gid & FLIPPED_DIAGONALLY_FLAG);
+
+    gid &= ~(FLIPPED_HORIZONTALLY_FLAG |
+             FLIPPED_VERTICALLY_FLAG |
+             FLIPPED_DIAGONALLY_FLAG);
+
+    unresolvedLayer.tiles[tileIndex] = gid;
+
+    tileIndex += 1;
+  }
+
+  function collectImage(tag) {
+    var img = new Image();
+    img.format = tag.attributes.FORMAT;
+    img.source = tag.attributes.SOURCE;
+    img.trans = tag.attributes.TRANS;
+    img.width = int(tag.attributes.WIDTH);
+    img.height = int(tag.attributes.HEIGHT);
+
+    // TODO: read possible <data>
+    waitForClose();
+    return img;
+  }
+
+  function collectTileSet(tag, nextState) {
+    tileSet = new TileSet();
+    tileSet.firstGid = int(tag.attributes.FIRSTGID);
+    tileSet.source = tag.attributes.SOURCE;
+    tileSet.name = tag.attributes.NAME;
+    tileSet.tileWidth = int(tag.attributes.TILEWIDTH);
+    tileSet.tileHeight = int(tag.attributes.TILEHEIGHT);
+    tileSet.spacing = int(tag.attributes.SPACING);
+    tileSet.margin = int(tag.attributes.MARGIN);
+
+    if (tileSet.source) {
+      pend.go(function(cb) {
+        resolveTileSet(tileSet, cb);
+      });
+    }
+
+    state = STATE_TILESET;
+    tileSetNextState = nextState;
+  }
+
+  function collectProperties(obj) {
+    propertiesObject = obj;
+    propertiesNextState = state;
+    state = STATE_COLLECT_PROPS;
+  }
+
+  function collectAnimations(obj) {
+    animationsObject = obj;
+    animationsNextState = state;
+    state = STATE_COLLECT_ANIMATIONS;
+  }
+
+  function collectObjectGroups(obj) {
+    objectGroupsObject = obj;
+    objectGroupsNextState = state;
+    state = STATE_COLLECT_OBJECT_GROUPS;
+  }
+
+  function waitForClose() {
+    waitForCloseNextState = state;
+    state = STATE_WAIT_FOR_CLOSE;
+    waitForCloseOpenCount = 1;
+  }
+
+  function error(err) {
+    parser.onerror = null;
+    parser.onopentag = null;
+    parser.onclosetag = null;
+    parser.ontext = null;
+    parser.onend = null;
+    cb(err);
+  }
+
+  function resolveTileSet(unresolvedTileSet, cb) {
+    var target = path.join(pathToDir, unresolvedTileSet.source);
+    parseFile(target, function(err, resolvedTileSet) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      resolvedTileSet.mergeTo(unresolvedTileSet);
+      cb();
+    });
+  }
+
+  function resolveLayer(unresolvedLayer) {
+    for (var i = 0; i < unresolvedLayer.tiles.length; i += 1) {
+      var globalTileId = unresolvedLayer.tiles[i];
+      for (var tileSetIndex = map.tileSets.length - 1;
+          tileSetIndex >= 0; tileSetIndex -= 1)
+      {
+        var tileSet = map.tileSets[tileSetIndex];
+        if (tileSet.firstGid <= globalTileId) {
+          var tileId = globalTileId - tileSet.firstGid;
+          var tile = tileSet.tiles[tileId];
+          if (!tile) {
+            // implicit tile
+            tile = new Tile();
+            tile.id = tileId;
+            tileSet.tiles[tileId] = tile;
+          }
+          tile.gid = globalTileId;
+          unresolvedLayer.layer.tiles[i] = tile;
+          break;
+        }
+      }
+    }
+  }
+
+  function unpackTileBytes(buf) {
+    var expectedCount = map.width * map.height * 4;
+    if (buf.length !== expectedCount) {
+      error(new Error("Expected " + expectedCount +
+            " bytes of tile data; received " + buf.length));
+      return;
+    }
+    tileIndex = 0;
+    for (var i = 0; i < expectedCount; i += 4) {
+      saveTile(buf.readUInt32LE(i));
+    }
+  }
+}
+
+function defaultReadFile(name, cb) {
+  fs.readFile(name, { encoding: 'utf8' }, cb);
+}
+
+function parseFile(name, cb) {
+  exports.readFile(name, function(err, content) {
+    if (err) {
+      cb(err);
+    } else {
+      parse(content, name, cb);
+    }
+  });
+}
+
+function parsePoints(str) {
+  var points = str.split(" ");
+  return points.map(function(pt) {
+    var xy = pt.split(",");
+    return {
+      x: xy[0],
+      y: xy[1],
+    };
+  });
+}
+
+function noop() {}
+
+function int(value, defaultValue) {
+  defaultValue = defaultValue == null ? null : defaultValue;
+  return value == null ? defaultValue : parseInt(value, 10);
+}
+
+function bool(value, defaultValue) {
+  defaultValue = defaultValue == null ? null : defaultValue;
+  return value == null ? defaultValue : !!parseInt(value, 10);
+}
+
+function float(value, defaultValue) {
+  defaultValue = defaultValue == null ? null : defaultValue;
+  return value == null ? defaultValue : parseFloat(value, 10);
+}
+
+function Map() {
+  this.version = null;
+  this.orientation = "orthogonal";
+  this.width = 0;
+  this.height = 0;
+  this.tileWidth = 0;
+  this.tileHeight = 0;
+  this.backgroundColor = null;
+
+  this.layers = [];
+  this.properties = {};
+  this.tileSets = [];
+}
+
+function TileSet() {
+  this.firstGid = 0;
+  this.source = "";
+  this.name = "";
+  this.tileWidth = 0;
+  this.tileHeight = 0;
+  this.spacing = 0;
+  this.margin = 0;
+  this.tileOffset = {x: 0, y: 0};
+  this.properties = {};
+  this.image = null;
+  this.tiles = [];
+  this.terrainTypes = [];
+}
+
+TileSet.prototype.mergeTo = function(other) {
+  other.firstGid = this.firstGid == null ? other.firstGid : this.firstGid;
+  other.source = this.source == null ? other.source : this.source;
+  other.name = this.name == null ? other.name : this.name;
+  other.tileWidth = this.tileWidth == null ? other.tileWidth : this.tileWidth;
+  other.tileHeight = this.tileHeight == null ? other.tileHeight : this.tileHeight;
+  other.spacing = this.spacing == null ? other.spacing : this.spacing;
+  other.margin = this.margin == null ? other.margin : this.margin;
+  other.tileOffset = this.tileOffset == null ? other.tileOffset : this.tileOffset;
+  other.properties = this.properties == null ? other.properties : this.properties;
+  other.image = this.image == null ? other.image : this.image;
+  other.tiles = this.tiles == null ? other.tiles : this.tiles;
+  other.terrainTypes = this.terrainTypes == null ? other.terrainTypes : this.terrainTypes;
+};
+
+function Image() {
+  this.format = null;
+  this.source = "";
+  this.trans = null;
+  this.width = 0;
+  this.height = 0;
+}
+
+function Tile() {
+  this.id = 0;
+  this.terrain = [];
+  this.probability = null;
+  this.properties = {};
+  this.animations = [];
+  this.objectGroups = [];
+  this.image = null;
+}
+
+function TileLayer(map) {
+  var tileCount = map.width * map.height;
+  this.map = map;
+  this.type = "tile";
+  this.name = null;
+  this.opacity = 1;
+  this.visible = true;
+  this.properties = {};
+  this.tiles = new Array(tileCount);
+  this.horizontalFlips = new Array(tileCount);
+  this.verticalFlips = new Array(tileCount);
+  this.diagonalFlips = new Array(tileCount);
+}
+
+TileLayer.prototype.tileAt = function(x, y) {
+  return this.tiles[y * this.map.width + x];
+};
+
+TileLayer.prototype.setTileAt = function(x, y, tile) {
+  this.tiles[y * this.map.width + x] = tile;
+};
+
+function ObjectLayer() {
+  this.type = "object";
+  this.name = null;
+  this.color = null;
+  this.opacity = 1;
+  this.visible = true;
+  this.properties = {};
+  this.objects = [];
+}
+
+function ImageLayer() {
+  this.type = "image";
+  this.name = null;
+  this.x = 0;
+  this.y = 0;
+  this.opacity = 1;
+  this.visible = true;
+  this.properties = {};
+  this.image = null;
+}
+
+function TmxObject() {
+  this.name = null;
+  this.type = null;
+  this.x = 0;
+  this.y = 0;
+  this.width = 0;
+  this.height = 0;
+  this.rotation = 0;
+  this.properties = {};
+  this.gid = null;
+  this.visible = true;
+  this.ellipse = false;
+  this.polygon = null;
+  this.polyline = null;
+}
+
+function Terrain() {
+  this.name = "";
+  this.tile = 0;
+  this.properties = {};
+}
+
+}).call(this,require("buffer").Buffer)
+},{"buffer":17,"fs":1,"path":24,"pend":45,"sax":46,"zlib":16}],45:[function(require,module,exports){
+module.exports = Pend;
+
+function Pend() {
+  this.pending = 0;
+  this.max = Infinity;
+  this.listeners = [];
+  this.waiting = [];
+  this.error = null;
+}
+
+Pend.prototype.go = function(fn) {
+  if (this.pending < this.max) {
+    pendGo(this, fn);
+  } else {
+    this.waiting.push(fn);
+  }
+};
+
+Pend.prototype.wait = function(cb) {
+  if (this.pending === 0) {
+    cb(this.error);
+  } else {
+    this.listeners.push(cb);
+  }
+};
+
+Pend.prototype.hold = function() {
+  return pendHold(this);
+};
+
+function pendHold(self) {
+  self.pending += 1;
+  var called = false;
+  return onCb;
+  function onCb(err) {
+    if (called) throw new Error("callback called twice");
+    called = true;
+    self.error = self.error || err;
+    self.pending -= 1;
+    if (self.waiting.length > 0 && self.pending < self.max) {
+      pendGo(self, self.waiting.shift());
+    } else if (self.pending === 0) {
+      var listeners = self.listeners;
+      self.listeners = [];
+      listeners.forEach(cbListener);
+    }
+  }
+  function cbListener(listener) {
+    listener(self.error);
+  }
+}
+
+function pendGo(self, fn) {
+  fn(pendHold(self));
+}
+
+},{}],46:[function(require,module,exports){
+(function (Buffer){
+// wrapper for non-node envs
+;(function (sax) {
+
+sax.parser = function (strict, opt) { return new SAXParser(strict, opt) }
+sax.SAXParser = SAXParser
+sax.SAXStream = SAXStream
+sax.createStream = createStream
+
+// When we pass the MAX_BUFFER_LENGTH position, start checking for buffer overruns.
+// When we check, schedule the next check for MAX_BUFFER_LENGTH - (max(buffer lengths)),
+// since that's the earliest that a buffer overrun could occur.  This way, checks are
+// as rare as required, but as often as necessary to ensure never crossing this bound.
+// Furthermore, buffers are only tested at most once per write(), so passing a very
+// large string into write() might have undesirable effects, but this is manageable by
+// the caller, so it is assumed to be safe.  Thus, a call to write() may, in the extreme
+// edge case, result in creating at most one complete copy of the string passed in.
+// Set to Infinity to have unlimited buffers.
+sax.MAX_BUFFER_LENGTH = 64 * 1024
+
+var buffers = [
+  "comment", "sgmlDecl", "textNode", "tagName", "doctype",
+  "procInstName", "procInstBody", "entity", "attribName",
+  "attribValue", "cdata", "script"
+]
+
+sax.EVENTS = // for discoverability.
+  [ "text"
+  , "processinginstruction"
+  , "sgmldeclaration"
+  , "doctype"
+  , "comment"
+  , "attribute"
+  , "opentag"
+  , "closetag"
+  , "opencdata"
+  , "cdata"
+  , "closecdata"
+  , "error"
+  , "end"
+  , "ready"
+  , "script"
+  , "opennamespace"
+  , "closenamespace"
+  ]
+
+function SAXParser (strict, opt) {
+  if (!(this instanceof SAXParser)) return new SAXParser(strict, opt)
+
+  var parser = this
+  clearBuffers(parser)
+  parser.q = parser.c = ""
+  parser.bufferCheckPosition = sax.MAX_BUFFER_LENGTH
+  parser.opt = opt || {}
+  parser.opt.lowercase = parser.opt.lowercase || parser.opt.lowercasetags
+  parser.looseCase = parser.opt.lowercase ? "toLowerCase" : "toUpperCase"
+  parser.tags = []
+  parser.closed = parser.closedRoot = parser.sawRoot = false
+  parser.tag = parser.error = null
+  parser.strict = !!strict
+  parser.noscript = !!(strict || parser.opt.noscript)
+  parser.state = S.BEGIN
+  parser.strictEntities = parser.opt.strictEntities
+  parser.ENTITIES = parser.strictEntities ? Object.create(sax.XML_ENTITIES) : Object.create(sax.ENTITIES)
+  parser.attribList = []
+
+  // namespaces form a prototype chain.
+  // it always points at the current tag,
+  // which protos to its parent tag.
+  if (parser.opt.xmlns) parser.ns = Object.create(rootNS)
+
+  // mostly just for error reporting
+  parser.trackPosition = parser.opt.position !== false
+  if (parser.trackPosition) {
+    parser.position = parser.line = parser.column = 0
+  }
+  emit(parser, "onready")
+}
+
+if (!Object.create) Object.create = function (o) {
+  function f () { this.__proto__ = o }
+  f.prototype = o
+  return new f
+}
+
+if (!Object.getPrototypeOf) Object.getPrototypeOf = function (o) {
+  return o.__proto__
+}
+
+if (!Object.keys) Object.keys = function (o) {
+  var a = []
+  for (var i in o) if (o.hasOwnProperty(i)) a.push(i)
+  return a
+}
+
+function checkBufferLength (parser) {
+  var maxAllowed = Math.max(sax.MAX_BUFFER_LENGTH, 10)
+    , maxActual = 0
+  for (var i = 0, l = buffers.length; i < l; i ++) {
+    var len = parser[buffers[i]].length
+    if (len > maxAllowed) {
+      // Text/cdata nodes can get big, and since they're buffered,
+      // we can get here under normal conditions.
+      // Avoid issues by emitting the text node now,
+      // so at least it won't get any bigger.
+      switch (buffers[i]) {
+        case "textNode":
+          closeText(parser)
+        break
+
+        case "cdata":
+          emitNode(parser, "oncdata", parser.cdata)
+          parser.cdata = ""
+        break
+
+        case "script":
+          emitNode(parser, "onscript", parser.script)
+          parser.script = ""
+        break
+
+        default:
+          error(parser, "Max buffer length exceeded: "+buffers[i])
+      }
+    }
+    maxActual = Math.max(maxActual, len)
+  }
+  // schedule the next check for the earliest possible buffer overrun.
+  parser.bufferCheckPosition = (sax.MAX_BUFFER_LENGTH - maxActual)
+                             + parser.position
+}
+
+function clearBuffers (parser) {
+  for (var i = 0, l = buffers.length; i < l; i ++) {
+    parser[buffers[i]] = ""
+  }
+}
+
+function flushBuffers (parser) {
+  closeText(parser)
+  if (parser.cdata !== "") {
+    emitNode(parser, "oncdata", parser.cdata)
+    parser.cdata = ""
+  }
+  if (parser.script !== "") {
+    emitNode(parser, "onscript", parser.script)
+    parser.script = ""
+  }
+}
+
+SAXParser.prototype =
+  { end: function () { end(this) }
+  , write: write
+  , resume: function () { this.error = null; return this }
+  , close: function () { return this.write(null) }
+  , flush: function () { flushBuffers(this) }
+  }
+
+try {
+  var Stream = require("stream").Stream
+} catch (ex) {
+  var Stream = function () {}
+}
+
+
+var streamWraps = sax.EVENTS.filter(function (ev) {
+  return ev !== "error" && ev !== "end"
+})
+
+function createStream (strict, opt) {
+  return new SAXStream(strict, opt)
+}
+
+function SAXStream (strict, opt) {
+  if (!(this instanceof SAXStream)) return new SAXStream(strict, opt)
+
+  Stream.apply(this)
+
+  this._parser = new SAXParser(strict, opt)
+  this.writable = true
+  this.readable = true
+
+
+  var me = this
+
+  this._parser.onend = function () {
+    me.emit("end")
+  }
+
+  this._parser.onerror = function (er) {
+    me.emit("error", er)
+
+    // if didn't throw, then means error was handled.
+    // go ahead and clear error, so we can write again.
+    me._parser.error = null
+  }
+
+  this._decoder = null;
+
+  streamWraps.forEach(function (ev) {
+    Object.defineProperty(me, "on" + ev, {
+      get: function () { return me._parser["on" + ev] },
+      set: function (h) {
+        if (!h) {
+          me.removeAllListeners(ev)
+          return me._parser["on"+ev] = h
+        }
+        me.on(ev, h)
+      },
+      enumerable: true,
+      configurable: false
+    })
+  })
+}
+
+SAXStream.prototype = Object.create(Stream.prototype,
+  { constructor: { value: SAXStream } })
+
+SAXStream.prototype.write = function (data) {
+  if (typeof Buffer === 'function' &&
+      typeof Buffer.isBuffer === 'function' &&
+      Buffer.isBuffer(data)) {
+    if (!this._decoder) {
+      var SD = require('string_decoder').StringDecoder
+      this._decoder = new SD('utf8')
+    }
+    data = this._decoder.write(data);
+  }
+
+  this._parser.write(data.toString())
+  this.emit("data", data)
+  return true
+}
+
+SAXStream.prototype.end = function (chunk) {
+  if (chunk && chunk.length) this.write(chunk)
+  this._parser.end()
+  return true
+}
+
+SAXStream.prototype.on = function (ev, handler) {
+  var me = this
+  if (!me._parser["on"+ev] && streamWraps.indexOf(ev) !== -1) {
+    me._parser["on"+ev] = function () {
+      var args = arguments.length === 1 ? [arguments[0]]
+               : Array.apply(null, arguments)
+      args.splice(0, 0, ev)
+      me.emit.apply(me, args)
+    }
+  }
+
+  return Stream.prototype.on.call(me, ev, handler)
+}
+
+
+
+// character classes and tokens
+var whitespace = "\r\n\t "
+  // this really needs to be replaced with character classes.
+  // XML allows all manner of ridiculous numbers and digits.
+  , number = "0124356789"
+  , letter = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  // (Letter | "_" | ":")
+  , quote = "'\""
+  , entity = number+letter+"#"
+  , attribEnd = whitespace + ">"
+  , CDATA = "[CDATA["
+  , DOCTYPE = "DOCTYPE"
+  , XML_NAMESPACE = "http://www.w3.org/XML/1998/namespace"
+  , XMLNS_NAMESPACE = "http://www.w3.org/2000/xmlns/"
+  , rootNS = { xml: XML_NAMESPACE, xmlns: XMLNS_NAMESPACE }
+
+// turn all the string character sets into character class objects.
+whitespace = charClass(whitespace)
+number = charClass(number)
+letter = charClass(letter)
+
+// http://www.w3.org/TR/REC-xml/#NT-NameStartChar
+// This implementation works on strings, a single character at a time
+// as such, it cannot ever support astral-plane characters (10000-EFFFF)
+// without a significant breaking change to either this  parser, or the
+// JavaScript language.  Implementation of an emoji-capable xml parser
+// is left as an exercise for the reader.
+var nameStart = /[:_A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]/
+
+var nameBody = /[:_A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD\u00B7\u0300-\u036F\u203F-\u2040\.\d-]/
+
+quote = charClass(quote)
+entity = charClass(entity)
+attribEnd = charClass(attribEnd)
+
+function charClass (str) {
+  return str.split("").reduce(function (s, c) {
+    s[c] = true
+    return s
+  }, {})
+}
+
+function isRegExp (c) {
+  return Object.prototype.toString.call(c) === '[object RegExp]'
+}
+
+function is (charclass, c) {
+  return isRegExp(charclass) ? !!c.match(charclass) : charclass[c]
+}
+
+function not (charclass, c) {
+  return !is(charclass, c)
+}
+
+var S = 0
+sax.STATE =
+{ BEGIN                     : S++ // leading byte order mark or whitespace
+, BEGIN_WHITESPACE          : S++ // leading whitespace
+, TEXT                      : S++ // general stuff
+, TEXT_ENTITY               : S++ // &amp and such.
+, OPEN_WAKA                 : S++ // <
+, SGML_DECL                 : S++ // <!BLARG
+, SGML_DECL_QUOTED          : S++ // <!BLARG foo "bar
+, DOCTYPE                   : S++ // <!DOCTYPE
+, DOCTYPE_QUOTED            : S++ // <!DOCTYPE "//blah
+, DOCTYPE_DTD               : S++ // <!DOCTYPE "//blah" [ ...
+, DOCTYPE_DTD_QUOTED        : S++ // <!DOCTYPE "//blah" [ "foo
+, COMMENT_STARTING          : S++ // <!-
+, COMMENT                   : S++ // <!--
+, COMMENT_ENDING            : S++ // <!-- blah -
+, COMMENT_ENDED             : S++ // <!-- blah --
+, CDATA                     : S++ // <![CDATA[ something
+, CDATA_ENDING              : S++ // ]
+, CDATA_ENDING_2            : S++ // ]]
+, PROC_INST                 : S++ // <?hi
+, PROC_INST_BODY            : S++ // <?hi there
+, PROC_INST_ENDING          : S++ // <?hi "there" ?
+, OPEN_TAG                  : S++ // <strong
+, OPEN_TAG_SLASH            : S++ // <strong /
+, ATTRIB                    : S++ // <a
+, ATTRIB_NAME               : S++ // <a foo
+, ATTRIB_NAME_SAW_WHITE     : S++ // <a foo _
+, ATTRIB_VALUE              : S++ // <a foo=
+, ATTRIB_VALUE_QUOTED       : S++ // <a foo="bar
+, ATTRIB_VALUE_CLOSED       : S++ // <a foo="bar"
+, ATTRIB_VALUE_UNQUOTED     : S++ // <a foo=bar
+, ATTRIB_VALUE_ENTITY_Q     : S++ // <foo bar="&quot;"
+, ATTRIB_VALUE_ENTITY_U     : S++ // <foo bar=&quot;
+, CLOSE_TAG                 : S++ // </a
+, CLOSE_TAG_SAW_WHITE       : S++ // </a   >
+, SCRIPT                    : S++ // <script> ...
+, SCRIPT_ENDING             : S++ // <script> ... <
+}
+
+sax.XML_ENTITIES =
+{ "amp" : "&"
+, "gt" : ">"
+, "lt" : "<"
+, "quot" : "\""
+, "apos" : "'"
+}
+
+sax.ENTITIES =
+{ "amp" : "&"
+, "gt" : ">"
+, "lt" : "<"
+, "quot" : "\""
+, "apos" : "'"
+, "AElig" : 198
+, "Aacute" : 193
+, "Acirc" : 194
+, "Agrave" : 192
+, "Aring" : 197
+, "Atilde" : 195
+, "Auml" : 196
+, "Ccedil" : 199
+, "ETH" : 208
+, "Eacute" : 201
+, "Ecirc" : 202
+, "Egrave" : 200
+, "Euml" : 203
+, "Iacute" : 205
+, "Icirc" : 206
+, "Igrave" : 204
+, "Iuml" : 207
+, "Ntilde" : 209
+, "Oacute" : 211
+, "Ocirc" : 212
+, "Ograve" : 210
+, "Oslash" : 216
+, "Otilde" : 213
+, "Ouml" : 214
+, "THORN" : 222
+, "Uacute" : 218
+, "Ucirc" : 219
+, "Ugrave" : 217
+, "Uuml" : 220
+, "Yacute" : 221
+, "aacute" : 225
+, "acirc" : 226
+, "aelig" : 230
+, "agrave" : 224
+, "aring" : 229
+, "atilde" : 227
+, "auml" : 228
+, "ccedil" : 231
+, "eacute" : 233
+, "ecirc" : 234
+, "egrave" : 232
+, "eth" : 240
+, "euml" : 235
+, "iacute" : 237
+, "icirc" : 238
+, "igrave" : 236
+, "iuml" : 239
+, "ntilde" : 241
+, "oacute" : 243
+, "ocirc" : 244
+, "ograve" : 242
+, "oslash" : 248
+, "otilde" : 245
+, "ouml" : 246
+, "szlig" : 223
+, "thorn" : 254
+, "uacute" : 250
+, "ucirc" : 251
+, "ugrave" : 249
+, "uuml" : 252
+, "yacute" : 253
+, "yuml" : 255
+, "copy" : 169
+, "reg" : 174
+, "nbsp" : 160
+, "iexcl" : 161
+, "cent" : 162
+, "pound" : 163
+, "curren" : 164
+, "yen" : 165
+, "brvbar" : 166
+, "sect" : 167
+, "uml" : 168
+, "ordf" : 170
+, "laquo" : 171
+, "not" : 172
+, "shy" : 173
+, "macr" : 175
+, "deg" : 176
+, "plusmn" : 177
+, "sup1" : 185
+, "sup2" : 178
+, "sup3" : 179
+, "acute" : 180
+, "micro" : 181
+, "para" : 182
+, "middot" : 183
+, "cedil" : 184
+, "ordm" : 186
+, "raquo" : 187
+, "frac14" : 188
+, "frac12" : 189
+, "frac34" : 190
+, "iquest" : 191
+, "times" : 215
+, "divide" : 247
+, "OElig" : 338
+, "oelig" : 339
+, "Scaron" : 352
+, "scaron" : 353
+, "Yuml" : 376
+, "fnof" : 402
+, "circ" : 710
+, "tilde" : 732
+, "Alpha" : 913
+, "Beta" : 914
+, "Gamma" : 915
+, "Delta" : 916
+, "Epsilon" : 917
+, "Zeta" : 918
+, "Eta" : 919
+, "Theta" : 920
+, "Iota" : 921
+, "Kappa" : 922
+, "Lambda" : 923
+, "Mu" : 924
+, "Nu" : 925
+, "Xi" : 926
+, "Omicron" : 927
+, "Pi" : 928
+, "Rho" : 929
+, "Sigma" : 931
+, "Tau" : 932
+, "Upsilon" : 933
+, "Phi" : 934
+, "Chi" : 935
+, "Psi" : 936
+, "Omega" : 937
+, "alpha" : 945
+, "beta" : 946
+, "gamma" : 947
+, "delta" : 948
+, "epsilon" : 949
+, "zeta" : 950
+, "eta" : 951
+, "theta" : 952
+, "iota" : 953
+, "kappa" : 954
+, "lambda" : 955
+, "mu" : 956
+, "nu" : 957
+, "xi" : 958
+, "omicron" : 959
+, "pi" : 960
+, "rho" : 961
+, "sigmaf" : 962
+, "sigma" : 963
+, "tau" : 964
+, "upsilon" : 965
+, "phi" : 966
+, "chi" : 967
+, "psi" : 968
+, "omega" : 969
+, "thetasym" : 977
+, "upsih" : 978
+, "piv" : 982
+, "ensp" : 8194
+, "emsp" : 8195
+, "thinsp" : 8201
+, "zwnj" : 8204
+, "zwj" : 8205
+, "lrm" : 8206
+, "rlm" : 8207
+, "ndash" : 8211
+, "mdash" : 8212
+, "lsquo" : 8216
+, "rsquo" : 8217
+, "sbquo" : 8218
+, "ldquo" : 8220
+, "rdquo" : 8221
+, "bdquo" : 8222
+, "dagger" : 8224
+, "Dagger" : 8225
+, "bull" : 8226
+, "hellip" : 8230
+, "permil" : 8240
+, "prime" : 8242
+, "Prime" : 8243
+, "lsaquo" : 8249
+, "rsaquo" : 8250
+, "oline" : 8254
+, "frasl" : 8260
+, "euro" : 8364
+, "image" : 8465
+, "weierp" : 8472
+, "real" : 8476
+, "trade" : 8482
+, "alefsym" : 8501
+, "larr" : 8592
+, "uarr" : 8593
+, "rarr" : 8594
+, "darr" : 8595
+, "harr" : 8596
+, "crarr" : 8629
+, "lArr" : 8656
+, "uArr" : 8657
+, "rArr" : 8658
+, "dArr" : 8659
+, "hArr" : 8660
+, "forall" : 8704
+, "part" : 8706
+, "exist" : 8707
+, "empty" : 8709
+, "nabla" : 8711
+, "isin" : 8712
+, "notin" : 8713
+, "ni" : 8715
+, "prod" : 8719
+, "sum" : 8721
+, "minus" : 8722
+, "lowast" : 8727
+, "radic" : 8730
+, "prop" : 8733
+, "infin" : 8734
+, "ang" : 8736
+, "and" : 8743
+, "or" : 8744
+, "cap" : 8745
+, "cup" : 8746
+, "int" : 8747
+, "there4" : 8756
+, "sim" : 8764
+, "cong" : 8773
+, "asymp" : 8776
+, "ne" : 8800
+, "equiv" : 8801
+, "le" : 8804
+, "ge" : 8805
+, "sub" : 8834
+, "sup" : 8835
+, "nsub" : 8836
+, "sube" : 8838
+, "supe" : 8839
+, "oplus" : 8853
+, "otimes" : 8855
+, "perp" : 8869
+, "sdot" : 8901
+, "lceil" : 8968
+, "rceil" : 8969
+, "lfloor" : 8970
+, "rfloor" : 8971
+, "lang" : 9001
+, "rang" : 9002
+, "loz" : 9674
+, "spades" : 9824
+, "clubs" : 9827
+, "hearts" : 9829
+, "diams" : 9830
+}
+
+Object.keys(sax.ENTITIES).forEach(function (key) {
+    var e = sax.ENTITIES[key]
+    var s = typeof e === 'number' ? String.fromCharCode(e) : e
+    sax.ENTITIES[key] = s
+})
+
+for (var S in sax.STATE) sax.STATE[sax.STATE[S]] = S
+
+// shorthand
+S = sax.STATE
+
+function emit (parser, event, data) {
+  parser[event] && parser[event](data)
+}
+
+function emitNode (parser, nodeType, data) {
+  if (parser.textNode) closeText(parser)
+  emit(parser, nodeType, data)
+}
+
+function closeText (parser) {
+  parser.textNode = textopts(parser.opt, parser.textNode)
+  if (parser.textNode) emit(parser, "ontext", parser.textNode)
+  parser.textNode = ""
+}
+
+function textopts (opt, text) {
+  if (opt.trim) text = text.trim()
+  if (opt.normalize) text = text.replace(/\s+/g, " ")
+  return text
+}
+
+function error (parser, er) {
+  closeText(parser)
+  if (parser.trackPosition) {
+    er += "\nLine: "+parser.line+
+          "\nColumn: "+parser.column+
+          "\nChar: "+parser.c
+  }
+  er = new Error(er)
+  parser.error = er
+  emit(parser, "onerror", er)
+  return parser
+}
+
+function end (parser) {
+  if (parser.sawRoot && !parser.closedRoot) strictFail(parser, "Unclosed root tag")
+  if ((parser.state !== S.BEGIN) &&
+      (parser.state !== S.BEGIN_WHITESPACE) &&
+      (parser.state !== S.TEXT))
+    error(parser, "Unexpected end")
+  closeText(parser)
+  parser.c = ""
+  parser.closed = true
+  emit(parser, "onend")
+  SAXParser.call(parser, parser.strict, parser.opt)
+  return parser
+}
+
+function strictFail (parser, message) {
+  if (typeof parser !== 'object' || !(parser instanceof SAXParser))
+    throw new Error('bad call to strictFail');
+  if (parser.strict) error(parser, message)
+}
+
+function newTag (parser) {
+  if (!parser.strict) parser.tagName = parser.tagName[parser.looseCase]()
+  var parent = parser.tags[parser.tags.length - 1] || parser
+    , tag = parser.tag = { name : parser.tagName, attributes : {} }
+
+  // will be overridden if tag contails an xmlns="foo" or xmlns:foo="bar"
+  if (parser.opt.xmlns) tag.ns = parent.ns
+  parser.attribList.length = 0
+}
+
+function qname (name, attribute) {
+  var i = name.indexOf(":")
+    , qualName = i < 0 ? [ "", name ] : name.split(":")
+    , prefix = qualName[0]
+    , local = qualName[1]
+
+  // <x "xmlns"="http://foo">
+  if (attribute && name === "xmlns") {
+    prefix = "xmlns"
+    local = ""
+  }
+
+  return { prefix: prefix, local: local }
+}
+
+function attrib (parser) {
+  if (!parser.strict) parser.attribName = parser.attribName[parser.looseCase]()
+
+  if (parser.attribList.indexOf(parser.attribName) !== -1 ||
+      parser.tag.attributes.hasOwnProperty(parser.attribName)) {
+    return parser.attribName = parser.attribValue = ""
+  }
+
+  if (parser.opt.xmlns) {
+    var qn = qname(parser.attribName, true)
+      , prefix = qn.prefix
+      , local = qn.local
+
+    if (prefix === "xmlns") {
+      // namespace binding attribute; push the binding into scope
+      if (local === "xml" && parser.attribValue !== XML_NAMESPACE) {
+        strictFail( parser
+                  , "xml: prefix must be bound to " + XML_NAMESPACE + "\n"
+                  + "Actual: " + parser.attribValue )
+      } else if (local === "xmlns" && parser.attribValue !== XMLNS_NAMESPACE) {
+        strictFail( parser
+                  , "xmlns: prefix must be bound to " + XMLNS_NAMESPACE + "\n"
+                  + "Actual: " + parser.attribValue )
+      } else {
+        var tag = parser.tag
+          , parent = parser.tags[parser.tags.length - 1] || parser
+        if (tag.ns === parent.ns) {
+          tag.ns = Object.create(parent.ns)
+        }
+        tag.ns[local] = parser.attribValue
+      }
+    }
+
+    // defer onattribute events until all attributes have been seen
+    // so any new bindings can take effect; preserve attribute order
+    // so deferred events can be emitted in document order
+    parser.attribList.push([parser.attribName, parser.attribValue])
+  } else {
+    // in non-xmlns mode, we can emit the event right away
+    parser.tag.attributes[parser.attribName] = parser.attribValue
+    emitNode( parser
+            , "onattribute"
+            , { name: parser.attribName
+              , value: parser.attribValue } )
+  }
+
+  parser.attribName = parser.attribValue = ""
+}
+
+function openTag (parser, selfClosing) {
+  if (parser.opt.xmlns) {
+    // emit namespace binding events
+    var tag = parser.tag
+
+    // add namespace info to tag
+    var qn = qname(parser.tagName)
+    tag.prefix = qn.prefix
+    tag.local = qn.local
+    tag.uri = tag.ns[qn.prefix] || ""
+
+    if (tag.prefix && !tag.uri) {
+      strictFail(parser, "Unbound namespace prefix: "
+                       + JSON.stringify(parser.tagName))
+      tag.uri = qn.prefix
+    }
+
+    var parent = parser.tags[parser.tags.length - 1] || parser
+    if (tag.ns && parent.ns !== tag.ns) {
+      Object.keys(tag.ns).forEach(function (p) {
+        emitNode( parser
+                , "onopennamespace"
+                , { prefix: p , uri: tag.ns[p] } )
+      })
+    }
+
+    // handle deferred onattribute events
+    // Note: do not apply default ns to attributes:
+    //   http://www.w3.org/TR/REC-xml-names/#defaulting
+    for (var i = 0, l = parser.attribList.length; i < l; i ++) {
+      var nv = parser.attribList[i]
+      var name = nv[0]
+        , value = nv[1]
+        , qualName = qname(name, true)
+        , prefix = qualName.prefix
+        , local = qualName.local
+        , uri = prefix == "" ? "" : (tag.ns[prefix] || "")
+        , a = { name: name
+              , value: value
+              , prefix: prefix
+              , local: local
+              , uri: uri
+              }
+
+      // if there's any attributes with an undefined namespace,
+      // then fail on them now.
+      if (prefix && prefix != "xmlns" && !uri) {
+        strictFail(parser, "Unbound namespace prefix: "
+                         + JSON.stringify(prefix))
+        a.uri = prefix
+      }
+      parser.tag.attributes[name] = a
+      emitNode(parser, "onattribute", a)
+    }
+    parser.attribList.length = 0
+  }
+
+  parser.tag.isSelfClosing = !!selfClosing
+
+  // process the tag
+  parser.sawRoot = true
+  parser.tags.push(parser.tag)
+  emitNode(parser, "onopentag", parser.tag)
+  if (!selfClosing) {
+    // special case for <script> in non-strict mode.
+    if (!parser.noscript && parser.tagName.toLowerCase() === "script") {
+      parser.state = S.SCRIPT
+    } else {
+      parser.state = S.TEXT
+    }
+    parser.tag = null
+    parser.tagName = ""
+  }
+  parser.attribName = parser.attribValue = ""
+  parser.attribList.length = 0
+}
+
+function closeTag (parser) {
+  if (!parser.tagName) {
+    strictFail(parser, "Weird empty close tag.")
+    parser.textNode += "</>"
+    parser.state = S.TEXT
+    return
+  }
+
+  if (parser.script) {
+    if (parser.tagName !== "script") {
+      parser.script += "</" + parser.tagName + ">"
+      parser.tagName = ""
+      parser.state = S.SCRIPT
+      return
+    }
+    emitNode(parser, "onscript", parser.script)
+    parser.script = ""
+  }
+
+  // first make sure that the closing tag actually exists.
+  // <a><b></c></b></a> will close everything, otherwise.
+  var t = parser.tags.length
+  var tagName = parser.tagName
+  if (!parser.strict) tagName = tagName[parser.looseCase]()
+  var closeTo = tagName
+  while (t --) {
+    var close = parser.tags[t]
+    if (close.name !== closeTo) {
+      // fail the first time in strict mode
+      strictFail(parser, "Unexpected close tag")
+    } else break
+  }
+
+  // didn't find it.  we already failed for strict, so just abort.
+  if (t < 0) {
+    strictFail(parser, "Unmatched closing tag: "+parser.tagName)
+    parser.textNode += "</" + parser.tagName + ">"
+    parser.state = S.TEXT
+    return
+  }
+  parser.tagName = tagName
+  var s = parser.tags.length
+  while (s --> t) {
+    var tag = parser.tag = parser.tags.pop()
+    parser.tagName = parser.tag.name
+    emitNode(parser, "onclosetag", parser.tagName)
+
+    var x = {}
+    for (var i in tag.ns) x[i] = tag.ns[i]
+
+    var parent = parser.tags[parser.tags.length - 1] || parser
+    if (parser.opt.xmlns && tag.ns !== parent.ns) {
+      // remove namespace bindings introduced by tag
+      Object.keys(tag.ns).forEach(function (p) {
+        var n = tag.ns[p]
+        emitNode(parser, "onclosenamespace", { prefix: p, uri: n })
+      })
+    }
+  }
+  if (t === 0) parser.closedRoot = true
+  parser.tagName = parser.attribValue = parser.attribName = ""
+  parser.attribList.length = 0
+  parser.state = S.TEXT
+}
+
+function parseEntity (parser) {
+  var entity = parser.entity
+    , entityLC = entity.toLowerCase()
+    , num
+    , numStr = ""
+  if (parser.ENTITIES[entity])
+    return parser.ENTITIES[entity]
+  if (parser.ENTITIES[entityLC])
+    return parser.ENTITIES[entityLC]
+  entity = entityLC
+  if (entity.charAt(0) === "#") {
+    if (entity.charAt(1) === "x") {
+      entity = entity.slice(2)
+      num = parseInt(entity, 16)
+      numStr = num.toString(16)
+    } else {
+      entity = entity.slice(1)
+      num = parseInt(entity, 10)
+      numStr = num.toString(10)
+    }
+  }
+  entity = entity.replace(/^0+/, "")
+  if (numStr.toLowerCase() !== entity) {
+    strictFail(parser, "Invalid character entity")
+    return "&"+parser.entity + ";"
+  }
+
+  return String.fromCodePoint(num)
+}
+
+function write (chunk) {
+  var parser = this
+  if (this.error) throw this.error
+  if (parser.closed) return error(parser,
+    "Cannot write after close. Assign an onready handler.")
+  if (chunk === null) return end(parser)
+  var i = 0, c = ""
+  while (parser.c = c = chunk.charAt(i++)) {
+    if (parser.trackPosition) {
+      parser.position ++
+      if (c === "\n") {
+        parser.line ++
+        parser.column = 0
+      } else parser.column ++
+    }
+    switch (parser.state) {
+
+      case S.BEGIN:
+        parser.state = S.BEGIN_WHITESPACE
+        if (c === "\uFEFF") {
+          continue;
+        }
+      // no continue - fall through
+
+      case S.BEGIN_WHITESPACE:
+        if (c === "<") {
+          parser.state = S.OPEN_WAKA
+          parser.startTagPosition = parser.position
+        } else if (not(whitespace,c)) {
+          // have to process this as a text node.
+          // weird, but happens.
+          strictFail(parser, "Non-whitespace before first tag.")
+          parser.textNode = c
+          parser.state = S.TEXT
+        }
+      continue
+
+      case S.TEXT:
+        if (parser.sawRoot && !parser.closedRoot) {
+          var starti = i-1
+          while (c && c!=="<" && c!=="&") {
+            c = chunk.charAt(i++)
+            if (c && parser.trackPosition) {
+              parser.position ++
+              if (c === "\n") {
+                parser.line ++
+                parser.column = 0
+              } else parser.column ++
+            }
+          }
+          parser.textNode += chunk.substring(starti, i-1)
+        }
+        if (c === "<" && !(parser.sawRoot && parser.closedRoot && !parser.strict)) {
+          parser.state = S.OPEN_WAKA
+          parser.startTagPosition = parser.position
+        } else {
+          if (not(whitespace, c) && (!parser.sawRoot || parser.closedRoot))
+            strictFail(parser, "Text data outside of root node.")
+          if (c === "&") parser.state = S.TEXT_ENTITY
+          else parser.textNode += c
+        }
+      continue
+
+      case S.SCRIPT:
+        // only non-strict
+        if (c === "<") {
+          parser.state = S.SCRIPT_ENDING
+        } else parser.script += c
+      continue
+
+      case S.SCRIPT_ENDING:
+        if (c === "/") {
+          parser.state = S.CLOSE_TAG
+        } else {
+          parser.script += "<" + c
+          parser.state = S.SCRIPT
+        }
+      continue
+
+      case S.OPEN_WAKA:
+        // either a /, ?, !, or text is coming next.
+        if (c === "!") {
+          parser.state = S.SGML_DECL
+          parser.sgmlDecl = ""
+        } else if (is(whitespace, c)) {
+          // wait for it...
+        } else if (is(nameStart,c)) {
+          parser.state = S.OPEN_TAG
+          parser.tagName = c
+        } else if (c === "/") {
+          parser.state = S.CLOSE_TAG
+          parser.tagName = ""
+        } else if (c === "?") {
+          parser.state = S.PROC_INST
+          parser.procInstName = parser.procInstBody = ""
+        } else {
+          strictFail(parser, "Unencoded <")
+          // if there was some whitespace, then add that in.
+          if (parser.startTagPosition + 1 < parser.position) {
+            var pad = parser.position - parser.startTagPosition
+            c = new Array(pad).join(" ") + c
+          }
+          parser.textNode += "<" + c
+          parser.state = S.TEXT
+        }
+      continue
+
+      case S.SGML_DECL:
+        if ((parser.sgmlDecl+c).toUpperCase() === CDATA) {
+          emitNode(parser, "onopencdata")
+          parser.state = S.CDATA
+          parser.sgmlDecl = ""
+          parser.cdata = ""
+        } else if (parser.sgmlDecl+c === "--") {
+          parser.state = S.COMMENT
+          parser.comment = ""
+          parser.sgmlDecl = ""
+        } else if ((parser.sgmlDecl+c).toUpperCase() === DOCTYPE) {
+          parser.state = S.DOCTYPE
+          if (parser.doctype || parser.sawRoot) strictFail(parser,
+            "Inappropriately located doctype declaration")
+          parser.doctype = ""
+          parser.sgmlDecl = ""
+        } else if (c === ">") {
+          emitNode(parser, "onsgmldeclaration", parser.sgmlDecl)
+          parser.sgmlDecl = ""
+          parser.state = S.TEXT
+        } else if (is(quote, c)) {
+          parser.state = S.SGML_DECL_QUOTED
+          parser.sgmlDecl += c
+        } else parser.sgmlDecl += c
+      continue
+
+      case S.SGML_DECL_QUOTED:
+        if (c === parser.q) {
+          parser.state = S.SGML_DECL
+          parser.q = ""
+        }
+        parser.sgmlDecl += c
+      continue
+
+      case S.DOCTYPE:
+        if (c === ">") {
+          parser.state = S.TEXT
+          emitNode(parser, "ondoctype", parser.doctype)
+          parser.doctype = true // just remember that we saw it.
+        } else {
+          parser.doctype += c
+          if (c === "[") parser.state = S.DOCTYPE_DTD
+          else if (is(quote, c)) {
+            parser.state = S.DOCTYPE_QUOTED
+            parser.q = c
+          }
+        }
+      continue
+
+      case S.DOCTYPE_QUOTED:
+        parser.doctype += c
+        if (c === parser.q) {
+          parser.q = ""
+          parser.state = S.DOCTYPE
+        }
+      continue
+
+      case S.DOCTYPE_DTD:
+        parser.doctype += c
+        if (c === "]") parser.state = S.DOCTYPE
+        else if (is(quote,c)) {
+          parser.state = S.DOCTYPE_DTD_QUOTED
+          parser.q = c
+        }
+      continue
+
+      case S.DOCTYPE_DTD_QUOTED:
+        parser.doctype += c
+        if (c === parser.q) {
+          parser.state = S.DOCTYPE_DTD
+          parser.q = ""
+        }
+      continue
+
+      case S.COMMENT:
+        if (c === "-") parser.state = S.COMMENT_ENDING
+        else parser.comment += c
+      continue
+
+      case S.COMMENT_ENDING:
+        if (c === "-") {
+          parser.state = S.COMMENT_ENDED
+          parser.comment = textopts(parser.opt, parser.comment)
+          if (parser.comment) emitNode(parser, "oncomment", parser.comment)
+          parser.comment = ""
+        } else {
+          parser.comment += "-" + c
+          parser.state = S.COMMENT
+        }
+      continue
+
+      case S.COMMENT_ENDED:
+        if (c !== ">") {
+          strictFail(parser, "Malformed comment")
+          // allow <!-- blah -- bloo --> in non-strict mode,
+          // which is a comment of " blah -- bloo "
+          parser.comment += "--" + c
+          parser.state = S.COMMENT
+        } else parser.state = S.TEXT
+      continue
+
+      case S.CDATA:
+        if (c === "]") parser.state = S.CDATA_ENDING
+        else parser.cdata += c
+      continue
+
+      case S.CDATA_ENDING:
+        if (c === "]") parser.state = S.CDATA_ENDING_2
+        else {
+          parser.cdata += "]" + c
+          parser.state = S.CDATA
+        }
+      continue
+
+      case S.CDATA_ENDING_2:
+        if (c === ">") {
+          if (parser.cdata) emitNode(parser, "oncdata", parser.cdata)
+          emitNode(parser, "onclosecdata")
+          parser.cdata = ""
+          parser.state = S.TEXT
+        } else if (c === "]") {
+          parser.cdata += "]"
+        } else {
+          parser.cdata += "]]" + c
+          parser.state = S.CDATA
+        }
+      continue
+
+      case S.PROC_INST:
+        if (c === "?") parser.state = S.PROC_INST_ENDING
+        else if (is(whitespace, c)) parser.state = S.PROC_INST_BODY
+        else parser.procInstName += c
+      continue
+
+      case S.PROC_INST_BODY:
+        if (!parser.procInstBody && is(whitespace, c)) continue
+        else if (c === "?") parser.state = S.PROC_INST_ENDING
+        else parser.procInstBody += c
+      continue
+
+      case S.PROC_INST_ENDING:
+        if (c === ">") {
+          emitNode(parser, "onprocessinginstruction", {
+            name : parser.procInstName,
+            body : parser.procInstBody
+          })
+          parser.procInstName = parser.procInstBody = ""
+          parser.state = S.TEXT
+        } else {
+          parser.procInstBody += "?" + c
+          parser.state = S.PROC_INST_BODY
+        }
+      continue
+
+      case S.OPEN_TAG:
+        if (is(nameBody, c)) parser.tagName += c
+        else {
+          newTag(parser)
+          if (c === ">") openTag(parser)
+          else if (c === "/") parser.state = S.OPEN_TAG_SLASH
+          else {
+            if (not(whitespace, c)) strictFail(
+              parser, "Invalid character in tag name")
+            parser.state = S.ATTRIB
+          }
+        }
+      continue
+
+      case S.OPEN_TAG_SLASH:
+        if (c === ">") {
+          openTag(parser, true)
+          closeTag(parser)
+        } else {
+          strictFail(parser, "Forward-slash in opening tag not followed by >")
+          parser.state = S.ATTRIB
+        }
+      continue
+
+      case S.ATTRIB:
+        // haven't read the attribute name yet.
+        if (is(whitespace, c)) continue
+        else if (c === ">") openTag(parser)
+        else if (c === "/") parser.state = S.OPEN_TAG_SLASH
+        else if (is(nameStart, c)) {
+          parser.attribName = c
+          parser.attribValue = ""
+          parser.state = S.ATTRIB_NAME
+        } else strictFail(parser, "Invalid attribute name")
+      continue
+
+      case S.ATTRIB_NAME:
+        if (c === "=") parser.state = S.ATTRIB_VALUE
+        else if (c === ">") {
+          strictFail(parser, "Attribute without value")
+          parser.attribValue = parser.attribName
+          attrib(parser)
+          openTag(parser)
+        }
+        else if (is(whitespace, c)) parser.state = S.ATTRIB_NAME_SAW_WHITE
+        else if (is(nameBody, c)) parser.attribName += c
+        else strictFail(parser, "Invalid attribute name")
+      continue
+
+      case S.ATTRIB_NAME_SAW_WHITE:
+        if (c === "=") parser.state = S.ATTRIB_VALUE
+        else if (is(whitespace, c)) continue
+        else {
+          strictFail(parser, "Attribute without value")
+          parser.tag.attributes[parser.attribName] = ""
+          parser.attribValue = ""
+          emitNode(parser, "onattribute",
+                   { name : parser.attribName, value : "" })
+          parser.attribName = ""
+          if (c === ">") openTag(parser)
+          else if (is(nameStart, c)) {
+            parser.attribName = c
+            parser.state = S.ATTRIB_NAME
+          } else {
+            strictFail(parser, "Invalid attribute name")
+            parser.state = S.ATTRIB
+          }
+        }
+      continue
+
+      case S.ATTRIB_VALUE:
+        if (is(whitespace, c)) continue
+        else if (is(quote, c)) {
+          parser.q = c
+          parser.state = S.ATTRIB_VALUE_QUOTED
+        } else {
+          strictFail(parser, "Unquoted attribute value")
+          parser.state = S.ATTRIB_VALUE_UNQUOTED
+          parser.attribValue = c
+        }
+      continue
+
+      case S.ATTRIB_VALUE_QUOTED:
+        if (c !== parser.q) {
+          if (c === "&") parser.state = S.ATTRIB_VALUE_ENTITY_Q
+          else parser.attribValue += c
+          continue
+        }
+        attrib(parser)
+        parser.q = ""
+        parser.state = S.ATTRIB_VALUE_CLOSED
+      continue
+
+      case S.ATTRIB_VALUE_CLOSED:
+        if (is(whitespace, c)) {
+          parser.state = S.ATTRIB
+        } else if (c === ">") openTag(parser)
+        else if (c === "/") parser.state = S.OPEN_TAG_SLASH
+        else if (is(nameStart, c)) {
+          strictFail(parser, "No whitespace between attributes")
+          parser.attribName = c
+          parser.attribValue = ""
+          parser.state = S.ATTRIB_NAME
+        } else strictFail(parser, "Invalid attribute name")
+      continue
+
+      case S.ATTRIB_VALUE_UNQUOTED:
+        if (not(attribEnd,c)) {
+          if (c === "&") parser.state = S.ATTRIB_VALUE_ENTITY_U
+          else parser.attribValue += c
+          continue
+        }
+        attrib(parser)
+        if (c === ">") openTag(parser)
+        else parser.state = S.ATTRIB
+      continue
+
+      case S.CLOSE_TAG:
+        if (!parser.tagName) {
+          if (is(whitespace, c)) continue
+          else if (not(nameStart, c)) {
+            if (parser.script) {
+              parser.script += "</" + c
+              parser.state = S.SCRIPT
+            } else {
+              strictFail(parser, "Invalid tagname in closing tag.")
+            }
+          } else parser.tagName = c
+        }
+        else if (c === ">") closeTag(parser)
+        else if (is(nameBody, c)) parser.tagName += c
+        else if (parser.script) {
+          parser.script += "</" + parser.tagName
+          parser.tagName = ""
+          parser.state = S.SCRIPT
+        } else {
+          if (not(whitespace, c)) strictFail(parser,
+            "Invalid tagname in closing tag")
+          parser.state = S.CLOSE_TAG_SAW_WHITE
+        }
+      continue
+
+      case S.CLOSE_TAG_SAW_WHITE:
+        if (is(whitespace, c)) continue
+        if (c === ">") closeTag(parser)
+        else strictFail(parser, "Invalid characters in closing tag")
+      continue
+
+      case S.TEXT_ENTITY:
+      case S.ATTRIB_VALUE_ENTITY_Q:
+      case S.ATTRIB_VALUE_ENTITY_U:
+        switch(parser.state) {
+          case S.TEXT_ENTITY:
+            var returnState = S.TEXT, buffer = "textNode"
+          break
+
+          case S.ATTRIB_VALUE_ENTITY_Q:
+            var returnState = S.ATTRIB_VALUE_QUOTED, buffer = "attribValue"
+          break
+
+          case S.ATTRIB_VALUE_ENTITY_U:
+            var returnState = S.ATTRIB_VALUE_UNQUOTED, buffer = "attribValue"
+          break
+        }
+        if (c === ";") {
+          parser[buffer] += parseEntity(parser)
+          parser.entity = ""
+          parser.state = returnState
+        }
+        else if (is(entity, c)) parser.entity += c
+        else {
+          strictFail(parser, "Invalid character entity")
+          parser[buffer] += "&" + parser.entity + c
+          parser.entity = ""
+          parser.state = returnState
+        }
+      continue
+
+      default:
+        throw new Error(parser, "Unknown state: " + parser.state)
+    }
+  } // while
+  // cdata blocks can get very big under normal conditions. emit and move on.
+  // if (parser.state === S.CDATA && parser.cdata) {
+  //   emitNode(parser, "oncdata", parser.cdata)
+  //   parser.cdata = ""
+  // }
+  if (parser.position >= parser.bufferCheckPosition) checkBufferLength(parser)
+  return parser
+}
+
+/*! http://mths.be/fromcodepoint v0.1.0 by @mathias */
+if (!String.fromCodePoint) {
+        (function() {
+                var stringFromCharCode = String.fromCharCode;
+                var floor = Math.floor;
+                var fromCodePoint = function() {
+                        var MAX_SIZE = 0x4000;
+                        var codeUnits = [];
+                        var highSurrogate;
+                        var lowSurrogate;
+                        var index = -1;
+                        var length = arguments.length;
+                        if (!length) {
+                                return '';
+                        }
+                        var result = '';
+                        while (++index < length) {
+                                var codePoint = Number(arguments[index]);
+                                if (
+                                        !isFinite(codePoint) || // `NaN`, `+Infinity`, or `-Infinity`
+                                        codePoint < 0 || // not a valid Unicode code point
+                                        codePoint > 0x10FFFF || // not a valid Unicode code point
+                                        floor(codePoint) != codePoint // not an integer
+                                ) {
+                                        throw RangeError('Invalid code point: ' + codePoint);
+                                }
+                                if (codePoint <= 0xFFFF) { // BMP code point
+                                        codeUnits.push(codePoint);
+                                } else { // Astral code point; split in surrogate halves
+                                        // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
+                                        codePoint -= 0x10000;
+                                        highSurrogate = (codePoint >> 10) + 0xD800;
+                                        lowSurrogate = (codePoint % 0x400) + 0xDC00;
+                                        codeUnits.push(highSurrogate, lowSurrogate);
+                                }
+                                if (index + 1 == length || codeUnits.length > MAX_SIZE) {
+                                        result += stringFromCharCode.apply(null, codeUnits);
+                                        codeUnits.length = 0;
+                                }
+                        }
+                        return result;
+                };
+                if (Object.defineProperty) {
+                        Object.defineProperty(String, 'fromCodePoint', {
+                                'value': fromCodePoint,
+                                'configurable': true,
+                                'writable': true
+                        });
+                } else {
+                        String.fromCodePoint = fromCodePoint;
+                }
+        }());
+}
+
+})(typeof exports === "undefined" ? sax = {} : exports);
+
+}).call(this,require("buffer").Buffer)
+},{"buffer":17,"stream":39,"string_decoder":40}],47:[function(require,module,exports){
+var ImageLayer = function ( layer , route ) {
+	PIXI.Container.call( this );
+
+	for ( var property in layer ) {
+		if ( layer.hasOwnProperty( property ) ) {
+			this[ property ] = layer[ property ];
+		}
+	}
+
+	this.alpha = parseFloat( layer.opacity );
+
+	if (layer.image && layer.image.source) {
+		var sprite = new PIXI.Sprite.fromImage( route + "/" + layer.image.source );
+		this.addSprite( sprite );
+	}
+};
+
+ImageLayer.prototype = Object.create( PIXI.Container.prototype );
+
+ImageLayer.prototype.addSprite = function ( sprite ) {
+	this.addChild( sprite );
+};
+
+module.exports = ImageLayer;
+},{}],48:[function(require,module,exports){
+function Tile ( tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip ) {
+	var textures = [];
+
+	if ( tile.animations.length ) {
+		tile.animations.forEach( function ( frame ) {
+			textures.push( tileSet.textures[ frame.tileId ] );
+		}, this );
+	}
+	else {
+		textures.push( tileSet.textures[ tile.gid - tileSet.firstGid ] );
+	}
+
+	PIXI.extras.MovieClip.call( this, textures );
+
+	for ( var property in tile ) {
+		if ( tile.hasOwnProperty( property ) ) {
+			this[ property ] = tile[ property ];
+		}
+	}
+
+	if ( horizontalFlip ) {
+		this.anchor.x = 1;
+		this.scale.x = -1;
+	}
+
+	if ( verticalFlip ) {
+		this.anchor.y = 1;
+		this.scale.y = -1;
+	}
+	
+	if ( diagonalFlip ) {
+		if ( horizontalFlip ) {
+			this.anchor.x = 0;
+			this.scale.x = 1;
+			this.anchor.y = 1;
+			this.scale.y = 1;
+			
+			this.rotation = PIXI.DEG_TO_RAD * 90;
+		}
+		if ( verticalFlip ) {
+			this.anchor.x = 1;
+			this.scale.x = 1;
+			this.anchor.y = 0;
+			this.scale.y = 1;
+			
+			this.rotation = PIXI.DEG_TO_RAD * -90;
+		}
+	}
+
+	this.textures = textures;
+	this.tileSet = tileSet;
+}
+
+Tile.prototype = Object.create( PIXI.extras.MovieClip.prototype );
+
+module.exports = Tile;
+
+},{}],49:[function(require,module,exports){
+var Tile = require( "./Tile" );
+
+function findTileset ( gid, tilesets ) {
+	var tileset;
+	for ( var i = tilesets.length - 1; i >= 0; i-- ) {
+		tileset = tilesets[ i ];
+		if ( tileset.firstGid <= gid ) {
+			break;
+		}
+	}
+	return tileset;
+}
+
+var TileLayer = function ( layer, tileSets ) {
+	PIXI.Container.call( this );
+
+	for ( var property in layer ) {
+		if ( layer.hasOwnProperty( property ) ) {
+			this[ property ] = layer[ property ];
+		}
+	}
+
+	this.alpha = parseFloat( layer.opacity );
+	this.tiles = [];
+
+	for ( var y = 0; y < layer.map.height; y++ ) {
+		for ( var x = 0; x < layer.map.width; x++ ) {
+			var i = x + (y * layer.map.width);
+
+			if ( layer.tiles[ i ] ) {
+
+				if ( layer.tiles[ i ].gid && layer.tiles[ i ].gid !== 0 ) {
+
+					var tileset = findTileset( layer.tiles[ i ].gid, tileSets );
+					var tile = new Tile( layer.tiles[ i ], tileset,	layer.horizontalFlips[ i ], layer.verticalFlips[ i ], layer.diagonalFlips[ i ] );
+
+					tile.x = x * layer.map.tileWidth;
+					tile.y = y * layer.map.tileHeight + ( layer.map.tileHeight - tile.textures[ 0 ].height );
+
+					if ( tileset.tileOffset ) {
+						tile.x += tileset.tileOffset.x;
+						tile.y += tileset.tileOffset.y;
+					}
+
+					if ( tile.textures.length > 1 ) {
+						tile.animationSpeed = 1000 / 60 / tile.animations[ 0 ].duration;
+						tile.gotoAndPlay( 0 );
+					}
+
+					this.tiles.push( tile );
+
+					this.addTile( tile );
+				}
+			}
+
+		}
+	}
+};
+
+TileLayer.prototype = Object.create( PIXI.Container.prototype );
+
+TileLayer.prototype.addTile = function ( tile ) {
+	this.addChild( tile );
+};
+
+module.exports = TileLayer;
+},{"./Tile":48}],50:[function(require,module,exports){
+function TileSet( route, tileSet ) {
+	for ( var property in tileSet ) {
+		if ( tileSet.hasOwnProperty( property ) ) {
+			this[ property ] = tileSet[ property ];
+		}
+	}
+
+	this.baseTexture = PIXI.Texture.fromImage( route + "/" + tileSet.image.source, false, PIXI.SCALE_MODES.NEAREST );
+	this.textures = [];
+
+	for ( var y = this.margin; y < this.image.height; y += this.tileHeight + this.spacing ) {
+		for ( var x = this.margin; x < this.image.width; x += this.tileWidth + this.spacing ) {
+			this.textures.push( new PIXI.Texture( this.baseTexture, new PIXI.Rectangle( x, y, this.tileWidth, this.tileHeight ) ) );
+		}
+	}
+}
+
+module.exports = TileSet;
+},{}],51:[function(require,module,exports){
+var TileSet = require( "./TileSet" ),
+	TileLayer = require( "./TileLayer" ),
+	ImageLayer = require( "./ImageLayer" ),
+	path = require( "path" );
+
+function TiledMap( resourceUrl ) {
+	PIXI.Container.call( this );
+
+	var route = path.dirname( resourceUrl );
+	var data = PIXI.loader.resources[ resourceUrl ].data;
+
+	for ( var property in data ) {
+		if ( data.hasOwnProperty( property ) ) {
+			this[ property ] = data[ property ];
+		}
+	}
+
+	this.tileSets = [];
+	this.layers = [];
+
+	this.background = new PIXI.Graphics();
+	this.background.beginFill( 0x000000, 0);
+	this.background.drawRect(0,0, this._width * this.tileWidth , this._height * this.tileHeight);
+	this.background.endFill();
+	this.addLayer( this.background );
+
+	data.tileSets.forEach( function ( tilesetData ) {
+		this.tileSets.push( new TileSet( route, tilesetData ) );
+	}, this );
+
+	data.layers.forEach( function ( layerData ) {
+		switch (layerData.type) {
+			case "tile":
+				var tileLayer = new TileLayer( layerData, this.tileSets );
+				this.layers[ layerData.name ] = tileLayer;
+				this.addLayer( tileLayer );
+				break;
+			case "image":
+				var imageLayer = new ImageLayer( layerData, route );
+				this.layers[ layerData.name ] = imageLayer;
+				this.addLayer( imageLayer );
+				break;
+			default:
+				this.layers[ layerData.name ] = layerData;
+		}
+	}, this );
+}
+
+TiledMap.prototype = Object.create( PIXI.Container.prototype );
+
+TiledMap.prototype.addLayer = function ( layer ) {
+	this.addChild( layer );
+};
+
+module.exports = TiledMap;
+},{"./ImageLayer":47,"./TileLayer":49,"./TileSet":50,"path":24}],52:[function(require,module,exports){
+var path = require( "path" ),
+	tmx = require("tmx-parser");
+
+module.exports = function () {
+	return function ( resource, next ) {
+
+		if ( !resource.data || !resource.isXml || !resource.data.children[ 0 ].getElementsByTagName("tileset") ) {
+			return next();
+		}
+
+		var route = path.dirname( resource.url.replace( this.baseUrl, '' ) );
+
+		var loadOptions = {
+			crossOrigin: resource.crossOrigin,
+			loadType: PIXI.loaders.Resource.LOAD_TYPE.IMAGE
+		};
+
+		var that = this;
+
+		tmx.parse(resource.xhr.responseText, route, function(err, map) {
+			if (err) throw err;
+
+			map.tileSets.forEach( function ( tileset ) {
+				if ( !(tileset.image.source in this.resources) ) {
+					this.add( tileset.image.source , route + '/' + tileset.image.source, loadOptions );
+				}
+			}, that);
+
+			resource.data = map;
+			next();
+		});
+	};
+};
+},{"path":24,"tmx-parser":44}]},{},[43]);
