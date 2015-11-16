@@ -18,14 +18,33 @@ function Tile ( tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip ) {
 		}
 	}
 
-	if ( horizontalFlip || diagonalFlip ) {
+	if ( horizontalFlip ) {
 		this.anchor.x = 1;
 		this.scale.x = -1;
 	}
 
-	if ( verticalFlip || diagonalFlip ) {
+	if ( verticalFlip ) {
 		this.anchor.y = 1;
 		this.scale.y = -1;
+	}
+	
+	if ( diagonalFlip ) {
+		if ( horizontalFlip ) {
+			this.anchor.x = 0;
+			this.scale.x = 1;
+			this.anchor.y = 1;
+			this.scale.y = 1;
+			
+			this.rotation = PIXI.DEG_TO_RAD * 90;
+		}
+		if ( verticalFlip ) {
+			this.anchor.x = 1;
+			this.scale.x = 1;
+			this.anchor.y = 0;
+			this.scale.y = 1;
+			
+			this.rotation = PIXI.DEG_TO_RAD * -90;
+		}
 	}
 
 	this.textures = textures;
