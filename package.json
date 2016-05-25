@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "description": "Pixi.js Tiled map editor plugin",
   "keywords": [
     "pixi",
@@ -28,6 +28,7 @@
     "pixi-tiledmap": "bin/pixi-tiledmap.js"
   },
   "devDependencies": {
+    "eslint": "^2.10.2",
     "pixi.js": "^3.0.7"
   },
   "dependencies": {

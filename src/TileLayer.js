@@ -1,4 +1,4 @@
-var Tile = require("./Tile");
+var Tile = require('./Tile');
 
 function findTileset(gid, tilesets) {
     var tileset;
@@ -36,7 +36,7 @@ var TileLayer = function(layer, tileSets) {
 
                     tile.x = x * layer.map.tileWidth;
                     tile.y = y * layer.map.tileHeight + ( layer.map.tileHeight - tile.textures[0].height );
-                    
+
                     tile._x = x;
                     tile._y = y;
 
