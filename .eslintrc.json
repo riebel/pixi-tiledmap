@@ -1,0 +1,33 @@
+{
+    "env": {
+        "browser": true,
+        "commonjs": true,
+        "node": true
+    },
+    "globals": {
+        "PIXI": true
+    },
+    "extends": "eslint:recommended",
+    "rules": {
+        "indent": [
+            "error",
+            4,
+            {
+                "SwitchCase": 1
+            }
+        ],
+        "linebreak-style": [
+            "error",
+            "windows"
+        ],
+        "quotes": [
+            "error",
+            "single"
+        ],
+        "semi": [
+            "error",
+            "always"
+        ],
+        "no-console": "warn"
+    }
+}
