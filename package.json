@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "1.7.5",
+  "version": "1.8.0",
   "description": "Pixi.js Tiled map editor plugin",
   "keywords": [
     "pixi",
@@ -18,7 +18,7 @@
   "license": "MIT",
   "main": "index.js",
   "scripts": {
-    "build": "browserify index.js -o bin/pixi-tiledmap.js && cat bin/pixi-tiledmap.js | uglifyjs > bin/pixi-tiledmap.min.js"
+    "build": "browserify index.js -o bin/pixi-tiledmap.js && uglifyjs bin/pixi-tiledmap.js -o bin/pixi-tiledmap.min.js"
   },
   "bugs": {
     "url": "https://github.com/riebel/pixi-tiledmap/issues"
@@ -28,8 +28,10 @@
     "pixi-tiledmap": "bin/pixi-tiledmap.js"
   },
   "devDependencies": {
+    "browserify": "^14.4.0",
     "eslint": "^2.10.2",
-    "pixi.js": "^3.0.7"
+    "pixi.js": "^4.5.5",
+    "uglify-js": "^3.0.28"
   },
   "dependencies": {
     "tmx-parser": "^1.4.0"
