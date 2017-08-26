@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "pixi-tiledmap": "^1.8.0",
+    "pixi.js": "^4.5.5"
+  },
+  "devDependencies": {
+    "html-webpack-plugin": "^2.30.1",
+    "webpack": "^3.5.5"
+  }
+}
