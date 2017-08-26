@@ -4,7 +4,7 @@ var path = require('path'),
 module.exports = function() {
     return function(resource, next) {
 
-        if (!resource.data || resource.type != Resource.TYPE.XML || !resource.data.children[0].getElementsByTagName('tileset')) {
+        if (!resource.data || resource.type != PIXI.loaders.Resource.TYPE.XML || !resource.data.children[0].getElementsByTagName('tileset')) {
             return next();
         }
 
