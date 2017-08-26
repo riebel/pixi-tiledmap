@@ -4,7 +4,7 @@ var path = require('path'),
 module.exports = function() {
     return function(resource, next) {
 
-        if (!resource.data || !resource.isXml || !resource.data.children[0].getElementsByTagName('tileset')) {
+        if (!resource.data || resource.type != Resource.TYPE.XML || !resource.data.children[0].getElementsByTagName('tileset')) {
             return next();
         }
 
@@ -12,7 +12,8 @@ module.exports = function() {
 
         var loadOptions = {
             crossOrigin: resource.crossOrigin,
-            loadType: PIXI.loaders.Resource.LOAD_TYPE.IMAGE
+            loadType: PIXI.loaders.Resource.LOAD_TYPE.IMAGE,
+            parentResource: resource
         };
 
         var that = this;
