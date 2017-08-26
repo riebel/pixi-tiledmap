@@ -10,7 +10,7 @@ function Tile(tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip) {
         textures.push(tileSet.textures[tile.gid - tileSet.firstGid]);
     }
 
-    PIXI.extras.MovieClip.call(this, textures);
+    PIXI.extras.AnimatedSprite.call(this, textures);
 
     for (var property in tile) {
         if (tile.hasOwnProperty(property)) {
@@ -51,6 +51,6 @@ function Tile(tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip) {
     this.tileSet = tileSet;
 }
 
-Tile.prototype = Object.create(PIXI.extras.MovieClip.prototype);
+Tile.prototype = Object.create(PIXI.extras.AnimatedSprite.prototype);
 
 module.exports = Tile;
