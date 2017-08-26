@@ -17,7 +17,7 @@ npm install pixi-tiledmap
 or
 
 ```sh
-jspm install pixi-tiledmap
+yarn add pixi-tiledmap
 ```
 
 or include `pixi-tiledmap.min.js` after pixi.js in your html file.
@@ -49,6 +49,8 @@ PIXI.loader
     }
 );
 ```
+
+An example implementation with webpack can be found under example/
 
 ## Documentation
 
