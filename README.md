@@ -50,6 +50,35 @@ PIXI.loader
 );
 ```
 
+or
+
+```js
+/**
+ * optional require of pixi.js and pixi-tiledmap
+ */
+var PIXI = require('pixi.js');
+var pixiTiled = require('pixi-tiledmap');
+
+var renderer = PIXI.autoDetectRenderer( 1024, 768 );
+document.body.appendChild( renderer.view );
+
+/**
+* Alternatively, an alias can be used in order to identify loaded map.
+*/
+PIXI.loader
+    .add("myMap", "path/to/myMap.tmx")
+    .load( function () {
+        /**
+        *   PIXI.extras.TiledMap() is an extended PIXI.Container()
+        *   so you can render it right away
+        */
+        var tileMap = new PIXI.extras.TiledMap( "myMap" );
+        renderer.render( tileMap );
+    }
+);
+```
+
+
 An example implementation with webpack can be found under example/
 
 ## Documentation

@@ -6,7 +6,7 @@ var TileSet = require('./TileSet'),
 function TiledMap(resourceUrl) {
     PIXI.Container.call(this);
 
-    var route = path.dirname(resourceUrl);
+    var route = path.dirname(PIXI.loader.resources[resourceUrl].url);
     var data = PIXI.loader.resources[resourceUrl].data;
 
     for (var property in data) {
