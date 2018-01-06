@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "pixi-tiledmap": "^1.8.0",
+    "pixi-tiledmap": "^1.8.2",
     "pixi.js": "^4.5.5"
   },
   "devDependencies": {
