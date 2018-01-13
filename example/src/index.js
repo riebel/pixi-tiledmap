@@ -14,7 +14,7 @@ PIXI.loader
              *   PIXI.extras.TiledMap() is an extended PIXI.Container()
              *   so you can render it right away
              */
-            var tileMap = new PIXI.extras.TiledMap( "assets/01_basement.tmx" );
+            var tileMap = new PIXI.extras.TiledMap( 'assets/01_basement.tmx' );
             renderer.render( tileMap );
-        }
+      }
     );

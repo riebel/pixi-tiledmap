@@ -9,6 +9,6 @@ module.exports = {
     },
     plugins: [new HtmlWebpackPlugin()],
     node: {
-        fs: "empty"
+        fs: 'empty'
     }
 };

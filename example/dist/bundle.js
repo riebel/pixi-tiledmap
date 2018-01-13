@@ -26194,9 +26194,9 @@ PIXI.loader
              *   PIXI.extras.TiledMap() is an extended PIXI.Container()
              *   so you can render it right away
              */
-            var tileMap = new PIXI.extras.TiledMap( "assets/01_basement.tmx" );
+            var tileMap = new PIXI.extras.TiledMap( 'assets/01_basement.tmx' );
             renderer.render( tileMap );
-        }
+      }
     );
 
 /***/ }),
@@ -57119,7 +57119,7 @@ var TileSet = __webpack_require__(243),
 function TiledMap(resourceUrl) {
     PIXI.Container.call(this);
 
-    var route = path.dirname(resourceUrl);
+    var route = path.dirname(PIXI.loader.resources[resourceUrl].url);
     var data = PIXI.loader.resources[resourceUrl].data;
 
     for (var property in data) {
