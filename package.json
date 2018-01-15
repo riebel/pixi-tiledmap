@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "1.8.4",
+  "version": "1.9.0",
   "description": "Pixi.js Tiled map editor plugin",
   "keywords": [
     "pixi",
@@ -16,25 +16,29 @@
     "url": "git+https://github.com/riebel/pixi-tiledmap.git"
   },
   "license": "MIT",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
-    "build": "browserify index.js -o bin/pixi-tiledmap.js && uglifyjs bin/pixi-tiledmap.js -o bin/pixi-tiledmap.min.js"
+    "build": "eslint src/index.js && webpack",
+    "example": "eslint src/index.js && webpack && hs -c-1"
   },
   "bugs": {
     "url": "https://github.com/riebel/pixi-tiledmap/issues"
   },
   "homepage": "https://github.com/riebel/pixi-tiledmap#readme",
   "bin": {
-    "pixi-tiledmap": "bin/pixi-tiledmap.js"
+    "pixi-tiledmap": "dist/pixi-tiledmap.min.js"
   },
   "devDependencies": {
-    "browserify": "^14.4.0",
-    "eslint": "^2.10.2",
-    "pixi.js": "^4.5.5",
-    "uglify-js": "^3.0.28"
+    "babel-core": "^6.26.0",
+    "babel-loader": "^7.1.2",
+    "babel-preset-env": "^1.6.1",
+    "eslint": "^4.15.0",
+    "http-server": "^0.11.1",
+    "pixi.js": "^4.6.2",
+    "webpack": "^3.10.0"
   },
   "dependencies": {
-    "tmx-parser": "^1.4.0"
+    "tmx-parser": "^1.5.0"
   },
   "registry": "npm"
 }

@@ -1,56 +1,59 @@
-function Tile(tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip) {
-    var textures = [];
+export default class Tile extends PIXI.extras.AnimatedSprite {
 
-    if (tile.animations.length) {
-        tile.animations.forEach(function(frame) {
-            textures.push(tileSet.textures[frame.tileId]);
-        }, this);
-    }
-    else {
-        textures.push(tileSet.textures[tile.gid - tileSet.firstGid]);
-    }
+    constructor(tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip) {
+        let textures = [];
 
-    PIXI.extras.AnimatedSprite.call(this, textures);
-
-    for (var property in tile) {
-        if (tile.hasOwnProperty(property)) {
-            this[property] = tile[property];
+        if (tile.animations.length) {
+            tile.animations.forEach(frame => {
+                textures.push(tileSet.textures[frame.tileId]);
+            });
         }
-    }
-
-    if (horizontalFlip) {
-        this.anchor.x = 1;
-        this.scale.x = -1;
-    }
-
-    if (verticalFlip) {
-        this.anchor.y = 1;
-        this.scale.y = -1;
-    }
-
-    if (diagonalFlip) {
-        if (horizontalFlip) {
-            this.anchor.x = 0;
-            this.scale.x = 1;
-            this.anchor.y = 1;
-            this.scale.y = 1;
-
-            this.rotation = PIXI.DEG_TO_RAD * 90;
+        else {
+            textures.push(tileSet.textures[tile.gid - tileSet.firstGid]);
         }
-        if (verticalFlip) {
+
+        super(textures);
+
+        this.textures = textures;
+        this.tile = tile;
+        this.tileSet = tileSet;
+        this.horizontalFlip = horizontalFlip;
+        this.verticalFlip = verticalFlip;
+        this.diagonalFlip = diagonalFlip;
+
+        Object.assign(this, tile);
+
+        this.flip();
+    }
+
+    flip() {
+        if (this.horizontalFlip) {
             this.anchor.x = 1;
-            this.scale.x = 1;
-            this.anchor.y = 0;
-            this.scale.y = 1;
+            this.scale.x = -1;
+        }
 
-            this.rotation = PIXI.DEG_TO_RAD * -90;
+        if (this.verticalFlip) {
+            this.anchor.y = 1;
+            this.scale.y = -1;
+        }
+
+        if (this.diagonalFlip) {
+            if (this.horizontalFlip) {
+                this.anchor.x = 0;
+                this.scale.x = 1;
+                this.anchor.y = 1;
+                this.scale.y = 1;
+
+                this.rotation = PIXI.DEG_TO_RAD * 90;
+            }
+            if (this.verticalFlip) {
+                this.anchor.x = 1;
+                this.scale.x = 1;
+                this.anchor.y = 0;
+                this.scale.y = 1;
+
+                this.rotation = PIXI.DEG_TO_RAD * -90;
+            }
         }
     }
-
-    this.textures = textures;
-    this.tileSet = tileSet;
 }
-
-Tile.prototype = Object.create(PIXI.extras.AnimatedSprite.prototype);
-
-module.exports = Tile;

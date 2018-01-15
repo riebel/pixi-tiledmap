@@ -4,6 +4,10 @@
         "commonjs": true,
         "node": true
     },
+    "parserOptions": {
+        "ecmaVersion": 6,
+        "sourceType": "module"
+    },
     "globals": {
         "PIXI": true
     },

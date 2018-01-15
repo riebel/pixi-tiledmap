@@ -1,24 +1,13 @@
-var ImageLayer = function(layer, route) {
-    PIXI.Container.call(this);
+export default class ImageLayer extends PIXI.Container {
+    constructor(layer, route) {
+        super();
 
-    for (var property in layer) {
-        if (layer.hasOwnProperty(property)) {
-            this[property] = layer[property];
+        Object.assign(this, layer);
+
+        this.alpha = parseFloat(layer.opacity);
+
+        if (layer.image && layer.image.source) {
+            this.addChild(new PIXI.Sprite.fromImage(route + '/' + layer.image.source));
         }
     }
-
-    this.alpha = parseFloat(layer.opacity);
-
-    if (layer.image && layer.image.source) {
-        var sprite = new PIXI.Sprite.fromImage(route + '/' + layer.image.source);
-        this.addSprite(sprite);
-    }
-};
-
-ImageLayer.prototype = Object.create(PIXI.Container.prototype);
-
-ImageLayer.prototype.addSprite = function(sprite) {
-    this.addChild(sprite);
-};
-
-module.exports = ImageLayer;
+}

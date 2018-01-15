@@ -1,55 +1,54 @@
-var TileSet = require('./TileSet'),
-    TileLayer = require('./TileLayer'),
-    ImageLayer = require('./ImageLayer'),
-    path = require('path');
+import TileSet from './TileSet';
+import TileLayer from './TileLayer';
+import ImageLayer from './ImageLayer';
+import path from 'path';
 
-function TiledMap(resourceUrl) {
-    PIXI.Container.call(this);
+export default class TiledMap extends PIXI.Container {
 
-    var route = path.dirname(PIXI.loader.resources[resourceUrl].url);
-    var data = PIXI.loader.resources[resourceUrl].data;
+    constructor(resourceUrl) {
+        super();
 
-    for (var property in data) {
-        if (data.hasOwnProperty(property)) {
-            this[property] = data[property];
-        }
+        this.resourceUrl = resourceUrl;
+        this.tileSets = [];
+        this.layers = [];
+        this.background = new PIXI.Graphics();
+
+        this.create();
     }
 
-    this.tileSets = [];
-    this.layers = [];
+    create() {
+        const route = path.dirname(PIXI.loader.resources[this.resourceUrl].url);
+        const data = PIXI.loader.resources[this.resourceUrl].data;
 
-    this.background = new PIXI.Graphics();
-    this.background.beginFill(0x000000, 0);
-    this.background.drawRect(0, 0, this._width * this.tileWidth, this._height * this.tileHeight);
-    this.background.endFill();
-    this.addLayer(this.background);
+        Object.assign(this, data);
 
-    data.tileSets.forEach(function(tilesetData) {
-        this.tileSets.push(new TileSet(route, tilesetData));
-    }, this);
+        this.background.beginFill(0x000000, 0);
+        this.background.drawRect(0, 0, this._width * this.tileWidth, this._height * this.tileHeight);
+        this.background.endFill();
+        this.addChild(this.background);
 
-    data.layers.forEach(function(layerData) {
-        switch (layerData.type) {
-            case 'tile':
-                var tileLayer = new TileLayer(layerData, this.tileSets);
-                this.layers[layerData.name] = tileLayer;
-                this.addLayer(tileLayer);
-                break;
-            case 'image':
-                var imageLayer = new ImageLayer(layerData, route);
-                this.layers[layerData.name] = imageLayer;
-                this.addLayer(imageLayer);
-                break;
-            default:
-                this.layers[layerData.name] = layerData;
-        }
-    }, this);
+        data.tileSets.forEach(tilesetData => {
+            this.tileSets.push(new TileSet(route, tilesetData));
+        }, this);
+
+        data.layers.forEach(layerData => {
+            switch (layerData.type) {
+                case 'tile': {
+                    let tileLayer = new TileLayer(layerData, this.tileSets);
+                    this.layers[layerData.name] = tileLayer;
+                    this.addChild(tileLayer);
+                    break;
+                }
+                case 'image': {
+                    let imageLayer = new ImageLayer(layerData, route);
+                    this.layers[layerData.name] = imageLayer;
+                    this.addChild(imageLayer);
+                    break;
+                }
+                default: {
+                    this.layers[layerData.name] = layerData;
+                }
+            }
+        });
+    }
 }
-
-TiledMap.prototype = Object.create(PIXI.Container.prototype);
-
-TiledMap.prototype.addLayer = function(layer) {
-    this.addChild(layer);
-};
-
-module.exports = TiledMap;

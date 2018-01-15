@@ -1,31 +1,31 @@
-var path = require('path'),
-    tmx = require('tmx-parser');
+import path from 'path';
+import tmx from 'tmx-parser';
 
-module.exports = function() {
-    return function(resource, next) {
+export default () => {
+    return function (resource, next) {
 
-        if (!resource.data || resource.type != PIXI.loaders.Resource.TYPE.XML || !resource.data.children[0].getElementsByTagName('tileset')) {
+        if (!resource.data ||
+            resource.type !== PIXI.loaders.Resource.TYPE.XML ||
+            !resource.data.children[0].getElementsByTagName('tileset')) {
             return next();
         }
 
-        var route = path.dirname(resource.url.replace(this.baseUrl, ''));
+        const route = path.dirname(resource.url.replace(this.baseUrl, ''));
 
-        var loadOptions = {
+        const loadOptions = {
             crossOrigin: resource.crossOrigin,
             loadType: PIXI.loaders.Resource.LOAD_TYPE.IMAGE,
             parentResource: resource
         };
 
-        var that = this;
-
-        tmx.parse(resource.xhr.responseText, route, function(err, map) {
+        tmx.parse(resource.xhr.responseText, route, (err, map) => {
             if (err) throw err;
 
-            map.tileSets.forEach(function(tileset) {
+            map.tileSets.forEach(tileset => {
                 if (!(tileset.image.source in this.resources)) {
-                    this.add(tileset.image.source, route + '/' + tileset.image.source, loadOptions);
+                    this.add(tileset.image.source, `${route}/${tileset.image.source}`, loadOptions);
                 }
-            }, that);
+            });
 
             resource.data = map;
             next();
