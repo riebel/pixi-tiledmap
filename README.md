@@ -31,8 +31,8 @@ or include `pixi-tiledmap.min.js` after pixi.js in your html file (See `example/
 var PIXI = require('pixi.js');
 require('pixi-tiledmap');
 
-var renderer = PIXI.autoDetectRenderer( 1024, 768 );
-document.body.appendChild( renderer.view );
+var renderer = PIXI.autoDetectRenderer(1024, 768);
+document.body.appendChild(renderer.view);
 
 /**
  * Simply load a Tiled map in TMX format like a usual resource
@@ -44,7 +44,7 @@ PIXI.loader
         *   PIXI.extras.TiledMap() is an extended PIXI.Container()
         *   so you can render it right away
         */
-        renderer.render(new PIXI.extras.TiledMap( "map.tmx" ));
+        renderer.render(new PIXI.extras.TiledMap("map.tmx"));
     }
     /**
         //Alternatively, an alias can be used in order to identify loaded map.
