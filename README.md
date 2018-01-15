@@ -20,7 +20,7 @@ or
 yarn add pixi-tiledmap
 ```
 
-or include `pixi-tiledmap.min.js` after pixi.js in your html file (See `example/browser` for an example).
+or include `pixi-tiledmap.min.js` after pixi.js in your html file (See [`example/browser`](https://github.com/riebel/pixi-tiledmap/tree/master/example/browser) for an example).
 
 ```html
 <!DOCTYPE html>
