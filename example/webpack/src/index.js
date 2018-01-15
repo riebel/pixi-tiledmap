@@ -1,4 +1,4 @@
-import PIXI from 'pixi.js';
+import * as PIXI from 'pixi.js';
 import 'pixi-tiledmap';
 
 const renderer = PIXI.autoDetectRenderer(442, 286);
