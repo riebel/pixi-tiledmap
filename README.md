@@ -29,7 +29,7 @@ or include `pixi-tiledmap.min.js` after pixi.js in your html file (See `example/
  * optional require of pixi.js and pixi-tiledmap
  */
 var PIXI = require('pixi.js');
-var pixiTiled = require('pixi-tiledmap');
+require('pixi-tiledmap');
 
 var renderer = PIXI.autoDetectRenderer( 1024, 768 );
 document.body.appendChild( renderer.view );
@@ -44,24 +44,45 @@ PIXI.loader
         *   PIXI.extras.TiledMap() is an extended PIXI.Container()
         *   so you can render it right away
         */
-        var tileMap = new PIXI.extras.TiledMap( "map.tmx" );
-        renderer.render( tileMap );
+        renderer.render(new PIXI.extras.TiledMap( "map.tmx" ));
     }
     /**
         //Alternatively, an alias can be used in order to identify loaded map.
          
         .add("myMap", "path/to/myMap.tmx")
         .load( function () {
-              var tileMap = new PIXI.extras.TiledMap( "myMap" );
-              renderer.render( tileMap );
+              renderer.render(new PIXI.extras.TiledMap("myMap"));
         }
     */
 );
 ```
 
+ES6
+```
+import * as PIXI from 'pixi.js';
+import 'pixi-tiledmap';
+
+const renderer = PIXI.autoDetectRenderer(442, 286);
+document.body.appendChild(renderer.view);
+
+/**
+ * Simply load a Tiled map in TMX format like a usual resource
+ */
+PIXI.loader
+    .add('assets/01_basement.tmx')
+    .load(() => {
+        /**
+         *   PIXI.extras.TiledMap() is an extended PIXI.Container()
+         *   so you can render it right away
+         */
+        renderer.render(new PIXI.extras.TiledMap('assets/01_basement.tmx'));
+    });
+```
+
 An example implementation with webpack can be found under `example/webpack`.
 
-For the browser example run `npm run example` to start `http-server` on Port 8080 and open [http://localhost:8080/](http://localhost:8080/) in your browser.
+For the browser example run `npm install` and `npm run example` to start a `http-server` on Port 8080.
+Open [http://localhost:8080/](http://localhost:8080/) in your browser.
 
 ## Documentation
 
