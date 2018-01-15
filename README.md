@@ -61,7 +61,7 @@ PIXI.loader
 
 An example implementation with webpack can be found under `example/webpack`.
 
-For the browser example run `npm run example` to start `http-server` on Port 8080 and open [http://localhost:8080/example/browser/](http://localhost:8080/example/browser/) in your browser.
+For the browser example run `npm run example` to start `http-server` on Port 8080 and open [http://localhost:8080/](http://localhost:8080/) in your browser.
 
 ## Documentation
 

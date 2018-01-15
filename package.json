@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "Pixi.js Tiled map editor plugin",
   "keywords": [
     "pixi",
@@ -19,7 +19,7 @@
   "main": "src/index.js",
   "scripts": {
     "build": "eslint src/index.js && webpack",
-    "example": "eslint src/index.js && webpack && hs -c-1"
+    "example": "eslint src/index.js && webpack && hs ./example/browser/ -c-1"
   },
   "bugs": {
     "url": "https://github.com/riebel/pixi-tiledmap/issues"

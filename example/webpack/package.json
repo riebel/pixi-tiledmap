@@ -5,7 +5,7 @@
   },
   "dependencies": {
     "pixi.js": "^4.6.2",
-    "pixi-tiledmap": "^1.9.0"
+    "pixi-tiledmap": "^1.9.2"
   },
   "devDependencies": {
     "babel-core": "^6.26.0",
