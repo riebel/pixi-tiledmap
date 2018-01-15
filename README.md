@@ -109,7 +109,7 @@ PIXI.loader
     });
 ```
 
-An example implementation with webpack can be found under `example/webpack`.
+An example implementation with webpack can be found under [`example/webpack`](https://github.com/riebel/pixi-tiledmap/tree/master/example/webpack).
 
 For the browser example run `npm install` and `npm run example` to start a `http-server` on Port 8080.
 Open [http://localhost:8080/](http://localhost:8080/) in your browser.
