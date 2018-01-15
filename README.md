@@ -25,9 +25,6 @@ or include `pixi-tiledmap.min.js` after pixi.js in your html file (See `example/
 ## Usage
 
 ```js
-/**
- * optional require of pixi.js and pixi-tiledmap
- */
 var PIXI = require('pixi.js');
 require('pixi-tiledmap');
 
