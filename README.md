@@ -58,7 +58,7 @@ PIXI.loader
 ```
 
 ES6
-```
+```js
 import * as PIXI from 'pixi.js';
 import 'pixi-tiledmap';
 
