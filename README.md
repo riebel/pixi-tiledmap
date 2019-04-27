@@ -30,26 +30,28 @@ or include `pixi-tiledmap.min.js` after pixi.js in your html file (See [`example
     <title>pixi-tiledmap example</title>
 </head>
 <body>
-<script type="text/javascript" src="https://pixijs.download/v4.6.2/pixi.min.js"></script>
+<script type="text/javascript" src="https://pixijs.download/v4.8.7/pixi.min.js"></script>
 <script type="text/javascript" src="pixi-tiledmap.min.js"></script>
 <script>
-    var renderer = PIXI.autoDetectRenderer(442, 286);
-    document.body.appendChild(renderer.view);
+    (function() {
+        const renderer = PIXI.autoDetectRenderer(442, 286);
+        document.body.appendChild(renderer.view);
 
-    /**
-     * Simply load a Tiled map in TMX format like a usual resource
-     */
-    PIXI.loader
-        .add('assets/01_basement.tmx')
-        .load(function () {
-                /**
-                 *   PIXI.extras.TiledMap() is an extended PIXI.Container()
-                 *   so you can render it right away
-                 */
-                var tileMap = new PIXI.extras.TiledMap('assets/01_basement.tmx');
-                renderer.render(tileMap);
-            }
-        );
+        /**
+         * Simply load a Tiled map in TMX format like a usual resource
+         */
+        PIXI.loader
+            .add('assets/01_basement.tmx')
+            .load(function () {
+                    /**
+                     *   PIXI.extras.TiledMap() is an extended PIXI.Container()
+                     *   so you can render it right away
+                     */
+                    let tileMap = new PIXI.extras.TiledMap('assets/01_basement.tmx');
+                    renderer.render(tileMap);
+                }
+            );
+    })();
 </script>
 </body>
 </html>
@@ -109,10 +111,8 @@ PIXI.loader
     });
 ```
 
-An example implementation with webpack can be found under [`example/webpack`](https://github.com/riebel/pixi-tiledmap/tree/master/example/webpack).
-
-For the browser example run `npm install` and `npm run example` to start a `http-server` on Port 8080.
-Open [http://localhost:8080/](http://localhost:8080/) in your browser.
+For the browser example run `yarn` and `yarn start` to start a `devServer` on Port 3000.
+Open [http://localhost:3000/](http://localhost:3000/) in your browser.
 
 ## Documentation
 
