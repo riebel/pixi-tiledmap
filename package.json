@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "1.9.3",
+  "version": "1.10.0",
   "description": "Pixi.js Tiled map editor plugin",
   "keywords": [
     "pixi",
@@ -16,26 +16,40 @@
     "url": "git+https://github.com/riebel/pixi-tiledmap.git"
   },
   "license": "MIT",
-  "main": "src/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "eslint src/index.js && webpack",
-    "example": "eslint src/index.js && webpack && hs ./example/browser/ -c-1"
+    "start": "webpack-dev-server -d",
+    "build": "webpack -p",
+    "lint": "tslint --project ./tsconfig.json"
   },
   "bugs": {
     "url": "https://github.com/riebel/pixi-tiledmap/issues"
   },
   "homepage": "https://github.com/riebel/pixi-tiledmap#readme",
-  "bin": {
-    "pixi-tiledmap": "dist/pixi-tiledmap.min.js"
-  },
   "devDependencies": {
-    "babel-core": "^6.26.0",
-    "babel-loader": "^7.1.2",
-    "babel-preset-env": "^1.6.1",
-    "eslint": "^4.15.0",
-    "http-server": "^0.11.1",
-    "pixi.js": "^4.6.2",
-    "webpack": "^3.10.0"
+    "@babel/core": "^7.4.3",
+    "@babel/plugin-proposal-class-properties": "^7.4.4",
+    "@babel/plugin-proposal-object-rest-spread": "^7.4.4",
+    "@babel/plugin-transform-modules-commonjs": "^7.4.3",
+    "@babel/preset-env": "^7.4.3",
+    "@babel/preset-typescript": "^7.3.3",
+    "@types/node": "^11.13.7",
+    "@types/pixi.js": "^4.8.7",
+    "@types/webpack-env": "^1.13.9",
+    "babel-core": "^7.0.0-bridge.0",
+    "babel-jest": "^24.7.1",
+    "babel-loader": "^8.0.5",
+    "html-webpack-plugin": "^3.2.0",
+    "pixi.js": "^4.8.7",
+    "source-map-loader": "^0.2.4",
+    "tslint": "^5.16.0",
+    "tslint-config-airbnb": "^5.11.1",
+    "typescript": "^3.4.5",
+    "uglifyjs-webpack-plugin": "^2.1.2",
+    "webpack": "^4.30.0",
+    "webpack-cli": "^3.3.1",
+    "webpack-dev-server": "^3.3.1"
   },
   "dependencies": {
     "tmx-parser": "^1.5.0"

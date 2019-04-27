@@ -1,0 +1,399 @@
+<!doctype html>
+<html class="default no-js">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>pixi-tiledmap</title>
+	<meta name="description" content="">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+<header>
+	<div class="tsd-page-toolbar">
+		<div class="container">
+			<div class="table-wrap">
+				<div class="table-cell" id="tsd-search" data-index="assets/js/search.js" data-base=".">
+					<div class="field">
+						<label for="tsd-search-field" class="tsd-widget search no-caption">Search</label>
+						<input id="tsd-search-field" type="text" />
+					</div>
+					<ul class="results">
+						<li class="state loading">Preparing search index...</li>
+						<li class="state failure">The search index is not available</li>
+					</ul>
+					<a href="index.html" class="title">pixi-tiledmap</a>
+				</div>
+				<div class="table-cell" id="tsd-widgets">
+					<div id="tsd-filter">
+						<a href="#" class="tsd-widget options no-caption" data-toggle="options">Options</a>
+						<div class="tsd-filter-group">
+							<div class="tsd-select" id="tsd-filter-visibility">
+								<span class="tsd-select-label">All</span>
+								<ul class="tsd-select-list">
+									<li data-value="public">Public</li>
+									<li data-value="protected">Public/Protected</li>
+									<li data-value="private" class="selected">All</li>
+								</ul>
+							</div>
+							<input type="checkbox" id="tsd-filter-inherited" checked />
+							<label class="tsd-widget" for="tsd-filter-inherited">Inherited</label>
+							<input type="checkbox" id="tsd-filter-externals" checked />
+							<label class="tsd-widget" for="tsd-filter-externals">Externals</label>
+							<input type="checkbox" id="tsd-filter-only-exported" />
+							<label class="tsd-widget" for="tsd-filter-only-exported">Only exported</label>
+						</div>
+					</div>
+					<a href="#" class="tsd-widget menu no-caption" data-toggle="menu">Menu</a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="tsd-page-title">
+		<div class="container">
+			<ul class="tsd-breadcrumb">
+				<li>
+					<a href="globals.html">Globals</a>
+				</li>
+			</ul>
+			<h1> pixi-tiledmap</h1>
+		</div>
+	</div>
+</header>
+<div class="container container-main">
+	<div class="row">
+		<div class="col-8 col-content">
+			<div class="tsd-panel tsd-typography">
+				<h1 id="pixi-tiledmap-npm-version">pixi-tiledmap <a href="https://npmjs.org/package/pixi-tiledmap"><img src="http://img.shields.io/npm/v/pixi-tiledmap.svg?style=flat" alt="NPM version"></a></h1>
+				<p>Use <a href="http://www.mapeditor.org/">Tiled Map Editor</a> maps with <a href="https://www.npmjs.com/package/pixi.js">pixi.js</a>.</p>
+				<p>pixi-tiledmap is a Pixi loader middleware which loads Tiled Map Editor
+					<a href="http://doc.mapeditor.org/reference/tmx-map-format/">TMX maps</a> and parses them with
+					<a href="https://www.npmjs.com/package/tmx-parser">node-tmx-parser</a>. It exports a pixi.js class <code>PIXI.extras.TiledMap</code>
+					which is an extended <code>PIXI.Container</code> containing all layers of the tile map as an instance of <code>PIXI.Container</code> and all
+				tiles within as an instance of <code>PIXI.extras.AnimatedSprite</code>.</p>
+				<h2 id="installation">Installation</h2>
+				<pre><code class="language-sh">npm install pixi-tiledmap</code></pre>
+				<p>or</p>
+				<pre><code class="language-sh">yarn add pixi-tiledmap</code></pre>
+				<p>or include <code>pixi-tiledmap.min.js</code> after pixi.js in your html file (See <a href="https://github.com/riebel/pixi-tiledmap/tree/master/example/browser"><code>example/browser</code></a> for an example).</p>
+				<pre><code class="language-html"><span class="hljs-meta">&lt;!DOCTYPE html&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">html</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">head</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">meta</span> <span class="hljs-attr">charset</span>=<span class="hljs-string">"UTF-8"</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">title</span>&gt;</span>pixi-tiledmap example<span class="hljs-tag">&lt;/<span class="hljs-name">title</span>&gt;</span>
+<span class="hljs-tag">&lt;/<span class="hljs-name">head</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">body</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">script</span> <span class="hljs-attr">type</span>=<span class="hljs-string">"text/javascript"</span> <span class="hljs-attr">src</span>=<span class="hljs-string">"https://pixijs.download/v4.6.2/pixi.min.js"</span>&gt;</span><span class="undefined"></span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">script</span> <span class="hljs-attr">type</span>=<span class="hljs-string">"text/javascript"</span> <span class="hljs-attr">src</span>=<span class="hljs-string">"pixi-tiledmap.min.js"</span>&gt;</span><span class="undefined"></span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">script</span>&gt;</span><span class="javascript">
+    <span class="hljs-keyword">var</span> renderer = PIXI.autoDetectRenderer(<span class="hljs-number">442</span>, <span class="hljs-number">286</span>);
+    <span class="hljs-built_in">document</span>.body.appendChild(renderer.view);
+
+    <span class="hljs-comment">/**
+     * Simply load a Tiled map in TMX format like a usual resource
+     */</span>
+    PIXI.loader
+        .add(<span class="hljs-string">'assets/01_basement.tmx'</span>)
+        .load(<span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params"></span>) </span>{
+                <span class="hljs-comment">/**
+                 *   PIXI.extras.TiledMap() is an extended PIXI.Container()
+                 *   so you can render it right away
+                 */</span>
+                <span class="hljs-keyword">var</span> tileMap = <span class="hljs-keyword">new</span> PIXI.extras.TiledMap(<span class="hljs-string">'assets/01_basement.tmx'</span>);
+                renderer.render(tileMap);
+            }
+        );
+</span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
+<span class="hljs-tag">&lt;/<span class="hljs-name">body</span>&gt;</span>
+<span class="hljs-tag">&lt;/<span class="hljs-name">html</span>&gt;</span></code></pre>
+				<h2 id="usage">Usage</h2>
+				<pre><code class="language-js"><span class="hljs-keyword">var</span> PIXI = <span class="hljs-built_in">require</span>(<span class="hljs-string">'pixi.js'</span>);
+<span class="hljs-built_in">require</span>(<span class="hljs-string">'pixi-tiledmap'</span>);
+
+<span class="hljs-keyword">var</span> renderer = PIXI.autoDetectRenderer(<span class="hljs-number">1024</span>, <span class="hljs-number">768</span>);
+<span class="hljs-built_in">document</span>.body.appendChild(renderer.view);
+
+<span class="hljs-comment">/**
+ * Simply load a Tiled map in TMX format like a usual resource
+ */</span>
+PIXI.loader
+    .add(<span class="hljs-string">'map.tmx'</span>)
+    .load( <span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params"></span>) </span>{
+        <span class="hljs-comment">/**
+        *   PIXI.extras.TiledMap() is an extended PIXI.Container()
+        *   so you can render it right away
+        */</span>
+        renderer.render(<span class="hljs-keyword">new</span> PIXI.extras.TiledMap(<span class="hljs-string">"map.tmx"</span>));
+    }
+    <span class="hljs-comment">/**
+        //Alternatively, an alias can be used in order to identify loaded map.
+
+        .add("myMap", "path/to/myMap.tmx")
+        .load( function () {
+              renderer.render(new PIXI.extras.TiledMap("myMap"));
+        }
+    */</span>
+);</code></pre>
+				<p>ES6</p>
+				<pre><code class="language-js"><span class="hljs-keyword">import</span> * <span class="hljs-keyword">as</span> PIXI <span class="hljs-keyword">from</span> <span class="hljs-string">'pixi.js'</span>;
+<span class="hljs-keyword">import</span> <span class="hljs-string">'pixi-tiledmap'</span>;
+
+<span class="hljs-keyword">const</span> renderer = PIXI.autoDetectRenderer(<span class="hljs-number">442</span>, <span class="hljs-number">286</span>);
+<span class="hljs-built_in">document</span>.body.appendChild(renderer.view);
+
+<span class="hljs-comment">/**
+ * Simply load a Tiled map in TMX format like a usual resource
+ */</span>
+PIXI.loader
+    .add(<span class="hljs-string">'assets/01_basement.tmx'</span>)
+    .load(<span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+        <span class="hljs-comment">/**
+         *   PIXI.extras.TiledMap() is an extended PIXI.Container()
+         *   so you can render it right away
+         */</span>
+        renderer.render(<span class="hljs-keyword">new</span> PIXI.extras.TiledMap(<span class="hljs-string">'assets/01_basement.tmx'</span>));
+    });</code></pre>
+				<p>An example implementation with webpack can be found under <a href="https://github.com/riebel/pixi-tiledmap/tree/master/example/webpack"><code>example/webpack</code></a>.</p>
+				<p>For the browser example run <code>npm install</code> and <code>npm run example</code> to start a <code>http-server</code> on Port 8080.
+				Open <a href="http://localhost:8080/">http://localhost:8080/</a> in your browser.</p>
+				<h2 id="documentation">Documentation</h2>
+				<p>Example TiledMap object</p>
+				<pre><code class="language-js">{
+    <span class="hljs-attr">alpha</span>: <span class="hljs-number">1</span>
+    backgroundColor: <span class="hljs-literal">undefined</span>
+    cacheAsBitmap: (...)
+    children: <span class="hljs-built_in">Array</span>[<span class="hljs-number">3</span>]
+        <span class="hljs-number">0</span>: ImageLayer
+            alpha: <span class="hljs-number">1</span>
+            cacheAsBitmap: (...)
+            children: <span class="hljs-built_in">Array</span>[<span class="hljs-number">1</span>]
+            filterArea: <span class="hljs-literal">null</span>
+            filters: (...)
+            height: (...)
+            image: Image
+            mask: (...)
+            name: <span class="hljs-string">"background"</span>
+            opacity: <span class="hljs-number">1</span>
+            parent: TiledMap
+            pivot: Point
+            position: Point
+            properties: <span class="hljs-built_in">Object</span>
+            renderable: <span class="hljs-literal">true</span>
+            rotation: <span class="hljs-number">0</span>
+            scale: Point
+            type: <span class="hljs-string">"image"</span>
+            visible: <span class="hljs-literal">true</span>
+            width: (...)
+            worldAlpha: <span class="hljs-number">1</span>
+            worldTransform: Matrix
+            worldVisible: (...)
+            x: (...)
+            y: (...)
+        <span class="hljs-number">1</span>: TileLayer
+        <span class="hljs-number">2</span>: TileLayer
+            alpha: <span class="hljs-number">1</span>
+            cacheAsBitmap: (...)
+            children: <span class="hljs-built_in">Array</span>[<span class="hljs-number">4</span>]
+            diagonalFlips: <span class="hljs-built_in">Array</span>[<span class="hljs-number">187</span>]
+            filterArea: <span class="hljs-literal">null</span>
+            filters: (...)
+            height: (...)
+            horizontalFlips: <span class="hljs-built_in">Array</span>[<span class="hljs-number">187</span>]
+            map: <span class="hljs-built_in">Map</span>
+            mask: <span class="hljs-literal">null</span>
+            name: <span class="hljs-string">"fire"</span>
+            opacity: <span class="hljs-number">1</span>
+            parent: TiledMap
+            pivot: Point
+            position: Point
+            properties: <span class="hljs-built_in">Object</span>
+            renderable: <span class="hljs-literal">true</span>
+            rotation: <span class="hljs-number">0</span>
+            scale: Point
+            tiles: <span class="hljs-built_in">Array</span>[<span class="hljs-number">4</span>]
+                <span class="hljs-number">0</span>: Tile
+                    alpha: <span class="hljs-number">1</span>
+                    anchor: Point
+                    animation: <span class="hljs-literal">undefined</span>
+                    animationSpeed: <span class="hljs-number">0.16666666666666669</span>
+                    animations: <span class="hljs-built_in">Array</span>[<span class="hljs-number">6</span>]
+                    blendMode: <span class="hljs-number">0</span>
+                    cacheAsBitmap: (...)
+                    cachedTint: <span class="hljs-number">16777215</span>
+                    children: <span class="hljs-built_in">Array</span>[<span class="hljs-number">0</span>]
+                    currentFrame: (...)
+                    filterArea: <span class="hljs-literal">null</span>
+                    filters: (...)
+                    gid: <span class="hljs-number">33</span>
+                    height: (...)
+                    id: <span class="hljs-number">0</span>
+                    image: <span class="hljs-literal">null</span>
+                    loop: <span class="hljs-literal">true</span>
+                    mask: (...)
+                    onComplete: <span class="hljs-literal">null</span>
+                    parent: TileLayer
+                    pivot: Point
+                    playing: <span class="hljs-literal">true</span>
+                    position: Point
+                    probability: <span class="hljs-literal">null</span>
+                    properties: <span class="hljs-built_in">Object</span>
+                    renderable: <span class="hljs-literal">true</span>
+                    rotation: <span class="hljs-number">0</span>
+                    scale: Point
+                    shader: <span class="hljs-literal">null</span>
+                    terrain: <span class="hljs-built_in">Array</span>[<span class="hljs-number">0</span>]
+                    texture: (...)
+                    textures: (...)
+                    tint: <span class="hljs-number">16777215</span>
+                    totalFrames: (...)
+                    visible: <span class="hljs-literal">true</span>
+                    width: (...)
+                    worldAlpha: <span class="hljs-number">1</span>
+                    worldTransform: Matrix
+                    worldVisible: (...)
+                    x: (...)
+                    y: (...)
+                <span class="hljs-number">1</span>: Tile
+                <span class="hljs-number">2</span>: Tile
+                <span class="hljs-number">3</span>: Tile
+            type: <span class="hljs-string">"tile"</span>
+            verticalFlips: <span class="hljs-built_in">Array</span>[<span class="hljs-number">187</span>]
+            visible: <span class="hljs-literal">true</span>
+            width: (...)
+            worldAlpha: <span class="hljs-number">1</span>
+            worldTransform: Matrix
+            worldVisible: (...)
+            x: (...)
+            y: (...)
+    filterArea: <span class="hljs-literal">null</span>
+    filters: (...)
+    height: (...)
+    layers: <span class="hljs-built_in">Array</span>[<span class="hljs-number">0</span>]
+    mask: (...)
+    orientation: <span class="hljs-string">"orthogonal"</span>
+    parent: Container
+    pivot: Point
+    position: Point
+    properties: <span class="hljs-built_in">Object</span>
+    renderable: <span class="hljs-literal">true</span>
+    rotation: <span class="hljs-number">0</span>
+    scale: Point
+    tileHeight: <span class="hljs-number">26</span>
+    tileSets: <span class="hljs-built_in">Array</span>[<span class="hljs-number">2</span>]
+    tileWidth: <span class="hljs-number">26</span>
+    version: <span class="hljs-string">"1.0"</span>
+    visible: <span class="hljs-literal">true</span>
+    width: (...)
+    worldAlpha: <span class="hljs-number">1</span>
+    worldTransform: Matrix
+    worldVisible: (...)
+    x: (...)
+    y: (...)
+}</code></pre>
+				<h2 id="to-do">To do</h2>
+				<p>support isometric and hexagonal orientation</p>
+			</div>
+		</div>
+		<div class="col-4 col-menu menu-sticky-wrap menu-highlight">
+			<nav class="tsd-navigation primary">
+				<ul>
+					<li class="globals  ">
+						<a href="globals.html"><em>Globals</em></a>
+					</li>
+					<li class=" tsd-kind-external-module">
+						<a href="modules/_imagelayer_.html">"<wbr>Image<wbr>Layer"</a>
+					</li>
+					<li class=" tsd-kind-external-module">
+						<a href="modules/_tile_.html">"<wbr>Tile"</a>
+					</li>
+					<li class=" tsd-kind-external-module">
+						<a href="modules/_tilelayer_.html">"<wbr>Tile<wbr>Layer"</a>
+					</li>
+					<li class=" tsd-kind-external-module">
+						<a href="modules/_tileset_.html">"<wbr>Tile<wbr>Set"</a>
+					</li>
+					<li class=" tsd-kind-external-module">
+						<a href="modules/_tiledmap_.html">"<wbr>Tiled<wbr>Map"</a>
+					</li>
+					<li class=" tsd-kind-external-module">
+						<a href="modules/_index_.html">"index"</a>
+					</li>
+					<li class=" tsd-kind-external-module">
+						<a href="modules/_tiledmaploader_.html">"tiled<wbr>Map<wbr>Loader"</a>
+					</li>
+				</ul>
+			</nav>
+			<nav class="tsd-navigation secondary menu-sticky">
+				<ul class="before-current">
+				</ul>
+			</nav>
+		</div>
+	</div>
+</div>
+<footer class="with-border-bottom">
+	<div class="container">
+		<h2>Legend</h2>
+		<div class="tsd-legend-group">
+			<ul class="tsd-legend">
+				<li class="tsd-kind-module"><span class="tsd-kind-icon">Module</span></li>
+				<li class="tsd-kind-object-literal"><span class="tsd-kind-icon">Object literal</span></li>
+				<li class="tsd-kind-variable"><span class="tsd-kind-icon">Variable</span></li>
+				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
+				<li class="tsd-kind-index-signature"><span class="tsd-kind-icon">Index signature</span></li>
+				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+				<li class="tsd-kind-enum-member"><span class="tsd-kind-icon">Enumeration member</span></li>
+				<li class="tsd-kind-property tsd-parent-kind-enum"><span class="tsd-kind-icon">Property</span></li>
+				<li class="tsd-kind-method tsd-parent-kind-enum"><span class="tsd-kind-icon">Method</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-interface tsd-has-type-parameter"><span class="tsd-kind-icon">Interface with type parameter</span></li>
+				<li class="tsd-kind-constructor tsd-parent-kind-interface"><span class="tsd-kind-icon">Constructor</span></li>
+				<li class="tsd-kind-property tsd-parent-kind-interface"><span class="tsd-kind-icon">Property</span></li>
+				<li class="tsd-kind-method tsd-parent-kind-interface"><span class="tsd-kind-icon">Method</span></li>
+				<li class="tsd-kind-index-signature tsd-parent-kind-interface"><span class="tsd-kind-icon">Index signature</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+				<li class="tsd-kind-constructor tsd-parent-kind-class"><span class="tsd-kind-icon">Constructor</span></li>
+				<li class="tsd-kind-property tsd-parent-kind-class"><span class="tsd-kind-icon">Property</span></li>
+				<li class="tsd-kind-method tsd-parent-kind-class"><span class="tsd-kind-icon">Method</span></li>
+				<li class="tsd-kind-accessor tsd-parent-kind-class"><span class="tsd-kind-icon">Accessor</span></li>
+				<li class="tsd-kind-index-signature tsd-parent-kind-class"><span class="tsd-kind-icon">Index signature</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-constructor tsd-parent-kind-class tsd-is-inherited"><span class="tsd-kind-icon">Inherited constructor</span></li>
+				<li class="tsd-kind-property tsd-parent-kind-class tsd-is-inherited"><span class="tsd-kind-icon">Inherited property</span></li>
+				<li class="tsd-kind-method tsd-parent-kind-class tsd-is-inherited"><span class="tsd-kind-icon">Inherited method</span></li>
+				<li class="tsd-kind-accessor tsd-parent-kind-class tsd-is-inherited"><span class="tsd-kind-icon">Inherited accessor</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-property tsd-parent-kind-class tsd-is-protected"><span class="tsd-kind-icon">Protected property</span></li>
+				<li class="tsd-kind-method tsd-parent-kind-class tsd-is-protected"><span class="tsd-kind-icon">Protected method</span></li>
+				<li class="tsd-kind-accessor tsd-parent-kind-class tsd-is-protected"><span class="tsd-kind-icon">Protected accessor</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-property tsd-parent-kind-class tsd-is-private"><span class="tsd-kind-icon">Private property</span></li>
+				<li class="tsd-kind-method tsd-parent-kind-class tsd-is-private"><span class="tsd-kind-icon">Private method</span></li>
+				<li class="tsd-kind-accessor tsd-parent-kind-class tsd-is-private"><span class="tsd-kind-icon">Private accessor</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-property tsd-parent-kind-class tsd-is-static"><span class="tsd-kind-icon">Static property</span></li>
+				<li class="tsd-kind-call-signature tsd-parent-kind-class tsd-is-static"><span class="tsd-kind-icon">Static method</span></li>
+			</ul>
+		</div>
+	</div>
+</footer>
+<div class="container tsd-generator">
+	<p>Generated using <a href="http://typedoc.org/" target="_blank">TypeDoc</a></p>
+</div>
+<div class="overlay"></div>
+<script src="assets/js/main.js"></script>
+<script>if (location.protocol == 'file:') document.write('<script src="assets/js/search.js"><' + '/script>');</script>
+</body>
+</html>
