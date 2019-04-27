@@ -1,5 +1,3 @@
-import { ITileSetData } from './tiledMapLoader';
-
 export default class TileSet {
 
   public firstGid: number = 0;

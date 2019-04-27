@@ -2,7 +2,6 @@
 
 import path from 'path';
 import ImageLayer from './ImageLayer';
-import { ITMXData } from './tiledMapLoader';
 import TileLayer from './TileLayer';
 import TileSet from './TileSet';
 
