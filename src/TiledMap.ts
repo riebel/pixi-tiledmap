@@ -1,13 +1,15 @@
+/// <reference types="pixi.js" />
+
 import path from 'path';
 import ImageLayer from './ImageLayer';
 import TileLayer from './TileLayer';
 import TileSet from './TileSet';
 
-export class TiledMap extends PIXI.Container implements ITileMap {
+export class TiledMap extends PIXI.Container {
 
   public resourceUrl: string;
-  public tileSets: ITileSetData[] = [];
-  public layers: {[index: string]: ILayerData} = {};
+  public tileSets: TileSet[] = [];
+  public layers: {[index: string]: TileLayer} = {};
   public background = new PIXI.Graphics();
   // tslint:disable-next-line:variable-name
   public _width?: number;
@@ -39,7 +41,7 @@ export class TiledMap extends PIXI.Container implements ITileMap {
     this.addChild(this.background);
 
     data.tileSets.forEach(
-      (tilesetData: ITileSetData) => {
+      (tilesetData: TileSet) => {
         this.tileSets.push(
           new TileSet(route, tilesetData),
         );
@@ -47,7 +49,7 @@ export class TiledMap extends PIXI.Container implements ITileMap {
       this,
     );
 
-    data.layers.forEach((layerData: ILayerData) => {
+    data.layers.forEach((layerData: TileLayer) => {
       switch (layerData.type) {
         case 'tile': {
           const tileLayer = new TileLayer(layerData, this.tileSets);
@@ -57,7 +59,7 @@ export class TiledMap extends PIXI.Container implements ITileMap {
         }
         case 'image': {
           const imageLayer = new ImageLayer(layerData, route);
-          this.layers[layerData.name] = imageLayer;
+          this.layers[layerData.name] = imageLayer as TileLayer;
           this.addChild(imageLayer);
           break;
         }

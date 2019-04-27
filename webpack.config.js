@@ -3,11 +3,10 @@ const webpack = require('webpack');
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
 const HTMLWebpackPlugin = require('html-webpack-plugin');
 
-
 const HTMLWebpackPluginConfig = new HTMLWebpackPlugin({
     template: 'example/index.html',
-    filename: 'index.html',
     inject: 'head',
+    chunks: ['pixi-tiledmap.min']
 });
 
 module.exports = {
@@ -21,7 +20,10 @@ module.exports = {
         },
         historyApiFallback: true,
     },
-    entry: path.join(__dirname, '/src/index.ts'),
+    entry: {
+        'pixi-tiledmap': './src/index.ts',
+        'pixi-tiledmap.min': './src/index.ts',
+    },
     module: {
         rules: [
             {
@@ -36,7 +38,7 @@ module.exports = {
     },
     output: {
         path: path.resolve(__dirname, 'dist'),
-        filename: 'pixi-tiledmap.min.js',
+        filename: '[name].js',
         libraryTarget: 'umd',
         library: 'pixi-tiledmap'
     },
@@ -45,11 +47,11 @@ module.exports = {
     optimization: {
         minimizer: [
             new UglifyJsPlugin({
+                include: /\.min\.js$/,
                 cache: true,
                 parallel: true,
                 uglifyOptions: {
                     compress: true,
-                    ecma: 6,
                     mangle: true
                 },
                 sourceMap: true

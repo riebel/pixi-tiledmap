@@ -1,4 +1,4 @@
-export default class TileSet implements ITileSetData {
+export default class TileSet {
 
   public firstGid: number = 0;
   public baseTexture: PIXI.Texture;
@@ -21,20 +21,20 @@ export default class TileSet implements ITileSetData {
     y: number;
   };
 
-  constructor(route: string, tileSet: ITileSetData) {
+  constructor(route: string, tileSet: TileSet) {
     Object.assign(this, tileSet);
 
     this.baseTexture = PIXI.Texture.fromImage(`${route}/${this.image.source}`, false, PIXI.SCALE_MODES.NEAREST);
-
     this.textures = [];
 
     for (let y = this.margin; y < this.image.height; y += this.tileHeight + this.spacing) {
       for (let x = this.margin; x < this.image.width; x += this.tileWidth + this.spacing) {
-        if (this.baseTexture instanceof PIXI.BaseTexture) {
-          this.textures.push(
-            new PIXI.Texture(this.baseTexture, new PIXI.Rectangle(x, y, this.tileWidth, this.tileHeight)),
-          );
-        }
+        this.textures.push(
+          new PIXI.Texture(
+            this.baseTexture as unknown as PIXI.BaseTexture,
+            new PIXI.Rectangle(x, y, this.tileWidth, this.tileHeight),
+          ),
+        );
       }
     }
   }

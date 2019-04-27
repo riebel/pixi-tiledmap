@@ -20,7 +20,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "start": "webpack-dev-server -d",
-    "build": "webpack -p",
+    "build": "tsc --declaration && webpack -p",
     "lint": "tslint --project ./tsconfig.json"
   },
   "bugs": {

@@ -1,8 +1,10 @@
 import Tile from './Tile';
+import { TiledMap } from './TiledMap';
+import TileSet from './TileSet';
 
-export default class TileLayer extends PIXI.Container implements ILayerData {
+export default class TileLayer extends PIXI.Container {
 
-  private static findTileSet(gid: number, tileSets: ITileSetData[]) {
+  private static findTileSet(gid: number, tileSets: TileSet[]) {
     let tileset;
     for (let i = tileSets.length - 1; i >= 0; i--) {
       tileset = tileSets[i];
@@ -14,16 +16,17 @@ export default class TileLayer extends PIXI.Container implements ILayerData {
   }
 
   public name: string = '';
-  public layer: ILayerData;
-  public tileSets: ITileSetData[];
-  public tiles: ITileData[];
+  public layer: TileLayer;
+  public tileSets: TileSet[];
+  public tiles: Tile[];
   public diagonalFlips: boolean[] = [];
   public horizontalFlips: boolean[] = [];
   public image: { source: string; height: number; width: number } = { source: '', height: 0, width: 0 };
   public opacity: string = '';
   public type: string = '';
   public verticalFlips: boolean[] = [];
-  public map: ITileMap = {
+  // @ts-ignore
+  public map: TiledMap = {
     _height: 0,
     _width: 0,
     background: new PIXI.Graphics(),
@@ -36,7 +39,7 @@ export default class TileLayer extends PIXI.Container implements ILayerData {
     width: 0,
   };
 
-  constructor(layer: ILayerData, tileSets: ITileSetData[]) {
+  constructor(layer: TileLayer, tileSets: TileSet[]) {
     super();
 
     this.layer = layer;

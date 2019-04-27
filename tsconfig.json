@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
-    "outDir": "dist",
+    "outFile": "dist/pixi-tiledmap.js",
     "rootDir": "src",
     "sourceMap": true,
     "noImplicitAny": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "module": "commonjs",
+    "module": "amd",
     "target": "es5",
     "lib": ["es2015", "es2017", "dom"],
     "types": ["node"],

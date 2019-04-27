@@ -1,5 +1,8 @@
-export default class Tile extends PIXI.extras.AnimatedSprite implements ITileData {
-  public animations: ITileData[] = [];
+import TileSet from './TileSet';
+
+export default class Tile extends PIXI.extras.AnimatedSprite {
+
+  public animations: Tile[] = [];
   public duration: number = 0;
   public tileId: number = 0;
   public gid: number = 0;
@@ -7,16 +10,16 @@ export default class Tile extends PIXI.extras.AnimatedSprite implements ITileDat
   public _x: number = 0;
   // tslint:disable-next-line:variable-name
   public _y: number = 0;
-  public tile: ITileData;
-  public tileSet: ITileSetData;
+  public tile: Tile;
+  public tileSet: TileSet;
   public horizontalFlip: boolean;
   public verticalFlip: boolean;
   public diagonalFlip: boolean;
 
   // @ts-ignore
   constructor(
-    tile: ITileData,
-    tileSet: ITileSetData,
+    tile: Tile,
+    tileSet: TileSet,
     horizontalFlip: boolean,
     verticalFlip: boolean,
     diagonalFlip: boolean,

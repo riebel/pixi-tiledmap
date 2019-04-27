@@ -1,9 +1,14 @@
-export default class ImageLayer extends PIXI.Container implements ILayerData {
+import Tile from './Tile';
+import { TiledMap } from './TiledMap';
+import TileLayer from './TileLayer';
+
+export default class ImageLayer extends PIXI.Container {
   public name: string = '';
   public diagonalFlips: boolean[] = [];
   public horizontalFlips: boolean[] = [];
   public image: { source: string; height: number; width: number } = { source: '', height: 0, width: 0 };
-  public map: ITileMap = {
+  // @ts-ignore
+  public map: TiledMap = {
     _height: 0,
     _width: 0,
     background: new PIXI.Graphics(),
@@ -16,11 +21,11 @@ export default class ImageLayer extends PIXI.Container implements ILayerData {
     width: 0,
   };
   public opacity: string = '';
-  public tiles: ITileData[] = [];
+  public tiles: Tile[] = [];
   public type: string = '';
   public verticalFlips: boolean[] = [];
 
-  constructor(layer: ILayerData, route: string) {
+  constructor(layer: TileLayer, route: string) {
     super();
 
     Object.assign(this, layer);
