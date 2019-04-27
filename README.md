@@ -111,10 +111,14 @@ PIXI.loader
     });
 ```
 
-For the browser example run `yarn` and `yarn start` to start a `devServer` on Port 3000.
+For the browser examples in `examples/browser/` run `yarn` and `yarn start` to start a `devServer` on Port 3000.
+For the webpack examples in `examples/webpack/` run `yarn` and `yarn start` inside of `examples/webpack/` to start a `devServer` on Port 3000.
+
 Open [http://localhost:3000/](http://localhost:3000/) in your browser.
 
 ## Documentation
+
+Documentation available in `docs/`.
 
 Example TiledMap object
 

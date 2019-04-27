@@ -4,7 +4,7 @@ const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
 const HTMLWebpackPlugin = require('html-webpack-plugin');
 
 const HTMLWebpackPluginConfig = new HTMLWebpackPlugin({
-    template: 'example/index.html',
+    template: 'examples/browser/index.html',
     inject: 'head',
     chunks: ['pixi-tiledmap.min']
 });
@@ -13,7 +13,7 @@ module.exports = {
     devServer: {
         host: 'localhost',
         port: '3000',
-        contentBase: path.join(__dirname, 'example'),
+        contentBase: path.join(__dirname, 'examples/browser'),
         hot: false,
         headers: {
             'Access-Control-Allow-Origin': '*',

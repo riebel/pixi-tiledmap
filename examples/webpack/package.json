@@ -1,0 +1,26 @@
+{
+  "name": "tiledmap-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "webpack-dev-server -d",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pixi-tiledmap": "^1.10.0",
+    "pixi.js": "^4.8.7"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.4.3",
+    "babel-core": "^7.0.0-bridge.0",
+    "babel-loader": "^8.0.5",
+    "eslint": "^5.16.0",
+    "html-webpack-plugin": "^3.2.0",
+    "webpack": "^4.30.0",
+    "webpack-cli": "^3.3.1",
+    "webpack-dev-server": "})();"
+  }
+}
