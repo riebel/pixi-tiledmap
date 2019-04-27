@@ -1,5 +1,4 @@
 import Tile from './Tile';
-import { ILayerData } from './tiledMapLoader';
 import TileSet from './TileSet';
 
 export default class TileLayer extends PIXI.Container {

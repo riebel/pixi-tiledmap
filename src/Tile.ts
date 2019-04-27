@@ -1,4 +1,3 @@
-import { IAnimation, ITileData } from './tiledMapLoader';
 import TileSet from './TileSet';
 
 export default class Tile extends PIXI.extras.AnimatedSprite {
