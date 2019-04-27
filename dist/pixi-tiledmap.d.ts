@@ -1,5 +1,90 @@
 /// <reference types="pixi.js" />
+declare module "tiledMapLoader" {
+    export interface IAnimation {
+        tileId: number;
+        duration: number;
+    }
+    export interface ITileData {
+        animations: IAnimation[];
+        gid: number;
+        id: number;
+        image?: {
+            format?: string;
+            height: number;
+            source: string;
+            trans?: boolean;
+            width: number;
+        };
+        objectGroups: [];
+        probability?: number;
+        properties: {};
+        terrain: [];
+    }
+    export interface ITileSetData {
+        firstGid: number;
+        source: string;
+        name: string;
+        tileWidth: number;
+        tileHeight: number;
+        spacing?: number;
+        margin?: number;
+        tileOffset: {
+            x: number;
+            y: number;
+        };
+        properties: {};
+        image: {
+            format?: string;
+            height: number;
+            source: string;
+            trans?: boolean;
+            width: number;
+        };
+        tiles: ITileData[];
+        terrainTypes: [];
+    }
+    export interface ILayerData {
+        map: ITMXData;
+        type: string;
+        name: string;
+        image?: {
+            format?: string;
+            height: number;
+            source: string;
+            trans?: boolean;
+            width: number;
+        };
+        opacity: number;
+        visible: boolean;
+        properties: {};
+        tiles: ITileData[];
+        horizontalFlips: boolean[];
+        verticalFlips: boolean[];
+        diagonalFlips: boolean[];
+    }
+    export interface ITMXData {
+        version: string;
+        orientation: string;
+        width: number;
+        height: number;
+        tileWidth: number;
+        tileHeight: number;
+        backgroundColor?: string;
+        layers: ILayerData[];
+        properties: {};
+        tileSets: ITileSetData[];
+    }
+    function tileMapLoader(this: PIXI.loaders.Loader): (resource: PIXI.loaders.Resource, next: () => void) => void;
+    export default tileMapLoader;
+}
+declare module "ImageLayer" {
+    import { ILayerData } from "tiledMapLoader";
+    export default class ImageLayer extends PIXI.Container {
+        constructor(layer: ILayerData, route: string);
+    }
+}
 declare module "TileSet" {
+    import { ITileSetData } from "tiledMapLoader";
     export default class TileSet {
         firstGid: number;
         baseTexture: PIXI.Texture;
@@ -17,49 +102,37 @@ declare module "TileSet" {
             x: number;
             y: number;
         };
-        constructor(route: string, tileSet: TileSet);
+        constructor(route: string, tileSet: ITileSetData);
     }
 }
 declare module "Tile" {
+    import { IAnimation, ITileData } from "tiledMapLoader";
     import TileSet from "TileSet";
     export default class Tile extends PIXI.extras.AnimatedSprite {
-        animations: Tile[];
-        duration: number;
-        tileId: number;
+        private static getTextures;
+        animations: IAnimation[];
         gid: number;
         _x: number;
         _y: number;
-        tile: Tile;
+        tile: ITileData;
         tileSet: TileSet;
         horizontalFlip: boolean;
         verticalFlip: boolean;
         diagonalFlip: boolean;
-        constructor(tile: Tile, tileSet: TileSet, horizontalFlip: boolean, verticalFlip: boolean, diagonalFlip: boolean);
+        constructor(tile: ITileData, tileSet: TileSet, horizontalFlip: boolean, verticalFlip: boolean, diagonalFlip: boolean);
         private flip;
     }
 }
 declare module "TileLayer" {
     import Tile from "Tile";
-    import { TiledMap } from "TiledMap";
+    import { ILayerData } from "tiledMapLoader";
     import TileSet from "TileSet";
     export default class TileLayer extends PIXI.Container {
         private static findTileSet;
-        name: string;
-        layer: TileLayer;
+        layer: ILayerData;
         tileSets: TileSet[];
         tiles: Tile[];
-        diagonalFlips: boolean[];
-        horizontalFlips: boolean[];
-        image: {
-            source: string;
-            height: number;
-            width: number;
-        };
-        opacity: string;
-        type: string;
-        verticalFlips: boolean[];
-        map: TiledMap;
-        constructor(layer: TileLayer, tileSets: TileSet[]);
+        constructor(layer: ILayerData, tileSets: TileSet[]);
         create(): void;
     }
 }
@@ -81,32 +154,81 @@ declare module "TiledMap" {
         create(): void;
     }
 }
-declare module "ImageLayer" {
-    import Tile from "Tile";
-    import { TiledMap } from "TiledMap";
-    import TileLayer from "TileLayer";
-    export default class ImageLayer extends PIXI.Container {
-        name: string;
-        diagonalFlips: boolean[];
-        horizontalFlips: boolean[];
-        image: {
-            source: string;
-            height: number;
-            width: number;
-        };
-        map: TiledMap;
-        opacity: string;
-        tiles: Tile[];
-        type: string;
-        verticalFlips: boolean[];
-        constructor(layer: TileLayer, route: string);
-    }
-}
-declare module "tiledMapLoader" {
-    function tileMapLoader(this: PIXI.loaders.Loader): (resource: PIXI.loaders.Resource, next: () => void) => void;
-    export default tileMapLoader;
-}
 declare module "index" {
     import { TiledMap } from "TiledMap";
+    export interface IAnimation {
+        tileId: number;
+        duration: number;
+    }
+    export interface ITileData {
+        animations: IAnimation[];
+        gid: number;
+        id: number;
+        image?: {
+            format?: string;
+            height: number;
+            source: string;
+            trans?: boolean;
+            width: number;
+        };
+        objectGroups: [];
+        probability?: number;
+        properties: {};
+        terrain: [];
+    }
+    export interface ITileSetData {
+        firstGid: number;
+        source: string;
+        name: string;
+        tileWidth: number;
+        tileHeight: number;
+        spacing?: number;
+        margin?: number;
+        tileOffset: {
+            x: number;
+            y: number;
+        };
+        properties: {};
+        image: {
+            format?: string;
+            height: number;
+            source: string;
+            trans?: boolean;
+            width: number;
+        };
+        tiles: ITileData[];
+        terrainTypes: [];
+    }
+    export interface ILayerData {
+        map: ITMXData;
+        type: string;
+        name: string;
+        image?: {
+            format?: string;
+            height: number;
+            source: string;
+            trans?: boolean;
+            width: number;
+        };
+        opacity: number;
+        visible: boolean;
+        properties: {};
+        tiles: ITileData[];
+        horizontalFlips: boolean[];
+        verticalFlips: boolean[];
+        diagonalFlips: boolean[];
+    }
+    export interface ITMXData {
+        version: string;
+        orientation: string;
+        width: number;
+        height: number;
+        tileWidth: number;
+        tileHeight: number;
+        backgroundColor?: string;
+        layers: ILayerData[];
+        properties: {};
+        tileSets: ITileSetData[];
+    }
     export default TiledMap;
 }

@@ -1,3 +1,5 @@
+import { ITileSetData } from './tiledMapLoader';
+
 export default class TileSet {
 
   public firstGid: number = 0;
@@ -21,7 +23,7 @@ export default class TileSet {
     y: number;
   };
 
-  constructor(route: string, tileSet: TileSet) {
+  constructor(route: string, tileSet: ITileSetData) {
     Object.assign(this, tileSet);
 
     this.baseTexture = PIXI.Texture.fromImage(`${route}/${this.image.source}`, false, PIXI.SCALE_MODES.NEAREST);

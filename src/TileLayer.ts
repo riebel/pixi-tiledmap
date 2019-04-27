@@ -1,5 +1,5 @@
 import Tile from './Tile';
-import { TiledMap } from './TiledMap';
+import { ILayerData } from './tiledMapLoader';
 import TileSet from './TileSet';
 
 export default class TileLayer extends PIXI.Container {
@@ -15,37 +15,16 @@ export default class TileLayer extends PIXI.Container {
     return tileset;
   }
 
-  public name: string = '';
-  public layer: TileLayer;
+  public layer: ILayerData;
   public tileSets: TileSet[];
   public tiles: Tile[];
-  public diagonalFlips: boolean[] = [];
-  public horizontalFlips: boolean[] = [];
-  public image: { source: string; height: number; width: number } = { source: '', height: 0, width: 0 };
-  public opacity: string = '';
-  public type: string = '';
-  public verticalFlips: boolean[] = [];
-  // @ts-ignore
-  public map: TiledMap = {
-    _height: 0,
-    _width: 0,
-    background: new PIXI.Graphics(),
-    height: 0,
-    layers: {},
-    resourceUrl: '',
-    tileHeight: 0,
-    tileSets: [],
-    tileWidth: 0,
-    width: 0,
-  };
 
-  constructor(layer: TileLayer, tileSets: TileSet[]) {
+  constructor(layer: ILayerData, tileSets: TileSet[]) {
     super();
 
     this.layer = layer;
     this.tileSets = tileSets;
-
-    this.alpha = parseFloat(layer.opacity);
+    this.alpha = layer.opacity;
     this.tiles = [];
 
     Object.assign(this, layer);
@@ -72,8 +51,8 @@ export default class TileLayer extends PIXI.Container {
             );
 
             tile.x = x * this.layer.map.tileWidth;
-            // @ts-ignore
-            tile.y = y * this.layer.map.tileHeight + (this.layer.map.tileHeight - tile.textures[0].height);
+            tile.y = y * this.layer.map.tileHeight +
+              (this.layer.map.tileHeight - (tile.textures[0] as PIXI.Texture).height);
 
             tile._x = x;
             tile._y = y;

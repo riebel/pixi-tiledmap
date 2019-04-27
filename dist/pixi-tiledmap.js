@@ -73,7 +73,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /******/
 /******/ 	var hotApplyOnUpdate = true;
 /******/ 	// eslint-disable-next-line no-unused-vars
-/******/ 	var hotCurrentHash = "22cf5d07793feec3c10b";
+/******/ 	var hotCurrentHash = "a678117f4e51da5eb74b";
 /******/ 	var hotRequestTimeout = 10000;
 /******/ 	var hotCurrentModuleData = {};
 /******/ 	var hotCurrentChildModule;
@@ -17729,56 +17729,19 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 
 function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
 
-function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
 var ImageLayer =
 /*#__PURE__*/
 function (_PIXI$Container) {
   _inherits(ImageLayer, _PIXI$Container);
 
-  // @ts-ignore
   function ImageLayer(layer, route) {
     var _this;
 
     _classCallCheck(this, ImageLayer);
 
     _this = _possibleConstructorReturn(this, _getPrototypeOf(ImageLayer).call(this));
-
-    _defineProperty(_assertThisInitialized(_this), "name", '');
-
-    _defineProperty(_assertThisInitialized(_this), "diagonalFlips", []);
-
-    _defineProperty(_assertThisInitialized(_this), "horizontalFlips", []);
-
-    _defineProperty(_assertThisInitialized(_this), "image", {
-      source: '',
-      height: 0,
-      width: 0
-    });
-
-    _defineProperty(_assertThisInitialized(_this), "map", {
-      _height: 0,
-      _width: 0,
-      background: new PIXI.Graphics(),
-      height: 0,
-      layers: {},
-      resourceUrl: '',
-      tileHeight: 0,
-      tileSets: [],
-      tileWidth: 0,
-      width: 0
-    });
-
-    _defineProperty(_assertThisInitialized(_this), "opacity", '');
-
-    _defineProperty(_assertThisInitialized(_this), "tiles", []);
-
-    _defineProperty(_assertThisInitialized(_this), "type", '');
-
-    _defineProperty(_assertThisInitialized(_this), "verticalFlips", []);
-
     Object.assign(_assertThisInitialized(_this), layer);
-    _this.alpha = parseFloat(layer.opacity);
+    _this.alpha = layer.opacity;
 
     if (layer.image && layer.image.source) {
       _this.addChild(PIXI.Sprite.fromImage("".concat(route, "/").concat(layer.image.source)));
@@ -17796,71 +17759,70 @@ function Tile_typeof(obj) { if (typeof Symbol === "function" && typeof Symbol.it
 
 function Tile_classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
-
 function Tile_possibleConstructorReturn(self, call) { if (call && (Tile_typeof(call) === "object" || typeof call === "function")) { return call; } return Tile_assertThisInitialized(self); }
 
 function Tile_getPrototypeOf(o) { Tile_getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return Tile_getPrototypeOf(o); }
 
 function Tile_assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
 
+function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
+
 function Tile_inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) Tile_setPrototypeOf(subClass, superClass); }
 
 function Tile_setPrototypeOf(o, p) { Tile_setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return Tile_setPrototypeOf(o, p); }
 
-function Tile_defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 var Tile =
 /*#__PURE__*/
 function (_PIXI$extras$Animated) {
   Tile_inherits(Tile, _PIXI$extras$Animated);
 
-  // tslint:disable-next-line:variable-name
-  // tslint:disable-next-line:variable-name
-  // @ts-ignore
+  _createClass(Tile, null, [{
+    key: "getTextures",
+    value: function getTextures(tile, tileSet) {
+      var textures = [];
+
+      if (tile.animations.length) {
+        tile.animations.forEach(function (frame) {
+          textures.push(tileSet.textures[frame.tileId]);
+        });
+      } else {
+        textures.push(tileSet.textures[tile.gid - tileSet.firstGid]);
+      }
+
+      return textures;
+    }
+  }]);
+
   function Tile(tile, tileSet, horizontalFlip, verticalFlip, diagonalFlip) {
     var _this;
 
     Tile_classCallCheck(this, Tile);
 
-    var textures = [];
+    _this = Tile_possibleConstructorReturn(this, Tile_getPrototypeOf(Tile).call(this, Tile.getTextures(tile, tileSet)));
 
-    if (tile.animations.length) {
-      // tslint:disable-next-line:ter-arrow-parens
-      tile.animations.forEach(function (frame) {
-        textures.push(tileSet.textures[frame.tileId]);
-      });
-    } else {
-      textures.push(tileSet.textures[tile.gid - tileSet.firstGid]);
-    }
+    _defineProperty(Tile_assertThisInitialized(_this), "animations", []);
 
-    _this = Tile_possibleConstructorReturn(this, Tile_getPrototypeOf(Tile).call(this, textures));
+    _defineProperty(Tile_assertThisInitialized(_this), "gid", 0);
 
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "animations", []);
+    _defineProperty(Tile_assertThisInitialized(_this), "_x", 0);
 
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "duration", 0);
+    _defineProperty(Tile_assertThisInitialized(_this), "_y", 0);
 
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "tileId", 0);
+    _defineProperty(Tile_assertThisInitialized(_this), "tile", void 0);
 
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "gid", 0);
+    _defineProperty(Tile_assertThisInitialized(_this), "tileSet", void 0);
 
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "_x", 0);
+    _defineProperty(Tile_assertThisInitialized(_this), "horizontalFlip", void 0);
 
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "_y", 0);
+    _defineProperty(Tile_assertThisInitialized(_this), "verticalFlip", void 0);
 
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "tile", void 0);
+    _defineProperty(Tile_assertThisInitialized(_this), "diagonalFlip", void 0);
 
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "tileSet", void 0);
-
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "horizontalFlip", void 0);
-
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "verticalFlip", void 0);
-
-    Tile_defineProperty(Tile_assertThisInitialized(_this), "diagonalFlip", void 0);
-
-    _this.textures = textures;
+    _this.textures = Tile.getTextures(tile, tileSet);
     _this.tile = tile;
     _this.tileSet = tileSet;
     _this.horizontalFlip = horizontalFlip;
@@ -17962,46 +17924,15 @@ function (_PIXI$Container) {
 
     _this = TileLayer_possibleConstructorReturn(this, TileLayer_getPrototypeOf(TileLayer).call(this));
 
-    TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "name", '');
-
     TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "layer", void 0);
 
     TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "tileSets", void 0);
 
     TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "tiles", void 0);
 
-    TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "diagonalFlips", []);
-
-    TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "horizontalFlips", []);
-
-    TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "image", {
-      source: '',
-      height: 0,
-      width: 0
-    });
-
-    TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "opacity", '');
-
-    TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "type", '');
-
-    TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "verticalFlips", []);
-
-    TileLayer_defineProperty(TileLayer_assertThisInitialized(_this), "map", {
-      _height: 0,
-      _width: 0,
-      background: new PIXI.Graphics(),
-      height: 0,
-      layers: {},
-      resourceUrl: '',
-      tileHeight: 0,
-      tileSets: [],
-      tileWidth: 0,
-      width: 0
-    });
-
     _this.layer = layer;
     _this.tileSets = tileSets;
-    _this.alpha = parseFloat(layer.opacity);
+    _this.alpha = layer.opacity;
     _this.tiles = [];
     Object.assign(TileLayer_assertThisInitialized(_this), layer);
 
@@ -18022,8 +17953,7 @@ function (_PIXI$Container) {
 
             if (tileset) {
               var tile = new Tile(this.layer.tiles[i], tileset, this.layer.horizontalFlips[i], this.layer.verticalFlips[i], this.layer.diagonalFlips[i]);
-              tile.x = x * this.layer.map.tileWidth; // @ts-ignore
-
+              tile.x = x * this.layer.map.tileWidth;
               tile.y = y * this.layer.map.tileHeight + (this.layer.map.tileHeight - tile.textures[0].height);
               tile._x = x;
               tile._y = y;
@@ -18168,9 +18098,9 @@ function (_PIXI$Container) {
       this.background.drawRect(0, 0, (this._width || 0) * (this.tileWidth || 0), (this._height || 0) * (this.tileHeight || 0));
       this.background.endFill();
       this.addChild(this.background);
-      data.tileSets.forEach(function (tilesetData) {
-        _this2.tileSets.push(new TileSet(route, tilesetData));
-      }, this);
+      data.tileSets.forEach(function (tileSet) {
+        _this2.tileSets.push(new TileSet(route, tileSet));
+      });
       data.layers.forEach(function (layerData) {
         switch (layerData.type) {
           case 'tile':
@@ -18192,11 +18122,6 @@ function (_PIXI$Container) {
 
               break;
             }
-
-          default:
-            {
-              _this2.layers[layerData.name] = layerData;
-            }
         }
       });
     }
@@ -18208,7 +18133,6 @@ function (_PIXI$Container) {
 var tmx_parser = __webpack_require__(24);
 
 // CONCATENATED MODULE: ./src/tiledMapLoader.ts
- // @ts-ignore
 
 
 

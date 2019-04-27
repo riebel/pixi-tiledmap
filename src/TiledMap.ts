@@ -2,6 +2,7 @@
 
 import path from 'path';
 import ImageLayer from './ImageLayer';
+import { ITMXData } from './tiledMapLoader';
 import TileLayer from './TileLayer';
 import TileSet from './TileSet';
 
@@ -26,7 +27,7 @@ export class TiledMap extends PIXI.Container {
 
   public create() {
     const route = path.dirname(PIXI.loader.resources[this.resourceUrl].url);
-    const data = PIXI.loader.resources[this.resourceUrl].data;
+    const data: ITMXData = PIXI.loader.resources[this.resourceUrl].data;
 
     Object.assign(this, data);
 
@@ -40,16 +41,13 @@ export class TiledMap extends PIXI.Container {
     this.background.endFill();
     this.addChild(this.background);
 
-    data.tileSets.forEach(
-      (tilesetData: TileSet) => {
-        this.tileSets.push(
-          new TileSet(route, tilesetData),
-        );
-      },
-      this,
-    );
+    data.tileSets.forEach(tileSet => {
+      this.tileSets.push(
+        new TileSet(route, tileSet),
+      );
+    });
 
-    data.layers.forEach((layerData: TileLayer) => {
+    data.layers.forEach(layerData => {
       switch (layerData.type) {
         case 'tile': {
           const tileLayer = new TileLayer(layerData, this.tileSets);
@@ -62,9 +60,6 @@ export class TiledMap extends PIXI.Container {
           this.layers[layerData.name] = imageLayer as TileLayer;
           this.addChild(imageLayer);
           break;
-        }
-        default: {
-          this.layers[layerData.name] = layerData;
         }
       }
     });
