@@ -83,26 +83,28 @@
     <span class="hljs-tag">&lt;<span class="hljs-name">title</span>&gt;</span>pixi-tiledmap example<span class="hljs-tag">&lt;/<span class="hljs-name">title</span>&gt;</span>
 <span class="hljs-tag">&lt;/<span class="hljs-name">head</span>&gt;</span>
 <span class="hljs-tag">&lt;<span class="hljs-name">body</span>&gt;</span>
-<span class="hljs-tag">&lt;<span class="hljs-name">script</span> <span class="hljs-attr">type</span>=<span class="hljs-string">"text/javascript"</span> <span class="hljs-attr">src</span>=<span class="hljs-string">"https://pixijs.download/v4.6.2/pixi.min.js"</span>&gt;</span><span class="undefined"></span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">script</span> <span class="hljs-attr">type</span>=<span class="hljs-string">"text/javascript"</span> <span class="hljs-attr">src</span>=<span class="hljs-string">"https://pixijs.download/v4.8.7/pixi.min.js"</span>&gt;</span><span class="undefined"></span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
 <span class="hljs-tag">&lt;<span class="hljs-name">script</span> <span class="hljs-attr">type</span>=<span class="hljs-string">"text/javascript"</span> <span class="hljs-attr">src</span>=<span class="hljs-string">"pixi-tiledmap.min.js"</span>&gt;</span><span class="undefined"></span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
 <span class="hljs-tag">&lt;<span class="hljs-name">script</span>&gt;</span><span class="javascript">
-    <span class="hljs-keyword">var</span> renderer = PIXI.autoDetectRenderer(<span class="hljs-number">442</span>, <span class="hljs-number">286</span>);
-    <span class="hljs-built_in">document</span>.body.appendChild(renderer.view);
+    (<span class="hljs-function"><span class="hljs-keyword">function</span>(<span class="hljs-params"></span>) </span>{
+        <span class="hljs-keyword">const</span> renderer = PIXI.autoDetectRenderer(<span class="hljs-number">442</span>, <span class="hljs-number">286</span>);
+        <span class="hljs-built_in">document</span>.body.appendChild(renderer.view);
 
-    <span class="hljs-comment">/**
-     * Simply load a Tiled map in TMX format like a usual resource
-     */</span>
-    PIXI.loader
-        .add(<span class="hljs-string">'assets/01_basement.tmx'</span>)
-        .load(<span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params"></span>) </span>{
-                <span class="hljs-comment">/**
-                 *   PIXI.extras.TiledMap() is an extended PIXI.Container()
-                 *   so you can render it right away
-                 */</span>
-                <span class="hljs-keyword">var</span> tileMap = <span class="hljs-keyword">new</span> PIXI.extras.TiledMap(<span class="hljs-string">'assets/01_basement.tmx'</span>);
-                renderer.render(tileMap);
-            }
-        );
+        <span class="hljs-comment">/**
+         * Simply load a Tiled map in TMX format like a usual resource
+         */</span>
+        PIXI.loader
+            .add(<span class="hljs-string">'assets/01_basement.tmx'</span>)
+            .load(<span class="hljs-function"><span class="hljs-keyword">function</span> (<span class="hljs-params"></span>) </span>{
+                    <span class="hljs-comment">/**
+                     *   PIXI.extras.TiledMap() is an extended PIXI.Container()
+                     *   so you can render it right away
+                     */</span>
+                    <span class="hljs-keyword">let</span> tileMap = <span class="hljs-keyword">new</span> PIXI.extras.TiledMap(<span class="hljs-string">'assets/01_basement.tmx'</span>);
+                    renderer.render(tileMap);
+                }
+            );
+    })();
 </span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
 <span class="hljs-tag">&lt;/<span class="hljs-name">body</span>&gt;</span>
 <span class="hljs-tag">&lt;/<span class="hljs-name">html</span>&gt;</span></code></pre>
@@ -153,9 +155,8 @@ PIXI.loader
          */</span>
         renderer.render(<span class="hljs-keyword">new</span> PIXI.extras.TiledMap(<span class="hljs-string">'assets/01_basement.tmx'</span>));
     });</code></pre>
-				<p>An example implementation with webpack can be found under <a href="https://github.com/riebel/pixi-tiledmap/tree/master/example/webpack"><code>example/webpack</code></a>.</p>
-				<p>For the browser example run <code>npm install</code> and <code>npm run example</code> to start a <code>http-server</code> on Port 8080.
-				Open <a href="http://localhost:8080/">http://localhost:8080/</a> in your browser.</p>
+				<p>For the browser example run <code>yarn</code> and <code>yarn start</code> to start a <code>devServer</code> on Port 3000.
+				Open <a href="http://localhost:3000/">http://localhost:3000/</a> in your browser.</p>
 				<h2 id="documentation">Documentation</h2>
 				<p>Example TiledMap object</p>
 				<pre><code class="language-js">{
