@@ -118,7 +118,7 @@ Open [http://localhost:3000/](http://localhost:3000/) in your browser.
 
 ## Documentation
 
-Documentation available in `docs/`.
+Documentation available in `docs/`. You can read it online [here](http://htmlpreview.github.io/?https://github.com/riebel/pixi-tiledmap/blob/master/docs/index.html)
 
 Example TiledMap object
 
