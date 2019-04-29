@@ -124,136 +124,103 @@ Example TiledMap object
 
 ```js
 {
-    alpha: 1
-    backgroundColor: undefined
-    cacheAsBitmap: (...)
-    children: Array[3]
-        0: ImageLayer
-            alpha: 1
-            cacheAsBitmap: (...)
-            children: Array[1]
-            filterArea: null
-            filters: (...)
-            height: (...)
-            image: Image
-            mask: (...)
-            name: "background"
-            opacity: 1
-            parent: TiledMap
-            pivot: Point
-            position: Point
-            properties: Object
-            renderable: true
-            rotation: 0
-            scale: Point
-            type: "image"
-            visible: true
-            width: (...)
-            worldAlpha: 1
-            worldTransform: Matrix
-            worldVisible: (...)
-            x: (...)
-            y: (...)
-        1: TileLayer
-        2: TileLayer
-            alpha: 1
-            cacheAsBitmap: (...)
-            children: Array[4]
-            diagonalFlips: Array[187]
-            filterArea: null
-            filters: (...)
-            height: (...)
-            horizontalFlips: Array[187]
-            map: Map
-            mask: null
-            name: "fire"
-            opacity: 1
-            parent: TiledMap
-            pivot: Point
-            position: Point
-            properties: Object
-            renderable: true
-            rotation: 0
-            scale: Point
-            tiles: Array[4]
-                0: Tile
-                    alpha: 1
-                    anchor: Point
-                    animation: undefined
-                    animationSpeed: 0.16666666666666669
-                    animations: Array[6]
-                    blendMode: 0
-                    cacheAsBitmap: (...)
-                    cachedTint: 16777215
-                    children: Array[0]
-                    currentFrame: (...)
-                    filterArea: null
-                    filters: (...)
-                    gid: 33
-                    height: (...)
-                    id: 0
-                    image: null
-                    loop: true
-                    mask: (...)
-                    onComplete: null
-                    parent: TileLayer
-                    pivot: Point
-                    playing: true
-                    position: Point
-                    probability: null
-                    properties: Object
-                    renderable: true
-                    rotation: 0
-                    scale: Point
-                    shader: null
-                    terrain: Array[0]
-                    texture: (...)
-                    textures: (...)
-                    tint: 16777215
-                    totalFrames: (...)
-                    visible: true
-                    width: (...)
-                    worldAlpha: 1
-                    worldTransform: Matrix
-                    worldVisible: (...)
-                    x: (...)
-                    y: (...)
-                1: Tile
-                2: Tile
-                3: Tile
-            type: "tile"
-            verticalFlips: Array[187]
-            visible: true
-            width: (...)
-            worldAlpha: 1
-            worldTransform: Matrix
-            worldVisible: (...)
-            x: (...)
-            y: (...)
-    filterArea: null
-    filters: (...)
-    height: (...)
-    layers: Array[0]
-    mask: (...)
-    orientation: "orthogonal"
-    parent: Container
-    pivot: Point
-    position: Point
-    properties: Object
-    renderable: true
-    rotation: 0
-    scale: Point
-    tileHeight: 26
-    tileSets: Array[2]
-    tileWidth: 26
-    version: "1.0"
-    visible: true
-    width: (...)
-    worldAlpha: 1
-    worldTransform: Matrix
-    worldVisible: (...)
-    x: (...)
-    y: (...)
+    TiledMap {_events: Events, _eventsCount: 0, tempDisplayObjectParent: DisplayObject, transform: TransformStatic, alpha: 1, …}
+        alpha: 1
+        background: Graphics {_events: Events, _eventsCount: 0, tempDisplayObjectParent: null, transform: TransformStatic, alpha: 1, …}
+        backgroundColor: undefined
+        buttonMode: (...)
+        children: (2) [Graphics, TileLayer]
+        filterArea: null
+        layers: Array(1)
+            0: TileLayer
+                diagonalFlips: (187) [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, …]
+                horizontalFlips: (187) [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, …]
+                map: Map {version: "1.0", orientation: "orthogonal", width: 17, height: 11, tileWidth: 26, …}
+                name: "meta"
+                opacity: 0.2
+                properties: {}
+                tiles: (283) [Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, 49: Tile, 50: Tile, 51: Tile, 52: Tile, 66: Tile, 67: Tile, 68: Tile, 69: Tile, 83: Tile, 84: Tile, 85: Tile, 86: Tile, 100: Tile, 101: Tile, 102: Tile, 103: Tile, 117: Tile, 118: Tile, 119: Tile, 120: Tile, 134: Tile, 135: Tile, 136: Tile, 137: Tile, 151: Tile, 152: Tile, 153: Tile, 154: Tile, 155: Tile, 156: Tile, 157: Tile, 158: Tile, 159: Tile, 160: Tile, 161: Tile, 162: Tile, 163: Tile, 164: Tile, 165: Tile, 166: Tile, 167: Tile, 168: Tile, 169: Tile, 170: Tile, 171: Tile, 172: Tile, 173: Tile, 174: Tile, 175: Tile, 176: Tile, 177: Tile, 178: Tile, 179: Tile, 180: Tile, 181: Tile, 182: Tile, 183: Tile, 184: Tile, 185: Tile, 186: Tile, 187: Tile, 188: Tile, 189: Tile, 190: Tile, …]
+                type: "tile"
+                verticalFlips: (187) [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, …]
+                visible: true
+                __proto__: Object
+            meta: TileLayer {_events: Events, _eventsCount: 0, tempDisplayObjectParent: null, transform: TransformStatic, alpha: 0.2, …}
+            length: 1
+            __proto__: Array(0)
+        orientation: "orthogonal"
+        parent: null
+        properties: {}
+        renderable: true
+        resourceUrl: "assets/01_basement.tmx"
+        tempDisplayObjectParent: DisplayObject {_events: Events, _eventsCount: 0, tempDisplayObjectParent: null, transform: TransformStatic, alpha: 1, …}
+        tileHeight: 26
+        tileSets: Array(2)
+        0: TileSet
+        firstGid: 1
+        image: Image {format: undefined, source: "meta.png", trans: undefined, width: 52, height: 26}
+        margin: null
+        name: "meta"
+        properties: {}
+        source: undefined
+        spacing: null
+        terrainTypes: []
+        tileHeight: 26
+        tileOffset: {x: 0, y: 0}
+        tileWidth: 26
+        tiles: Array(2)
+            0: Tile
+                animations: []
+                gid: 1
+                id: 0
+                image: null
+                objectGroups: []
+                probability: null
+                properties: {}
+                terrain: []
+                __proto__: Object
+            1: Tile {id: 1, terrain: Array(0), probability: null, properties: {…}, animations: Array(0), …}
+            length: 2
+            __proto__: Array(0)
+        __proto__: Object
+        1: TileSet {firstGid: 1, baseTexture: Texture, textures: Array(2), margin: null, spacing: null, …}
+        length: 2
+        __proto__: Array(0)
+        tileWidth: 26
+        trackedPointers: (...)
+        transform: TransformStatic {worldTransform: Matrix, localTransform: Matrix, _worldID: 0, _parentID: 0, position: ObservablePoint, …}
+        version: "1.0"
+        visible: true
+        worldAlpha: 1
+        _bounds: Bounds {minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity, rect: null, …}
+        _boundsID: 5
+        _boundsRect: null
+        _destroyed: false
+        _enabledFilters: null
+        _events: Events {}
+        _eventsCount: 0
+        _filters: null
+        _height: 11
+        _lastBoundsID: 2
+        _localBoundsRect: Rectangle {x: 0, y: 0, width: 0, height: 0, type: 1}
+        _mask: null
+        _width: 17
+        cacheAsBitmap: (...)
+        filters: (...)
+        height: (...)
+        localTransform: (...)
+        mask: (...)
+        pivot: (...)
+        position: (...)
+        rotation: (...)
+        scale: (...)
+        skew: (...)
+        width: (...)
+        worldTransform: (...)
+        worldVisible: (...)
+        x: (...)
+        y: (...)
+        _tempDisplayObjectParent: (...)
+        __proto__: Container
 }
 ```
 
