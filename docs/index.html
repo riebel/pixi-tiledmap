@@ -155,141 +155,110 @@ PIXI.loader
          */</span>
         renderer.render(<span class="hljs-keyword">new</span> PIXI.extras.TiledMap(<span class="hljs-string">'assets/01_basement.tmx'</span>));
     });</code></pre>
-				<p>For the browser example run <code>yarn</code> and <code>yarn start</code> to start a <code>devServer</code> on Port 3000.
-				Open <a href="http://localhost:3000/">http://localhost:3000/</a> in your browser.</p>
+				<p>For the browser examples in <code>examples/browser/</code> run <code>yarn</code> and <code>yarn start</code> to start a <code>devServer</code> on Port 3000.
+				For the webpack examples in <code>examples/webpack/</code> run <code>yarn</code> and <code>yarn start</code> inside of <code>examples/webpack/</code> to start a <code>devServer</code> on Port 3000.</p>
+				<p>Open <a href="http://localhost:3000/">http://localhost:3000/</a> in your browser.</p>
 				<h2 id="documentation">Documentation</h2>
+				<p>Documentation available in <code>docs/</code>. You can read it online <a href="http://htmlpreview.github.io/?https://github.com/riebel/pixi-tiledmap/blob/master/docs/index.html">here</a></p>
 				<p>Example TiledMap object</p>
 				<pre><code class="language-js">{
-    <span class="hljs-attr">alpha</span>: <span class="hljs-number">1</span>
-    backgroundColor: <span class="hljs-literal">undefined</span>
-    cacheAsBitmap: (...)
-    children: <span class="hljs-built_in">Array</span>[<span class="hljs-number">3</span>]
-        <span class="hljs-number">0</span>: ImageLayer
-            alpha: <span class="hljs-number">1</span>
-            cacheAsBitmap: (...)
-            children: <span class="hljs-built_in">Array</span>[<span class="hljs-number">1</span>]
-            filterArea: <span class="hljs-literal">null</span>
-            filters: (...)
-            height: (...)
-            image: Image
-            mask: (...)
-            name: <span class="hljs-string">"background"</span>
-            opacity: <span class="hljs-number">1</span>
-            parent: TiledMap
-            pivot: Point
-            position: Point
-            properties: <span class="hljs-built_in">Object</span>
-            renderable: <span class="hljs-literal">true</span>
-            rotation: <span class="hljs-number">0</span>
-            scale: Point
-            type: <span class="hljs-string">"image"</span>
-            visible: <span class="hljs-literal">true</span>
-            width: (...)
-            worldAlpha: <span class="hljs-number">1</span>
-            worldTransform: Matrix
-            worldVisible: (...)
-            x: (...)
-            y: (...)
-        <span class="hljs-number">1</span>: TileLayer
-        <span class="hljs-number">2</span>: TileLayer
-            alpha: <span class="hljs-number">1</span>
-            cacheAsBitmap: (...)
-            children: <span class="hljs-built_in">Array</span>[<span class="hljs-number">4</span>]
-            diagonalFlips: <span class="hljs-built_in">Array</span>[<span class="hljs-number">187</span>]
-            filterArea: <span class="hljs-literal">null</span>
-            filters: (...)
-            height: (...)
-            horizontalFlips: <span class="hljs-built_in">Array</span>[<span class="hljs-number">187</span>]
-            map: <span class="hljs-built_in">Map</span>
-            mask: <span class="hljs-literal">null</span>
-            name: <span class="hljs-string">"fire"</span>
-            opacity: <span class="hljs-number">1</span>
-            parent: TiledMap
-            pivot: Point
-            position: Point
-            properties: <span class="hljs-built_in">Object</span>
-            renderable: <span class="hljs-literal">true</span>
-            rotation: <span class="hljs-number">0</span>
-            scale: Point
-            tiles: <span class="hljs-built_in">Array</span>[<span class="hljs-number">4</span>]
-                <span class="hljs-number">0</span>: Tile
-                    alpha: <span class="hljs-number">1</span>
-                    anchor: Point
-                    animation: <span class="hljs-literal">undefined</span>
-                    animationSpeed: <span class="hljs-number">0.16666666666666669</span>
-                    animations: <span class="hljs-built_in">Array</span>[<span class="hljs-number">6</span>]
-                    blendMode: <span class="hljs-number">0</span>
-                    cacheAsBitmap: (...)
-                    cachedTint: <span class="hljs-number">16777215</span>
-                    children: <span class="hljs-built_in">Array</span>[<span class="hljs-number">0</span>]
-                    currentFrame: (...)
-                    filterArea: <span class="hljs-literal">null</span>
-                    filters: (...)
-                    gid: <span class="hljs-number">33</span>
-                    height: (...)
-                    id: <span class="hljs-number">0</span>
-                    image: <span class="hljs-literal">null</span>
-                    loop: <span class="hljs-literal">true</span>
-                    mask: (...)
-                    onComplete: <span class="hljs-literal">null</span>
-                    parent: TileLayer
-                    pivot: Point
-                    playing: <span class="hljs-literal">true</span>
-                    position: Point
-                    probability: <span class="hljs-literal">null</span>
-                    properties: <span class="hljs-built_in">Object</span>
-                    renderable: <span class="hljs-literal">true</span>
-                    rotation: <span class="hljs-number">0</span>
-                    scale: Point
-                    shader: <span class="hljs-literal">null</span>
-                    terrain: <span class="hljs-built_in">Array</span>[<span class="hljs-number">0</span>]
-                    texture: (...)
-                    textures: (...)
-                    tint: <span class="hljs-number">16777215</span>
-                    totalFrames: (...)
-                    visible: <span class="hljs-literal">true</span>
-                    width: (...)
-                    worldAlpha: <span class="hljs-number">1</span>
-                    worldTransform: Matrix
-                    worldVisible: (...)
-                    x: (...)
-                    y: (...)
-                <span class="hljs-number">1</span>: Tile
-                <span class="hljs-number">2</span>: Tile
-                <span class="hljs-number">3</span>: Tile
-            type: <span class="hljs-string">"tile"</span>
-            verticalFlips: <span class="hljs-built_in">Array</span>[<span class="hljs-number">187</span>]
-            visible: <span class="hljs-literal">true</span>
-            width: (...)
-            worldAlpha: <span class="hljs-number">1</span>
-            worldTransform: Matrix
-            worldVisible: (...)
-            x: (...)
-            y: (...)
-    filterArea: <span class="hljs-literal">null</span>
-    filters: (...)
-    height: (...)
-    layers: <span class="hljs-built_in">Array</span>[<span class="hljs-number">0</span>]
-    mask: (...)
-    orientation: <span class="hljs-string">"orthogonal"</span>
-    parent: Container
-    pivot: Point
-    position: Point
-    properties: <span class="hljs-built_in">Object</span>
-    renderable: <span class="hljs-literal">true</span>
-    rotation: <span class="hljs-number">0</span>
-    scale: Point
-    tileHeight: <span class="hljs-number">26</span>
-    tileSets: <span class="hljs-built_in">Array</span>[<span class="hljs-number">2</span>]
-    tileWidth: <span class="hljs-number">26</span>
-    version: <span class="hljs-string">"1.0"</span>
-    visible: <span class="hljs-literal">true</span>
-    width: (...)
-    worldAlpha: <span class="hljs-number">1</span>
-    worldTransform: Matrix
-    worldVisible: (...)
-    x: (...)
-    y: (...)
+    TiledMap {<span class="hljs-attr">_events</span>: Events, <span class="hljs-attr">_eventsCount</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">tempDisplayObjectParent</span>: DisplayObject, <span class="hljs-attr">transform</span>: TransformStatic, <span class="hljs-attr">alpha</span>: <span class="hljs-number">1</span>, …}
+        alpha: <span class="hljs-number">1</span>
+        background: Graphics {<span class="hljs-attr">_events</span>: Events, <span class="hljs-attr">_eventsCount</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">tempDisplayObjectParent</span>: <span class="hljs-literal">null</span>, <span class="hljs-attr">transform</span>: TransformStatic, <span class="hljs-attr">alpha</span>: <span class="hljs-number">1</span>, …}
+        backgroundColor: <span class="hljs-literal">undefined</span>
+        buttonMode: (...)
+        children: (<span class="hljs-number">2</span>) [Graphics, TileLayer]
+        filterArea: <span class="hljs-literal">null</span>
+        layers: <span class="hljs-built_in">Array</span>(<span class="hljs-number">1</span>)
+            <span class="hljs-number">0</span>: TileLayer
+                diagonalFlips: (<span class="hljs-number">187</span>) [<span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, …]
+                horizontalFlips: (<span class="hljs-number">187</span>) [<span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, …]
+                map: <span class="hljs-built_in">Map</span> {<span class="hljs-attr">version</span>: <span class="hljs-string">"1.0"</span>, <span class="hljs-attr">orientation</span>: <span class="hljs-string">"orthogonal"</span>, <span class="hljs-attr">width</span>: <span class="hljs-number">17</span>, <span class="hljs-attr">height</span>: <span class="hljs-number">11</span>, <span class="hljs-attr">tileWidth</span>: <span class="hljs-number">26</span>, …}
+                name: <span class="hljs-string">"meta"</span>
+                opacity: <span class="hljs-number">0.2</span>
+                properties: {}
+                tiles: (<span class="hljs-number">283</span>) [Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, Tile, <span class="hljs-number">49</span>: Tile, <span class="hljs-number">50</span>: Tile, <span class="hljs-number">51</span>: Tile, <span class="hljs-number">52</span>: Tile, <span class="hljs-number">66</span>: Tile, <span class="hljs-number">67</span>: Tile, <span class="hljs-number">68</span>: Tile, <span class="hljs-number">69</span>: Tile, <span class="hljs-number">83</span>: Tile, <span class="hljs-number">84</span>: Tile, <span class="hljs-number">85</span>: Tile, <span class="hljs-number">86</span>: Tile, <span class="hljs-number">100</span>: Tile, <span class="hljs-number">101</span>: Tile, <span class="hljs-number">102</span>: Tile, <span class="hljs-number">103</span>: Tile, <span class="hljs-number">117</span>: Tile, <span class="hljs-number">118</span>: Tile, <span class="hljs-number">119</span>: Tile, <span class="hljs-number">120</span>: Tile, <span class="hljs-number">134</span>: Tile, <span class="hljs-number">135</span>: Tile, <span class="hljs-number">136</span>: Tile, <span class="hljs-number">137</span>: Tile, <span class="hljs-number">151</span>: Tile, <span class="hljs-number">152</span>: Tile, <span class="hljs-number">153</span>: Tile, <span class="hljs-number">154</span>: Tile, <span class="hljs-number">155</span>: Tile, <span class="hljs-number">156</span>: Tile, <span class="hljs-number">157</span>: Tile, <span class="hljs-number">158</span>: Tile, <span class="hljs-number">159</span>: Tile, <span class="hljs-number">160</span>: Tile, <span class="hljs-number">161</span>: Tile, <span class="hljs-number">162</span>: Tile, <span class="hljs-number">163</span>: Tile, <span class="hljs-number">164</span>: Tile, <span class="hljs-number">165</span>: Tile, <span class="hljs-number">166</span>: Tile, <span class="hljs-number">167</span>: Tile, <span class="hljs-number">168</span>: Tile, <span class="hljs-number">169</span>: Tile, <span class="hljs-number">170</span>: Tile, <span class="hljs-number">171</span>: Tile, <span class="hljs-number">172</span>: Tile, <span class="hljs-number">173</span>: Tile, <span class="hljs-number">174</span>: Tile, <span class="hljs-number">175</span>: Tile, <span class="hljs-number">176</span>: Tile, <span class="hljs-number">177</span>: Tile, <span class="hljs-number">178</span>: Tile, <span class="hljs-number">179</span>: Tile, <span class="hljs-number">180</span>: Tile, <span class="hljs-number">181</span>: Tile, <span class="hljs-number">182</span>: Tile, <span class="hljs-number">183</span>: Tile, <span class="hljs-number">184</span>: Tile, <span class="hljs-number">185</span>: Tile, <span class="hljs-number">186</span>: Tile, <span class="hljs-number">187</span>: Tile, <span class="hljs-number">188</span>: Tile, <span class="hljs-number">189</span>: Tile, <span class="hljs-number">190</span>: Tile, …]
+                type: <span class="hljs-string">"tile"</span>
+                verticalFlips: (<span class="hljs-number">187</span>) [<span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, <span class="hljs-literal">false</span>, …]
+                visible: <span class="hljs-literal">true</span>
+                __proto__: <span class="hljs-built_in">Object</span>
+            meta: TileLayer {<span class="hljs-attr">_events</span>: Events, <span class="hljs-attr">_eventsCount</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">tempDisplayObjectParent</span>: <span class="hljs-literal">null</span>, <span class="hljs-attr">transform</span>: TransformStatic, <span class="hljs-attr">alpha</span>: <span class="hljs-number">0.2</span>, …}
+            length: <span class="hljs-number">1</span>
+            __proto__: <span class="hljs-built_in">Array</span>(<span class="hljs-number">0</span>)
+        orientation: <span class="hljs-string">"orthogonal"</span>
+        parent: <span class="hljs-literal">null</span>
+        properties: {}
+        renderable: <span class="hljs-literal">true</span>
+        resourceUrl: <span class="hljs-string">"assets/01_basement.tmx"</span>
+        tempDisplayObjectParent: DisplayObject {<span class="hljs-attr">_events</span>: Events, <span class="hljs-attr">_eventsCount</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">tempDisplayObjectParent</span>: <span class="hljs-literal">null</span>, <span class="hljs-attr">transform</span>: TransformStatic, <span class="hljs-attr">alpha</span>: <span class="hljs-number">1</span>, …}
+        tileHeight: <span class="hljs-number">26</span>
+        tileSets: <span class="hljs-built_in">Array</span>(<span class="hljs-number">2</span>)
+            <span class="hljs-number">0</span>: TileSet
+                firstGid: <span class="hljs-number">1</span>
+                image: Image {<span class="hljs-attr">format</span>: <span class="hljs-literal">undefined</span>, <span class="hljs-attr">source</span>: <span class="hljs-string">"meta.png"</span>, <span class="hljs-attr">trans</span>: <span class="hljs-literal">undefined</span>, <span class="hljs-attr">width</span>: <span class="hljs-number">52</span>, <span class="hljs-attr">height</span>: <span class="hljs-number">26</span>}
+                margin: <span class="hljs-literal">null</span>
+                name: <span class="hljs-string">"meta"</span>
+                properties: {}
+                source: <span class="hljs-literal">undefined</span>
+                spacing: <span class="hljs-literal">null</span>
+                terrainTypes: []
+                tileHeight: <span class="hljs-number">26</span>
+                tileOffset: {<span class="hljs-attr">x</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">y</span>: <span class="hljs-number">0</span>}
+                tileWidth: <span class="hljs-number">26</span>
+                tiles: <span class="hljs-built_in">Array</span>(<span class="hljs-number">2</span>)
+                    <span class="hljs-number">0</span>: Tile
+                        animations: []
+                        gid: <span class="hljs-number">1</span>
+                        id: <span class="hljs-number">0</span>
+                        image: <span class="hljs-literal">null</span>
+                        objectGroups: []
+                        probability: <span class="hljs-literal">null</span>
+                        properties: {}
+                        terrain: []
+                        __proto__: <span class="hljs-built_in">Object</span>
+                    <span class="hljs-number">1</span>: Tile {<span class="hljs-attr">id</span>: <span class="hljs-number">1</span>, <span class="hljs-attr">terrain</span>: <span class="hljs-built_in">Array</span>(<span class="hljs-number">0</span>), <span class="hljs-attr">probability</span>: <span class="hljs-literal">null</span>, <span class="hljs-attr">properties</span>: {…}, <span class="hljs-attr">animations</span>: <span class="hljs-built_in">Array</span>(<span class="hljs-number">0</span>), …}
+                    length: <span class="hljs-number">2</span>
+                    __proto__: <span class="hljs-built_in">Array</span>(<span class="hljs-number">0</span>)
+                __proto__: <span class="hljs-built_in">Object</span>
+            <span class="hljs-number">1</span>: TileSet {<span class="hljs-attr">firstGid</span>: <span class="hljs-number">1</span>, <span class="hljs-attr">baseTexture</span>: Texture, <span class="hljs-attr">textures</span>: <span class="hljs-built_in">Array</span>(<span class="hljs-number">2</span>), <span class="hljs-attr">margin</span>: <span class="hljs-literal">null</span>, <span class="hljs-attr">spacing</span>: <span class="hljs-literal">null</span>, …}
+            length: <span class="hljs-number">2</span>
+            __proto__: <span class="hljs-built_in">Array</span>(<span class="hljs-number">0</span>)
+        tileWidth: <span class="hljs-number">26</span>
+        trackedPointers: (...)
+        transform: TransformStatic {<span class="hljs-attr">worldTransform</span>: Matrix, <span class="hljs-attr">localTransform</span>: Matrix, <span class="hljs-attr">_worldID</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">_parentID</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">position</span>: ObservablePoint, …}
+        version: <span class="hljs-string">"1.0"</span>
+        visible: <span class="hljs-literal">true</span>
+        worldAlpha: <span class="hljs-number">1</span>
+        _bounds: Bounds {<span class="hljs-attr">minX</span>: <span class="hljs-literal">Infinity</span>, <span class="hljs-attr">minY</span>: <span class="hljs-literal">Infinity</span>, <span class="hljs-attr">maxX</span>: -<span class="hljs-literal">Infinity</span>, <span class="hljs-attr">maxY</span>: -<span class="hljs-literal">Infinity</span>, <span class="hljs-attr">rect</span>: <span class="hljs-literal">null</span>, …}
+        _boundsID: <span class="hljs-number">5</span>
+        _boundsRect: <span class="hljs-literal">null</span>
+        _destroyed: <span class="hljs-literal">false</span>
+        _enabledFilters: <span class="hljs-literal">null</span>
+        _events: Events {}
+        _eventsCount: <span class="hljs-number">0</span>
+        _filters: <span class="hljs-literal">null</span>
+        _height: <span class="hljs-number">11</span>
+        _lastBoundsID: <span class="hljs-number">2</span>
+        _localBoundsRect: Rectangle {<span class="hljs-attr">x</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">y</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">width</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">height</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">type</span>: <span class="hljs-number">1</span>}
+        _mask: <span class="hljs-literal">null</span>
+        _width: <span class="hljs-number">17</span>
+        cacheAsBitmap: (...)
+        filters: (...)
+        height: (...)
+        localTransform: (...)
+        mask: (...)
+        pivot: (...)
+        position: (...)
+        rotation: (...)
+        scale: (...)
+        skew: (...)
+        width: (...)
+        worldTransform: (...)
+        worldVisible: (...)
+        x: (...)
+        y: (...)
+        _tempDisplayObjectParent: (...)
+        __proto__: Container
 }</code></pre>
 				<h2 id="to-do">To do</h2>
 				<p>support isometric and hexagonal orientation</p>
