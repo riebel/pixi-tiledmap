@@ -155,36 +155,36 @@ Example TiledMap object
         tempDisplayObjectParent: DisplayObject {_events: Events, _eventsCount: 0, tempDisplayObjectParent: null, transform: TransformStatic, alpha: 1, …}
         tileHeight: 26
         tileSets: Array(2)
-        0: TileSet
-        firstGid: 1
-        image: Image {format: undefined, source: "meta.png", trans: undefined, width: 52, height: 26}
-        margin: null
-        name: "meta"
-        properties: {}
-        source: undefined
-        spacing: null
-        terrainTypes: []
-        tileHeight: 26
-        tileOffset: {x: 0, y: 0}
-        tileWidth: 26
-        tiles: Array(2)
-            0: Tile
-                animations: []
-                gid: 1
-                id: 0
-                image: null
-                objectGroups: []
-                probability: null
+            0: TileSet
+                firstGid: 1
+                image: Image {format: undefined, source: "meta.png", trans: undefined, width: 52, height: 26}
+                margin: null
+                name: "meta"
                 properties: {}
-                terrain: []
+                source: undefined
+                spacing: null
+                terrainTypes: []
+                tileHeight: 26
+                tileOffset: {x: 0, y: 0}
+                tileWidth: 26
+                tiles: Array(2)
+                    0: Tile
+                        animations: []
+                        gid: 1
+                        id: 0
+                        image: null
+                        objectGroups: []
+                        probability: null
+                        properties: {}
+                        terrain: []
+                        __proto__: Object
+                    1: Tile {id: 1, terrain: Array(0), probability: null, properties: {…}, animations: Array(0), …}
+                    length: 2
+                    __proto__: Array(0)
                 __proto__: Object
-            1: Tile {id: 1, terrain: Array(0), probability: null, properties: {…}, animations: Array(0), …}
+            1: TileSet {firstGid: 1, baseTexture: Texture, textures: Array(2), margin: null, spacing: null, …}
             length: 2
             __proto__: Array(0)
-        __proto__: Object
-        1: TileSet {firstGid: 1, baseTexture: Texture, textures: Array(2), margin: null, spacing: null, …}
-        length: 2
-        __proto__: Array(0)
         tileWidth: 26
         trackedPointers: (...)
         transform: TransformStatic {worldTransform: Matrix, localTransform: Matrix, _worldID: 0, _parentID: 0, position: ObservablePoint, …}
