@@ -46,7 +46,9 @@ function resolveTileset(raw: TiledTileset): ResolvedTileset {
       raw.columns > 0
         ? raw.columns
         : raw.imagewidth && raw.tilewidth > 0
-          ? Math.floor((raw.imagewidth - 2 * raw.margin + raw.spacing) / (raw.tilewidth + raw.spacing))
+          ? Math.floor(
+              (raw.imagewidth - 2 * raw.margin + raw.spacing) / (raw.tilewidth + raw.spacing)
+            )
           : 0,
     tilecount: raw.tilecount,
     margin: raw.margin,

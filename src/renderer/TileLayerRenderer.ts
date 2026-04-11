@@ -73,14 +73,20 @@ export class TileLayerRenderer extends Container {
       const animFrames = tsRenderer.getAnimationFrames(tile.localId)
 
       if (animFrames && animFrames.length > 1) {
-        const sprite = this._createAnimatedTile(tsRenderer, animFrames, tile, pos.x, pos.y)
+        const sprite = this._createAnimatedTile(tsRenderer, animFrames, tile, pos.x, pos.y, ctx)
         if (sprite) this.addChild(sprite)
       } else {
         const texture = tsRenderer.getTexture(tile.localId)
         if (!texture) continue
 
         const sprite = new Sprite(texture)
-        sprite.position.set(pos.x, pos.y)
+        // Tiled draws tiles bottom-left aligned to the grid cell, so tiles
+        // taller than the map's tileheight extend upward rather than below.
+        // We read the tile size from tileset metadata (not texture.height)
+        // because textures may still be loading at construction time — a
+        // zero-height texture would otherwise shift the sprite one full row.
+        const tileSize = tsRenderer.getTileSize(tile.localId)
+        sprite.position.set(pos.x, pos.y + ctx.tileheight - tileSize.height)
         applyFlip(sprite, tile, ctx.tilewidth)
         this.addChild(sprite)
       }
@@ -92,7 +98,8 @@ export class TileLayerRenderer extends Container {
     frames: TiledFrame[],
     tile: ResolvedTile,
     x: number,
-    y: number
+    y: number,
+    ctx: MapContext
   ): AnimatedSprite | null {
     const textures: { texture: Texture; time: number }[] = []
 
@@ -103,7 +110,9 @@ export class TileLayerRenderer extends Container {
     }
 
     const sprite = new AnimatedSprite(textures)
-    sprite.position.set(x, y)
+    // Bottom-left align to the grid cell (see _buildTiles for rationale).
+    const tileSize = tsRenderer.getTileSize(tile.localId)
+    sprite.position.set(x, y + ctx.tileheight - tileSize.height)
     sprite.play()
     applyFlip(sprite, tile, tsRenderer.tileset.tilewidth)
     return sprite
