@@ -28,19 +28,12 @@ export function decodeLayerData(
 }
 
 function base64ToBytes(base64: string): Uint8Array {
-  const trimmed = base64.trim()
-
-  if (typeof globalThis.atob === 'function') {
-    const binary = globalThis.atob(trimmed)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i)
-    }
-    return bytes
+  const binary = globalThis.atob(base64.trim())
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
   }
-
-  const buf = Buffer.from(trimmed, 'base64')
-  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+  return bytes
 }
 
 function bytesToGids(bytes: Uint8Array): number[] {

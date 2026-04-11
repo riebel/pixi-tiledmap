@@ -1,11 +1,11 @@
 import type { Container, Texture } from 'pixi.js'
 import type { ResolvedLayer } from '../types'
-import type { TileSetRenderer } from './TileSetRenderer.js'
-import type { MapContext } from './tilePlacement.js'
-import { TileLayerRenderer } from './TileLayerRenderer.js'
+import { GroupLayerRenderer } from './GroupLayerRenderer.js'
 import { ImageLayerRenderer } from './ImageLayerRenderer.js'
 import { ObjectLayerRenderer } from './ObjectLayerRenderer.js'
-import { GroupLayerRenderer } from './GroupLayerRenderer.js'
+import { TileLayerRenderer } from './TileLayerRenderer.js'
+import type { TileSetRenderer } from './TileSetRenderer.js'
+import type { MapContext } from './tilePlacement.js'
 
 export function createLayerRenderer(
   layer: ResolvedLayer,

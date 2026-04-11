@@ -1,38 +1,38 @@
 import type {
-  TiledMap,
+  TiledChunk,
+  TiledCompression,
+  TiledDrawOrder,
+  TiledEncoding,
+  TiledFillMode,
+  TiledFrame,
+  TiledGrid,
+  TiledGridOrientation,
+  TiledHAlign,
   TiledLayer,
   TiledLayerType,
-  TiledTileset,
-  TiledTilesetRef,
-  TiledTileDefinition,
-  TiledChunk,
+  TiledMap,
   TiledObject,
-  TiledText,
-  TiledProperty,
-  TiledFrame,
-  TiledTileOffset,
-  TiledGrid,
-  TiledTransformations,
-  TiledTerrain,
-  TiledWangSet,
-  TiledWangColor,
-  TiledWangTile,
-  TiledPoint,
+  TiledObjectAlignment,
   TiledOrientation,
+  TiledPoint,
+  TiledProperty,
+  TiledPropertyType,
   TiledRenderOrder,
   TiledStaggerAxis,
   TiledStaggerIndex,
-  TiledCompression,
-  TiledEncoding,
-  TiledDrawOrder,
-  TiledObjectAlignment,
+  TiledTerrain,
+  TiledText,
+  TiledTileDefinition,
+  TiledTileOffset,
   TiledTileRenderSize,
-  TiledFillMode,
-  TiledGridOrientation,
-  TiledWangSetType,
-  TiledHAlign,
+  TiledTileset,
+  TiledTilesetRef,
+  TiledTransformations,
   TiledVAlign,
-  TiledPropertyType
+  TiledWangColor,
+  TiledWangSet,
+  TiledWangSetType,
+  TiledWangTile
 } from '../types'
 
 // ─── Attribute helpers ──────────────────────────────────────────────────────
@@ -175,7 +175,7 @@ function parseTransformations(el: Element): TiledTransformations | undefined {
 function parseTerrains(el: Element): TiledTerrain[] | undefined {
   const ttEl = child(el, 'terraintypes')
   if (!ttEl) return undefined
-  return children(ttEl, 'terrain').map(t => ({
+  return children(ttEl, 'terrain').map((t) => ({
     name: str(t, 'name'),
     tile: int(t, 'tile'),
     properties: parseProperties(t)
@@ -188,8 +188,8 @@ function parseWangSets(el: Element): TiledWangSet[] | undefined {
   const wsEl = child(el, 'wangsets')
   if (!wsEl) return undefined
 
-  return children(wsEl, 'wangset').map(ws => {
-    const colors: TiledWangColor[] = children(ws, 'wangcolor').map(wc => ({
+  return children(wsEl, 'wangset').map((ws) => {
+    const colors: TiledWangColor[] = children(ws, 'wangcolor').map((wc) => ({
       class: optStr(wc, 'class'),
       color: str(wc, 'color'),
       name: str(wc, 'name'),
@@ -198,7 +198,7 @@ function parseWangSets(el: Element): TiledWangSet[] | undefined {
       properties: parseProperties(wc)
     }))
 
-    const tiles: TiledWangTile[] = children(ws, 'wangtile').map(wt => ({
+    const tiles: TiledWangTile[] = children(ws, 'wangtile').map((wt) => ({
       tileid: int(wt, 'tileid'),
       wangid: str(wt, 'wangid').split(',').map(Number)
     }))
@@ -220,7 +220,7 @@ function parseWangSets(el: Element): TiledWangSet[] | undefined {
 function parseAnimation(el: Element): TiledFrame[] | undefined {
   const animEl = child(el, 'animation')
   if (!animEl) return undefined
-  return children(animEl, 'frame').map(f => ({
+  return children(animEl, 'frame').map((f) => ({
     tileid: int(f, 'tileid'),
     duration: int(f, 'duration')
   }))
@@ -232,11 +232,11 @@ function parseTileDefinitions(el: Element): TiledTileDefinition[] | undefined {
   const tileEls = children(el, 'tile')
   if (tileEls.length === 0) return undefined
 
-  return tileEls.map(t => {
+  return tileEls.map((t) => {
     const img = parseImage(t)
     const terrainAttr = optStr(t, 'terrain')
     const terrain = terrainAttr
-      ? terrainAttr.split(',').map(v => (v === '' ? -1 : parseInt(v, 10)))
+      ? terrainAttr.split(',').map((v) => (v === '' ? -1 : parseInt(v, 10)))
       : undefined
 
     // Object group (collision shapes)
@@ -326,7 +326,7 @@ function parseData(dataEl: Element): {
   // Check for chunks (infinite maps)
   const chunkEls = children(dataEl, 'chunk')
   if (chunkEls.length > 0) {
-    const chunks: TiledChunk[] = chunkEls.map(c => ({
+    const chunks: TiledChunk[] = chunkEls.map((c) => ({
       x: int(c, 'x'),
       y: int(c, 'y'),
       width: int(c, 'width'),
@@ -352,12 +352,12 @@ function parseDataContent(el: Element, encoding: TiledEncoding | undefined): num
     return (el.textContent ?? '')
       .trim()
       .split(',')
-      .map(s => parseInt(s.trim(), 10))
+      .map((s) => parseInt(s.trim(), 10))
   }
 
   // XML tile elements (no encoding)
   const tileEls = children(el, 'tile')
-  return tileEls.map(t => int(t, 'gid'))
+  return tileEls.map((t) => int(t, 'gid'))
 }
 
 // ─── Objects ────────────────────────────────────────────────────────────────
@@ -366,7 +366,7 @@ function parsePoints(pointStr: string): TiledPoint[] {
   return pointStr
     .trim()
     .split(/\s+/)
-    .map(pair => {
+    .map((pair) => {
       const [x, y] = pair.split(',').map(Number)
       return { x: x!, y: y! }
     })

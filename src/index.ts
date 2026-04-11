@@ -1,79 +1,80 @@
-// Types
+// Parser
+export {
+  decodeGid,
+  decodeLayerData,
+  decodeLayerDataAsync,
+  parseMap,
+  parseMapAsync,
+  parseTmx,
+  parseTsx
+} from './parser'
+// Renderer
+export {
+  createLayerRenderer,
+  GroupLayerRenderer,
+  ImageLayerRenderer,
+  ObjectLayerRenderer,
+  TiledMap,
+  TileLayerRenderer,
+  TileSetRenderer,
+  tiledMapLoader,
+  tileToPixel
+} from './renderer'
 export type {
+  MapContext,
+  ParseOptions,
+  ResolvedChunk,
+  ResolvedGroupLayer,
+  ResolvedImageLayer,
+  ResolvedLayer,
+  ResolvedMap,
+  ResolvedObjectLayer,
+  ResolvedTile,
+  ResolvedTileLayer,
+  ResolvedTileset,
+  TiledChunk,
+  TiledCompression,
+  TiledDrawOrder,
+  TiledEncoding,
+  TiledFillMode,
+  TiledFrame,
+  TiledGrid,
+  TiledGridOrientation,
+  TiledHAlign,
+  TiledLayer,
+  TiledLayerType,
+  TiledMap as TiledMapData,
+  TiledMapAsset,
+  TiledMapOptions,
+  TiledObject,
+  TiledObjectAlignment,
+  TiledObjectTemplate,
   TiledOrientation,
+  TiledPoint,
+  TiledProperty,
+  TiledPropertyType,
   TiledRenderOrder,
   TiledStaggerAxis,
   TiledStaggerIndex,
-  TiledLayerType,
-  TiledDrawOrder,
-  TiledEncoding,
-  TiledCompression,
-  TiledPropertyType,
-  TiledObjectAlignment,
-  TiledTileRenderSize,
-  TiledFillMode,
-  TiledGridOrientation,
-  TiledWangSetType,
-  TiledHAlign,
-  TiledVAlign,
-  TiledProperty,
-  TiledPoint,
-  TiledText,
-  TiledObject,
-  TiledChunk,
-  TiledLayer,
-  TiledFrame,
-  TiledTileOffset,
-  TiledGrid,
-  TiledTransformations,
   TiledTerrain,
-  TiledWangColor,
-  TiledWangTile,
-  TiledWangSet,
+  TiledText,
   TiledTileDefinition,
+  TiledTileOffset,
+  TiledTileRenderSize,
   TiledTileset,
   TiledTilesetRef,
-  TiledMap as TiledMapData,
-  TiledObjectTemplate,
-  ResolvedTile,
-  ResolvedChunk,
-  ResolvedTileLayer,
-  ResolvedImageLayer,
-  ResolvedObjectLayer,
-  ResolvedGroupLayer,
-  ResolvedLayer,
-  ResolvedTileset,
-  ResolvedMap,
-  ParseOptions,
-  TiledMapOptions,
-  TiledMapAsset,
-  MapContext,
+  TiledTransformations,
+  TiledVAlign,
+  TiledWangColor,
+  TiledWangSet,
+  TiledWangSetType,
+  TiledWangTile,
   TilePosition
 } from './types'
-
 export {
+  FLIPPED_DIAGONALLY_FLAG,
   FLIPPED_HORIZONTALLY_FLAG,
   FLIPPED_VERTICALLY_FLAG,
-  FLIPPED_DIAGONALLY_FLAG,
-  ROTATED_HEXAGONAL_120_FLAG,
-  GID_MASK
+  GID_MASK,
+  ROTATED_HEXAGONAL_120_FLAG
 } from './types'
-
-// Parser
-export { decodeGid } from './parser'
-export { decodeLayerData, decodeLayerDataAsync } from './parser'
-export { parseMap, parseMapAsync } from './parser'
-export { parseTmx, parseTsx } from './parser'
-
-// Renderer
-export {
-  TiledMap,
-  TileSetRenderer,
-  TileLayerRenderer,
-  ImageLayerRenderer,
-  ObjectLayerRenderer,
-  GroupLayerRenderer,
-  createLayerRenderer,
-  tileToPixel,
-  tiledMapLoader
-} from './renderer'

@@ -50,6 +50,25 @@ export class TileSetRenderer {
     return this.tileset.tiles.get(localId)?.animation
   }
 
+  /**
+   * Returns the intrinsic pixel size of a tile based on tileset metadata.
+   * For image-collection tilesets, each tile has its own image dimensions.
+   * For regular tilesets, all tiles share the tileset's tilewidth/tileheight.
+   *
+   * This does not read from the pixi Texture, so it is safe to call before
+   * textures have finished loading.
+   */
+  getTileSize(localId: number): { width: number; height: number } {
+    const tileDef = this.tileset.tiles.get(localId)
+    if (tileDef?.image) {
+      return {
+        width: tileDef.imagewidth ?? this.tileset.tilewidth,
+        height: tileDef.imageheight ?? this.tileset.tileheight
+      }
+    }
+    return { width: this.tileset.tilewidth, height: this.tileset.tileheight }
+  }
+
   destroy(): void {
     for (const tex of this._textureCache.values()) {
       tex.destroy()

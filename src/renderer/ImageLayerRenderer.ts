@@ -1,4 +1,4 @@
-import { type Texture, Container, Sprite, TilingSprite } from 'pixi.js'
+import { Container, Sprite, type Texture, TilingSprite } from 'pixi.js'
 import type { ResolvedImageLayer } from '../types'
 import { parseTintColor } from './parseColor.js'
 

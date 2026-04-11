@@ -20,13 +20,13 @@
   "license": "MIT",
   "type": "module",
   "main": "dist/index.cjs",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.mts",
   "exports": {
     ".": {
       "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
       },
       "require": {
         "types": "./dist/index.d.cts",
@@ -39,13 +39,15 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"*.{js,json,md}\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"*.{js,json,md}\"",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
-    "test": "tsup && vitest run",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "format": "biome format --write",
+    "format:check": "biome format",
+    "lint": "biome lint src/ test/",
+    "lint:fix": "biome lint --write src/ test/",
+    "check": "biome check src/ test/",
+    "check:fix": "biome check --write src/ test/",
+    "test": "tsdown && vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
@@ -57,17 +59,12 @@
     "pixi.js": "^8.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.17.0",
-    "@types/node": "^22.10.0",
-    "eslint": "^9.17.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.5",
-    "jsdom": "^28.0.0",
-    "pixi.js": "^8.6.0",
-    "prettier": "^3.8.1",
-    "tsup": "^8.3.0",
-    "typescript": "^5.7.0",
-    "typescript-eslint": "^8.18.0",
-    "vitest": "^2.1.0"
+    "@biomejs/biome": "^2.4.11",
+    "@types/node": "^24.12.2",
+    "jsdom": "^29.0.2",
+    "pixi.js": "^8.17.1",
+    "tsdown": "^0.21.7",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
   }
 }

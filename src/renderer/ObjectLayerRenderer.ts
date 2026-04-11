@@ -1,8 +1,8 @@
 import { Container, Graphics, Sprite, Text } from 'pixi.js'
-import type { ResolvedObjectLayer, TiledObject, TiledText, TiledPoint } from '../types'
-import type { TileSetRenderer } from './TileSetRenderer.js'
 import { decodeGid } from '../parser'
+import type { ResolvedObjectLayer, TiledObject, TiledPoint, TiledText } from '../types'
 import { parseTintColor } from './parseColor.js'
+import type { TileSetRenderer } from './TileSetRenderer.js'
 
 export class ObjectLayerRenderer extends Container {
   readonly layerData: ResolvedObjectLayer

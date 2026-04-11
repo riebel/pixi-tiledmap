@@ -1,8 +1,8 @@
 import type { ResolvedTile } from '../types'
 import {
+  FLIPPED_DIAGONALLY_FLAG,
   FLIPPED_HORIZONTALLY_FLAG,
   FLIPPED_VERTICALLY_FLAG,
-  FLIPPED_DIAGONALLY_FLAG,
   GID_MASK
 } from '../types'
 

@@ -2,7 +2,7 @@
 // Based on Tiled 1.11 JSON Map Format specification
 // https://doc.mapeditor.org/en/stable/reference/json-map-format/
 
-import type { Texture, Container } from 'pixi.js'
+import type { Container, Texture } from 'pixi.js'
 
 // ─── Enums / String Unions ───────────────────────────────────────────────────
 
