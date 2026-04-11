@@ -120,9 +120,9 @@ map.getLayer('ground'); // find layer Container by name
 
 ```sh
 npm install
-npm run build        # ESM + CJS + types via tsup
+npm run build        # ESM + CJS + types via tsdown
 npm run dev          # watch mode
-npm run lint         # ESLint
+npm run check        # Biome lint + format
 npm run typecheck    # tsc --noEmit
 npm test             # Vitest
 ```

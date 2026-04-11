@@ -1,5 +1,3 @@
-// Types
-
 // Parser
 export {
   decodeGid,
