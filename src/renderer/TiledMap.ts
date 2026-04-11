@@ -1,8 +1,8 @@
 import { Container, Graphics, Rectangle } from 'pixi.js'
-import type { ResolvedMap, TiledMapOptions, MapContext } from '../types'
-import { TileSetRenderer } from './TileSetRenderer.js'
+import type { MapContext, ResolvedMap, TiledMapOptions } from '../types'
 import { createLayerRenderer } from './createLayerRenderer.js'
 import { parseTintColor } from './parseColor.js'
+import { TileSetRenderer } from './TileSetRenderer.js'
 
 export class TiledMap extends Container {
   readonly mapData: ResolvedMap
@@ -34,7 +34,7 @@ export class TiledMap extends Container {
     const imageLayerTextures = options?.imageLayerTextures ?? new Map()
     const tileImageTextures = options?.tileImageTextures ?? new Map()
 
-    this.tileSetRenderers = mapData.tilesets.map(ts => {
+    this.tileSetRenderers = mapData.tilesets.map((ts) => {
       const baseTex = ts.image ? (tilesetTextures.get(ts.image) ?? null) : null
       const renderer = new TileSetRenderer(ts, baseTex)
 
@@ -89,7 +89,7 @@ export class TiledMap extends Container {
   }
 
   getLayer(name: string): Container | undefined {
-    return this.children.find(c => c.label === name) as Container | undefined
+    return this.children.find((c) => c.label === name) as Container | undefined
   }
 
   private _buildBackground(mapData: ResolvedMap): void {
@@ -111,7 +111,6 @@ export class TiledMap extends Container {
         return mapData.staggeraxis === 'x'
           ? (mapData.width + 1) * (mapData.tilewidth / 2)
           : mapData.width * mapData.tilewidth + mapData.tilewidth / 2
-      case 'orthogonal':
       default:
         return mapData.width * mapData.tilewidth
     }
@@ -126,7 +125,6 @@ export class TiledMap extends Container {
         return mapData.staggeraxis === 'x'
           ? mapData.height * mapData.tileheight + mapData.tileheight / 2
           : (mapData.height + 1) * (mapData.tileheight / 2)
-      case 'orthogonal':
       default:
         return mapData.height * mapData.tileheight
     }

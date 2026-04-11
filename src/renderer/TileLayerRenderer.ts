@@ -1,14 +1,14 @@
-import { type Texture, Container, AnimatedSprite, Sprite } from 'pixi.js'
+import { AnimatedSprite, Container, Sprite, type Texture } from 'pixi.js'
 import type {
-  ResolvedTileLayer,
-  ResolvedTile,
   ResolvedChunk,
+  ResolvedTile,
+  ResolvedTileLayer,
   TiledFrame,
   TiledRenderOrder
 } from '../types'
+import { parseTintColor } from './parseColor.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
 import { type MapContext, tileToPixel } from './tilePlacement.js'
-import { parseTintColor } from './parseColor.js'
 
 export class TileLayerRenderer extends Container {
   readonly layerData: ResolvedTileLayer

@@ -1,25 +1,25 @@
 import type {
-  TiledMap,
-  TiledLayer,
-  TiledTileset,
-  TiledTilesetRef,
-  TiledTileDefinition,
+  ParseOptions,
+  ResolvedChunk,
+  ResolvedGroupLayer,
+  ResolvedImageLayer,
+  ResolvedLayer,
+  ResolvedMap,
+  ResolvedObjectLayer,
+  ResolvedTile,
+  ResolvedTileLayer,
+  ResolvedTileset,
   TiledChunk,
   TiledDrawOrder,
+  TiledLayer,
+  TiledMap,
   TiledRenderOrder,
-  ParseOptions,
-  ResolvedMap,
-  ResolvedLayer,
-  ResolvedTileLayer,
-  ResolvedImageLayer,
-  ResolvedObjectLayer,
-  ResolvedGroupLayer,
-  ResolvedTileset,
-  ResolvedTile,
-  ResolvedChunk
+  TiledTileDefinition,
+  TiledTileset,
+  TiledTilesetRef
 } from '../types'
-import { decodeGid } from './decodeGid.js'
 import { decodeLayerData, decodeLayerDataAsync } from './decodeData.js'
+import { decodeGid } from './decodeGid.js'
 
 // ─── Tileset ref check ───────────────────────────────────────────────────────
 
@@ -189,7 +189,7 @@ function resolveLayer(layer: TiledLayer, tilesets: ResolvedTileset[]): ResolvedL
       return {
         type: 'group',
         ...layerDefaults(layer),
-        layers: (layer.layers ?? []).map(l => resolveLayer(l, tilesets))
+        layers: (layer.layers ?? []).map((l) => resolveLayer(l, tilesets))
       } satisfies ResolvedGroupLayer
   }
 }
@@ -260,7 +260,7 @@ async function resolveLayerAsync(
 
     case 'group': {
       const resolvedChildren = await Promise.all(
-        (layer.layers ?? []).map(l => resolveLayerAsync(l, tilesets))
+        (layer.layers ?? []).map((l) => resolveLayerAsync(l, tilesets))
       )
       return {
         type: 'group',
@@ -275,14 +275,14 @@ async function resolveLayerAsync(
 
 export function parseMap(data: TiledMap, options?: ParseOptions): ResolvedMap {
   const resolvedTilesets = resolveTilesets(data.tilesets, options)
-  const layers = data.layers.map(l => resolveLayer(l, resolvedTilesets))
+  const layers = data.layers.map((l) => resolveLayer(l, resolvedTilesets))
 
   return buildResolvedMap(data, resolvedTilesets, layers)
 }
 
 export async function parseMapAsync(data: TiledMap, options?: ParseOptions): Promise<ResolvedMap> {
   const resolvedTilesets = resolveTilesets(data.tilesets, options)
-  const layers = await Promise.all(data.layers.map(l => resolveLayerAsync(l, resolvedTilesets)))
+  const layers = await Promise.all(data.layers.map((l) => resolveLayerAsync(l, resolvedTilesets)))
 
   return buildResolvedMap(data, resolvedTilesets, layers)
 }
@@ -295,7 +295,7 @@ function resolveChunksSync(
   compression: TiledLayer['compression'],
   tilesets: ResolvedTileset[]
 ): ResolvedChunk[] {
-  return chunks.map(chunk => {
+  return chunks.map((chunk) => {
     const rawGids = decodeLayerData(chunk.data, encoding, compression)
     return {
       x: chunk.x,
@@ -314,7 +314,7 @@ async function resolveChunksAsync(
   tilesets: ResolvedTileset[]
 ): Promise<ResolvedChunk[]> {
   return Promise.all(
-    chunks.map(async chunk => {
+    chunks.map(async (chunk) => {
       const rawGids = await decodeLayerDataAsync(chunk.data, encoding, compression)
       return {
         x: chunk.x,
@@ -333,12 +333,12 @@ function resolveTilesets(
   raw: (TiledTileset | TiledTilesetRef)[],
   options?: ParseOptions
 ): ResolvedTileset[] {
-  return raw.map(ts => {
+  return raw.map((ts) => {
     if (isTilesetRef(ts)) {
       const external = options?.externalTilesets?.get(ts.source)
       if (!external) {
         throw new Error(
-          `External tileset "${ts.source}" not provided. ` + 'Pass it via options.externalTilesets.'
+          `External tileset "${ts.source}" not provided. Pass it via options.externalTilesets.`
         )
       }
       return resolveTileset({ ...external, firstgid: ts.firstgid })
