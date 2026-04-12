@@ -1,4 +1,5 @@
 import { Container, Graphics, Rectangle } from 'pixi.js'
+import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedMap, TiledMapOptions } from '../types'
 import { createLayerRenderer } from './createLayerRenderer.js'
 import { GroupLayerRenderer } from './GroupLayerRenderer.js'
@@ -50,6 +51,8 @@ export class TiledMap extends Container {
     const tilesetTextures = options?.tilesetTextures ?? new Map()
     const imageLayerTextures = options?.imageLayerTextures ?? new Map()
     const tileImageTextures = options?.tileImageTextures ?? new Map()
+    const tileImageGifSources = options?.tileImageGifSources ?? new Map<string, GifSource>()
+    const imageLayerGifSources = options?.imageLayerGifSources ?? new Map<string, GifSource>()
 
     this.tileSetRenderers = mapData.tilesets.map((ts) => {
       const baseTex = ts.image ? (tilesetTextures.get(ts.image) ?? null) : null
@@ -60,6 +63,8 @@ export class TiledMap extends Container {
         if (tileDef.image) {
           const tex = tileImageTextures.get(tileDef.image)
           if (tex) renderer.setTileTexture(localId, tex)
+          const gifSource = tileImageGifSources.get(tileDef.image)
+          if (gifSource) renderer.setGifSource(localId, gifSource)
         }
       }
 
@@ -86,7 +91,13 @@ export class TiledMap extends Container {
 
     // Render layers
     for (const layer of mapData.layers) {
-      const child = createLayerRenderer(layer, this.tileSetRenderers, ctx, imageLayerTextures)
+      const child = createLayerRenderer(
+        layer,
+        this.tileSetRenderers,
+        ctx,
+        imageLayerTextures,
+        imageLayerGifSources
+      )
       if (child) this.addChild(child)
     }
   }

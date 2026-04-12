@@ -1,4 +1,5 @@
 import { AnimatedSprite, Container, Sprite, type Texture } from 'pixi.js'
+import { GifSprite } from 'pixi.js/gif'
 import type {
   MapContext,
   ResolvedChunk,
@@ -109,9 +110,16 @@ export class TileLayerRenderer extends Container {
           const texture = tsRenderer.getTexture(tile.localId)
           if (!texture) continue
 
-          const sprite = new Sprite(texture)
+          const gifSource = tsRenderer.getGifSource(tile.localId)
           const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
           const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
+
+          let sprite: Sprite
+          if (gifSource) {
+            sprite = new GifSprite({ source: gifSource })
+          } else {
+            sprite = new Sprite(texture)
+          }
           sprite.width = renderW
           sprite.height = renderH
           sprite.position.set(px + offset.x, py + offset.y + tileH - renderH)

@@ -1,4 +1,3 @@
-import 'pixi.js/gif'
 import {
   Assets,
   ExtensionType,
@@ -7,7 +6,8 @@ import {
   path as pixiPath,
   type Texture
 } from 'pixi.js'
-import { GifAsset, type GifSource } from 'pixi.js/gif'
+import type { GifSource } from 'pixi.js/gif'
+import { GifAsset } from 'pixi.js/gif'
 import { parseMapAsync, parseTmx, parseTsx, parseTx } from '../parser'
 import { isTilesetRef } from '../parser/tilesetHelpers.js'
 import type {
@@ -98,6 +98,8 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
     const tilesetTextures = new Map<string, Texture>()
     const imageLayerTextures = new Map<string, Texture>()
     const tileImageTextures = new Map<string, Texture>()
+    const tileImageGifSources = new Map<string, GifSource>()
+    const imageLayerGifSources = new Map<string, GifSource>()
 
     const textureLoads: Promise<void>[] = []
 
@@ -122,12 +124,13 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
           const tileImgUrl = pixiPath.join(basePath, tileDef.image)
           textureLoads.push(
             Assets.load<Texture | GifSource>(tileImgUrl).then((tex) => {
-              tileImageTextures.set(
-                tileDef.image!,
-                tileImgUrl.toLowerCase().endsWith('.gif')
-                  ? ((tex as GifSource).textures[0] as Texture)
-                  : (tex as Texture)
-              )
+              if (tileImgUrl.toLowerCase().endsWith('.gif')) {
+                const gifSource = tex as GifSource
+                tileImageTextures.set(tileDef.image!, gifSource.textures[0] as Texture)
+                tileImageGifSources.set(tileDef.image!, gifSource)
+              } else {
+                tileImageTextures.set(tileDef.image!, tex as Texture)
+              }
             })
           )
         }
@@ -140,12 +143,13 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
         const imgUrl = pixiPath.join(basePath, layer.image)
         textureLoads.push(
           Assets.load<Texture | GifSource>(imgUrl).then((tex) => {
-            imageLayerTextures.set(
-              layer.image,
-              imgUrl.toLowerCase().endsWith('.gif')
-                ? ((tex as GifSource).textures[0] as Texture)
-                : (tex as Texture)
-            )
+            if (imgUrl.toLowerCase().endsWith('.gif')) {
+              const gifSource = tex as GifSource
+              imageLayerTextures.set(layer.image, gifSource.textures[0] as Texture)
+              imageLayerGifSources.set(layer.image, gifSource)
+            } else {
+              imageLayerTextures.set(layer.image, tex as Texture)
+            }
           })
         )
       }
@@ -157,7 +161,9 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
     const container = new TiledMap(mapData, {
       tilesetTextures,
       imageLayerTextures,
-      tileImageTextures
+      tileImageTextures,
+      tileImageGifSources,
+      imageLayerGifSources
     })
 
     return { mapData, container }

@@ -3,6 +3,7 @@
 // https://doc.mapeditor.org/en/stable/reference/json-map-format/
 
 import type { Container, Texture } from 'pixi.js'
+import type { GifSource } from 'pixi.js/gif'
 
 // ─── Enums / String Unions ───────────────────────────────────────────────────
 
@@ -484,6 +485,8 @@ export interface TiledMapOptions {
   tilesetTextures?: Map<string, Texture>
   imageLayerTextures?: Map<string, Texture>
   tileImageTextures?: Map<string, Texture>
+  tileImageGifSources?: Map<string, GifSource>
+  imageLayerGifSources?: Map<string, GifSource>
 }
 
 export interface TiledMapAsset {
