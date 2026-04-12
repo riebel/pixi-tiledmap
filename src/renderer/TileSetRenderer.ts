@@ -1,4 +1,5 @@
 import { Rectangle, Texture } from 'pixi.js'
+import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../types'
 
 export class TileSetRenderer {
@@ -6,6 +7,7 @@ export class TileSetRenderer {
   readonly baseTexture: Texture | null
   private readonly _ownedTextures = new Map<number, Texture>()
   private readonly _externalTextures = new Map<number, Texture>()
+  private readonly _gifSources = new Map<number, GifSource>()
   // Per-localId cached render dimensions (keyed by localId, value = width | height<<32
   // is not feasible for floats, so we use two parallel maps).
   private _renderWidthCache: Map<number, number> | null = null
@@ -50,6 +52,14 @@ export class TileSetRenderer {
 
   setTileTexture(localId: number, texture: Texture): void {
     this._externalTextures.set(localId, texture)
+  }
+
+  setGifSource(localId: number, source: GifSource): void {
+    this._gifSources.set(localId, source)
+  }
+
+  getGifSource(localId: number): GifSource | null {
+    return this._gifSources.get(localId) ?? null
   }
 
   getAnimationFrames(localId: number): TiledTileDefinition['animation'] | undefined {
@@ -149,6 +159,7 @@ export class TileSetRenderer {
     }
     this._ownedTextures.clear()
     this._externalTextures.clear()
+    this._gifSources.clear()
     this._renderWidthCache = null
     this._renderHeightCache = null
   }

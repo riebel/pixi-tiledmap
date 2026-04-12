@@ -1,4 +1,5 @@
 import { Container, Graphics, Sprite, Text } from 'pixi.js'
+import { GifSprite } from 'pixi.js/gif'
 import { decodeGid } from '../parser'
 import { findTilesetForGid } from '../parser/tilesetHelpers.js'
 import type { ResolvedObjectLayer, TiledObject, TiledPoint, TiledText } from '../types'
@@ -90,7 +91,8 @@ export class ObjectLayerRenderer extends Container {
     const texture = ts.getTexture(localId)
     if (!texture) return null
 
-    const sprite = new Sprite(texture)
+    const gifSource = ts.getGifSource(localId)
+    const sprite = gifSource ? new GifSprite({ source: gifSource }) : new Sprite(texture)
     const offset = ts.tileset.tileoffset
     // Tile objects are positioned by their bottom-left corner in Tiled,
     // then the tileset tileoffset is applied on top. If obj.width/height

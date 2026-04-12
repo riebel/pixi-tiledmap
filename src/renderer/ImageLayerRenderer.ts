@@ -1,4 +1,5 @@
 import { Container, Sprite, type Texture, TilingSprite } from 'pixi.js'
+import { type GifSource, GifSprite } from 'pixi.js/gif'
 import type { MapContext, ResolvedImageLayer } from '../types'
 import { parseTintColor } from './parseColor.js'
 
@@ -9,7 +10,12 @@ export class ImageLayerRenderer extends Container {
   readonly layerParallaxX: number
   readonly layerParallaxY: number
 
-  constructor(layerData: ResolvedImageLayer, texture: Texture | null, ctx?: MapContext) {
+  constructor(
+    layerData: ResolvedImageLayer,
+    texture: Texture | null,
+    ctx?: MapContext,
+    gifSource?: GifSource | null
+  ) {
     super()
 
     this.layerData = layerData
@@ -26,20 +32,24 @@ export class ImageLayerRenderer extends Container {
     }
 
     if (texture) {
-      this._buildImage(texture, ctx)
+      this._buildImage(texture, ctx, gifSource ?? null)
     }
   }
 
-  private _buildImage(texture: Texture, ctx?: MapContext): void {
+  private _buildImage(texture: Texture, ctx?: MapContext, gifSource?: GifSource | null): void {
     const { repeatx, repeaty } = this.layerData
 
     if (!repeatx && !repeaty) {
-      this.addChild(new Sprite(texture))
+      if (gifSource) {
+        this.addChild(new GifSprite({ source: gifSource }))
+      } else {
+        this.addChild(new Sprite(texture))
+      }
       return
     }
 
-    // Size the tiling sprite so it spans the full map. If the map pixel size
-    // is unavailable, fall back to the texture's natural size.
+    // Repeating layers use TilingSprite which requires a static texture.
+    // Animated GIFs fall back to the first frame for tiling.
     const spanW = ctx?.mapPixelWidth && ctx.mapPixelWidth > 0 ? ctx.mapPixelWidth : texture.width
     const spanH =
       ctx?.mapPixelHeight && ctx.mapPixelHeight > 0 ? ctx.mapPixelHeight : texture.height
