@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Tiled Map Editor loader and renderer for PixiJS v8",
   "keywords": [
     "pixi",
