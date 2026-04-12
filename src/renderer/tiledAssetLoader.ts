@@ -1,6 +1,13 @@
 import 'pixi.js/gif'
-import { Assets, ExtensionType, type LoaderParser, path as pixiPath, type Texture } from 'pixi.js'
-import type { GifSource } from 'pixi.js/gif'
+import {
+  Assets,
+  ExtensionType,
+  extensions,
+  type LoaderParser,
+  path as pixiPath,
+  type Texture
+} from 'pixi.js'
+import { GifAsset, type GifSource } from 'pixi.js/gif'
 import { parseMapAsync, parseTmx, parseTsx, parseTx } from '../parser'
 import { isTilesetRef } from '../parser/tilesetHelpers.js'
 import type {
@@ -12,6 +19,8 @@ import type {
   TiledTileset
 } from '../types'
 import { TiledMap } from './TiledMap.js'
+
+extensions.add(GifAsset)
 
 export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
   extension: {
