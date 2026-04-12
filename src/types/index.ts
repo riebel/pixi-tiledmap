@@ -501,6 +501,10 @@ export interface MapContext {
   hexsidelength?: number
   staggeraxis?: TiledStaggerAxis
   staggerindex?: TiledStaggerIndex
+  /** Map width in pixels; used by image layers when tiling (repeatx/repeaty). */
+  mapPixelWidth?: number
+  /** Map height in pixels; used by image layers when tiling (repeatx/repeaty). */
+  mapPixelHeight?: number
 }
 
 export interface TilePosition {

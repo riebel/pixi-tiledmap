@@ -1,5 +1,6 @@
 import { Assets, ExtensionType, type LoaderParser, path as pixiPath, type Texture } from 'pixi.js'
 import { parseMapAsync, parseTmx, parseTsx, parseTx } from '../parser'
+import { isTilesetRef } from '../parser/tilesetHelpers.js'
 import type {
   TiledLayer,
   TiledMapAsset,
@@ -9,18 +10,6 @@ import type {
   TiledTileset
 } from '../types'
 import { TiledMap } from './TiledMap.js'
-
-function isXmlExt(ext: string): boolean {
-  return ext === '.tmx'
-}
-
-function isTsxExt(ext: string): boolean {
-  return ext === '.tsx'
-}
-
-function isTxExt(ext: string): boolean {
-  return ext === '.tx'
-}
 
 export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
   extension: {
@@ -41,7 +30,7 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
     const response = await fetch(url)
 
     let data: TiledMapData
-    if (isXmlExt(ext)) {
+    if (ext === '.tmx') {
       const xml = await response.text()
       data = parseTmx(xml)
     } else {
@@ -53,19 +42,18 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
     // Resolve external tilesets
     const externalTilesets = new Map<string, TiledTileset>()
     for (const ts of data.tilesets) {
-      if ('source' in ts && !('name' in ts)) {
-        const tsUrl = pixiPath.join(basePath, ts.source)
-        const tsResponse = await fetch(tsUrl)
-        const tsExt = pixiPath.extname(ts.source).toLowerCase()
-        let tsData: TiledTileset
-        if (isTsxExt(tsExt)) {
-          const tsXml = await tsResponse.text()
-          tsData = parseTsx(tsXml)
-        } else {
-          tsData = (await tsResponse.json()) as TiledTileset
-        }
-        externalTilesets.set(ts.source, tsData)
+      if (!isTilesetRef(ts)) continue
+      const tsUrl = pixiPath.join(basePath, ts.source)
+      const tsResponse = await fetch(tsUrl)
+      const tsExt = pixiPath.extname(ts.source).toLowerCase()
+      let tsData: TiledTileset
+      if (tsExt === '.tsx') {
+        const tsXml = await tsResponse.text()
+        tsData = parseTsx(tsXml)
+      } else {
+        tsData = (await tsResponse.json()) as TiledTileset
       }
+      externalTilesets.set(ts.source, tsData)
     }
 
     // Resolve object templates — walk every object layer (including nested
@@ -82,7 +70,7 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
         const tplResponse = await fetch(tplUrl)
         const tplExt = pixiPath.extname(src).toLowerCase()
         let tpl: TiledObjectTemplate
-        if (isTxExt(tplExt)) {
+        if (tplExt === '.tx') {
           const tplXml = await tplResponse.text()
           tpl = parseTx(tplXml)
         } else {

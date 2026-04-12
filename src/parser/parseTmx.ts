@@ -35,6 +35,7 @@ import type {
   TiledWangSetType,
   TiledWangTile
 } from '../types'
+import { computeTilesetColumns } from './tilesetHelpers.js'
 
 // ─── Attribute helpers ──────────────────────────────────────────────────────
 
@@ -280,13 +281,13 @@ function parseTileset(el: Element): TiledTileset | TiledTilesetRef {
   const tilewidth = int(el, 'tilewidth')
   const spacing = int(el, 'spacing')
   const margin = int(el, 'margin')
-  const rawColumns = int(el, 'columns')
-  const columns =
-    rawColumns > 0
-      ? rawColumns
-      : img.imagewidth && tilewidth > 0
-        ? Math.floor((img.imagewidth - 2 * margin + spacing) / (tilewidth + spacing))
-        : 0
+  const columns = computeTilesetColumns({
+    columns: int(el, 'columns'),
+    imagewidth: img.imagewidth,
+    tilewidth,
+    margin,
+    spacing
+  })
 
   return {
     backgroundcolor: optStr(el, 'backgroundcolor'),
@@ -350,10 +351,13 @@ function parseDataContent(el: Element, encoding: TiledEncoding | undefined): num
   }
 
   if (encoding === 'csv') {
-    return (el.textContent ?? '')
-      .trim()
-      .split(',')
-      .map((s) => parseInt(s.trim(), 10))
+    const out: number[] = []
+    for (const token of (el.textContent ?? '').split(',')) {
+      const trimmed = token.trim()
+      if (trimmed.length === 0) continue
+      out.push(parseInt(trimmed, 10))
+    }
+    return out
   }
 
   // XML tile elements (no encoding)

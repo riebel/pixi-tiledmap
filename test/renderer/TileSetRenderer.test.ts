@@ -1,7 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it } from 'vitest'
+import { Texture } from 'pixi.js'
+import { describe, expect, it, vi } from 'vitest'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
 import type { MapContext } from '../../src/renderer/tilePlacement.js'
 import type { ResolvedTileset, TiledTileDefinition } from '../../src/types/index.js'
@@ -74,5 +75,23 @@ describe('ResolvedTileset.tileoffset', () => {
   it('is exposed on the tileset for the renderer to apply', () => {
     const ts = new TileSetRenderer(makeTileset({ tileoffset: { x: 5, y: -10 } }), null)
     expect(ts.tileset.tileoffset).toEqual({ x: 5, y: -10 })
+  })
+})
+
+describe('TileSetRenderer.destroy', () => {
+  it('does not destroy externally supplied tile textures', () => {
+    const tileDef: TiledTileDefinition = { id: 0, image: 't.png', imagewidth: 32, imageheight: 32 }
+    const tiles = new Map<number, TiledTileDefinition>([[0, tileDef]])
+    const ts = new TileSetRenderer(makeTileset({ tiles }), null)
+
+    const external = Texture.EMPTY
+    const destroySpy = vi.spyOn(external, 'destroy')
+    ts.setTileTexture(0, external)
+
+    expect(ts.getTexture(0)).toBe(external)
+    ts.destroy()
+
+    expect(destroySpy).not.toHaveBeenCalled()
+    destroySpy.mockRestore()
   })
 })

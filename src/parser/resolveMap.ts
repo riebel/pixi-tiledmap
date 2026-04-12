@@ -20,14 +20,10 @@ import type {
   TiledTileset,
   TiledTilesetRef
 } from '../types'
+import { GID_MASK } from '../types'
 import { decodeLayerData, decodeLayerDataAsync } from './decodeData.js'
 import { decodeGid } from './decodeGid.js'
-
-// ─── Tileset ref check ───────────────────────────────────────────────────────
-
-function isTilesetRef(ts: TiledTileset | TiledTilesetRef): ts is TiledTilesetRef {
-  return 'source' in ts && !('name' in ts)
-}
+import { computeTilesetColumns, findTilesetIndexForGid, isTilesetRef } from './tilesetHelpers.js'
 
 // ─── Resolve tileset ─────────────────────────────────────────────────────────
 
@@ -45,14 +41,7 @@ function resolveTileset(raw: TiledTileset, source?: string): ResolvedTileset {
     source,
     tilewidth: raw.tilewidth,
     tileheight: raw.tileheight,
-    columns:
-      raw.columns > 0
-        ? raw.columns
-        : raw.imagewidth && raw.tilewidth > 0
-          ? Math.floor(
-              (raw.imagewidth - 2 * raw.margin + raw.spacing) / (raw.tilewidth + raw.spacing)
-            )
-          : 0,
+    columns: computeTilesetColumns(raw),
     tilecount: raw.tilecount,
     margin: raw.margin,
     spacing: raw.spacing,
@@ -70,18 +59,6 @@ function resolveTileset(raw: TiledTileset, source?: string): ResolvedTileset {
     wangsets: raw.wangsets,
     terrains: raw.terrains
   }
-}
-
-// ─── Find tileset for GID ────────────────────────────────────────────────────
-
-function findTilesetIndex(gid: number, tilesets: ResolvedTileset[]): number {
-  for (let i = tilesets.length - 1; i >= 0; i--) {
-    const ts = tilesets[i]
-    if (ts && ts.firstgid <= gid) {
-      return i
-    }
-  }
-  return 0
 }
 
 // ─── Resolve tile data ───────────────────────────────────────────────────────
@@ -102,8 +79,8 @@ function resolveGids(rawGids: number[], tilesets: ResolvedTileset[]): (ResolvedT
       continue
     }
 
-    const tsIdx = findTilesetIndex(decoded.gid, tilesets)
-    const ts = tilesets[tsIdx]
+    const tsIdx = findTilesetIndexForGid(decoded.gid, tilesets)
+    const ts = tsIdx >= 0 ? tilesets[tsIdx] : undefined
     if (ts) {
       decoded.tilesetIndex = tsIdx
       decoded.localId = decoded.gid - ts.firstgid
@@ -179,8 +156,8 @@ function mergeTemplate(
     if (mapTs) {
       const templateFirstGid = template.tileset.firstgid ?? 1
       // Preserve flip flags in the high bits.
-      const flipBits = base.gid & ~GID_VALUE_MASK
-      const localId = (base.gid & GID_VALUE_MASK) - templateFirstGid
+      const flipBits = base.gid & ~GID_MASK
+      const localId = (base.gid & GID_MASK) - templateFirstGid
       if (localId >= 0) {
         base.gid = (mapTs.firstgid + localId) | flipBits
       }
@@ -189,8 +166,6 @@ function mergeTemplate(
 
   return base
 }
-
-const GID_VALUE_MASK = 0x0fffffff
 
 function resolveObjects(
   objects: TiledObject[],

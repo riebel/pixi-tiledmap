@@ -82,40 +82,35 @@ export class ObjectLayerRenderer extends Container {
     const decoded = decodeGid(obj.gid)
     if (!decoded) return null
 
-    // Find the right tileset
-    for (let i = tilesets.length - 1; i >= 0; i--) {
-      const ts = tilesets[i]
-      if (!ts) continue
-      if (ts.tileset.firstgid <= decoded.gid) {
-        const localId = decoded.gid - ts.tileset.firstgid
-        const texture = ts.getTexture(localId)
-        if (!texture) return null
+    const ts = findRendererForGid(tilesets, decoded.gid)
+    if (!ts) return null
 
-        const sprite = new Sprite(texture)
-        const offset = ts.tileset.tileoffset
-        // Tile objects are positioned by their bottom-left corner in Tiled,
-        // then the tileset tileoffset is applied on top. If obj.width/height
-        // are set, the tile is resized (fillmode applies to aspect-fit).
-        const sized = this._fitTileSize(ts, localId, obj.width, obj.height)
-        sprite.width = sized.width
-        sprite.height = sized.height
-        sprite.position.set(obj.x + offset.x, obj.y - sized.height + offset.y)
-        sprite.angle = obj.rotation
-        sprite.visible = obj.visible
+    const localId = decoded.gid - ts.tileset.firstgid
+    const texture = ts.getTexture(localId)
+    if (!texture) return null
 
-        if (decoded.horizontalFlip) {
-          sprite.scale.x *= -1
-          sprite.anchor.x = 1
-        }
-        if (decoded.verticalFlip) {
-          sprite.scale.y *= -1
-          sprite.anchor.y = 1
-        }
+    const sprite = new Sprite(texture)
+    const offset = ts.tileset.tileoffset
+    // Tile objects are positioned by their bottom-left corner in Tiled,
+    // then the tileset tileoffset is applied on top. If obj.width/height
+    // are set, the tile is resized (fillmode applies to aspect-fit).
+    const sized = this._fitTileSize(ts, localId, obj.width, obj.height)
+    sprite.width = sized.width
+    sprite.height = sized.height
+    sprite.position.set(obj.x + offset.x, obj.y - sized.height + offset.y)
+    sprite.angle = obj.rotation
+    sprite.visible = obj.visible
 
-        return sprite
-      }
+    if (decoded.horizontalFlip) {
+      sprite.scale.x *= -1
+      sprite.anchor.x = 1
     }
-    return null
+    if (decoded.verticalFlip) {
+      sprite.scale.y *= -1
+      sprite.anchor.y = 1
+    }
+
+    return sprite
   }
 
   private _fitTileSize(
@@ -238,4 +233,12 @@ export class ObjectLayerRenderer extends Container {
     g.visible = obj.visible
     return g
   }
+}
+
+function findRendererForGid(tilesets: TileSetRenderer[], gid: number): TileSetRenderer | null {
+  for (let i = tilesets.length - 1; i >= 0; i--) {
+    const ts = tilesets[i]
+    if (ts && ts.tileset.firstgid <= gid) return ts
+  }
+  return null
 }

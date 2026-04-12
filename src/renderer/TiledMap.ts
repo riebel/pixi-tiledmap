@@ -3,6 +3,7 @@ import type { MapContext, ResolvedMap, TiledMapOptions } from '../types'
 import { createLayerRenderer } from './createLayerRenderer.js'
 import { GroupLayerRenderer } from './GroupLayerRenderer.js'
 import { ImageLayerRenderer } from './ImageLayerRenderer.js'
+import { computeMapPixelSize } from './mapSize.js'
 import { ObjectLayerRenderer } from './ObjectLayerRenderer.js'
 import { parseTintColor } from './parseColor.js'
 import { TileLayerRenderer } from './TileLayerRenderer.js'
@@ -35,18 +36,15 @@ export class TiledMap extends Container {
     this.mapData = mapData
     this.label = 'TiledMap'
 
+    const pixelSize = computeMapPixelSize(mapData)
+
     // Force local bounds to the logical map size. Without this, pixi's
     // .width/.height setters (and getLocalBounds) would use the extent of
     // the rendered children — which misbehaves when the map has empty
     // top/left rows (bounds.minY > 0, causing content to overflow the
     // canvas when scaling via `.height = ...`) or when tall decoration
     // tiles extend beyond the grid.
-    this.boundsArea = new Rectangle(
-      0,
-      0,
-      this._computePixelWidth(mapData),
-      this._computePixelHeight(mapData)
-    )
+    this.boundsArea = new Rectangle(0, 0, pixelSize.width, pixelSize.height)
 
     // Build tileset renderers
     const tilesetTextures = options?.tilesetTextures ?? new Map()
@@ -76,12 +74,14 @@ export class TiledMap extends Container {
       tileheight: mapData.tileheight,
       hexsidelength: mapData.hexsidelength,
       staggeraxis: mapData.staggeraxis,
-      staggerindex: mapData.staggerindex
+      staggerindex: mapData.staggerindex,
+      mapPixelWidth: pixelSize.width,
+      mapPixelHeight: pixelSize.height
     }
 
     // Render background
     if (mapData.backgroundcolor) {
-      this._buildBackground(mapData)
+      this._buildBackground(pixelSize.width, pixelSize.height, mapData.backgroundcolor)
     }
 
     // Render layers
@@ -132,42 +132,11 @@ export class TiledMap extends Container {
     }
   }
 
-  private _buildBackground(mapData: ResolvedMap): void {
-    const color = parseTintColor(mapData.backgroundcolor!)
-    const pixelWidth = this._computePixelWidth(mapData)
-    const pixelHeight = this._computePixelHeight(mapData)
-
+  private _buildBackground(pixelWidth: number, pixelHeight: number, colorHex: string): void {
+    const color = parseTintColor(colorHex)
     this._background = new Graphics().rect(0, 0, pixelWidth, pixelHeight).fill(color)
     this._background.label = 'background'
     this.addChild(this._background)
-  }
-
-  private _computePixelWidth(mapData: ResolvedMap): number {
-    switch (mapData.orientation) {
-      case 'isometric':
-        return (mapData.width + mapData.height) * (mapData.tilewidth / 2)
-      case 'staggered':
-      case 'hexagonal':
-        return mapData.staggeraxis === 'x'
-          ? (mapData.width + 1) * (mapData.tilewidth / 2)
-          : mapData.width * mapData.tilewidth + mapData.tilewidth / 2
-      default:
-        return mapData.width * mapData.tilewidth
-    }
-  }
-
-  private _computePixelHeight(mapData: ResolvedMap): number {
-    switch (mapData.orientation) {
-      case 'isometric':
-        return (mapData.width + mapData.height) * (mapData.tileheight / 2)
-      case 'staggered':
-      case 'hexagonal':
-        return mapData.staggeraxis === 'x'
-          ? mapData.height * mapData.tileheight + mapData.tileheight / 2
-          : (mapData.height + 1) * (mapData.tileheight / 2)
-      default:
-        return mapData.height * mapData.tileheight
-    }
   }
 
   override destroy(options?: Parameters<Container['destroy']>[0]): void {

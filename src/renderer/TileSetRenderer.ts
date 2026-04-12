@@ -5,7 +5,8 @@ import type { MapContext } from './tilePlacement.js'
 export class TileSetRenderer {
   readonly tileset: ResolvedTileset
   readonly baseTexture: Texture | null
-  private readonly _textureCache = new Map<number, Texture>()
+  private readonly _ownedTextures = new Map<number, Texture>()
+  private readonly _externalTextures = new Map<number, Texture>()
 
   constructor(tileset: ResolvedTileset, baseTexture: Texture | null) {
     this.tileset = tileset
@@ -13,17 +14,16 @@ export class TileSetRenderer {
   }
 
   getTexture(localId: number): Texture | null {
-    const cached = this._textureCache.get(localId)
-    if (cached) return cached
+    const external = this._externalTextures.get(localId)
+    if (external) return external
+
+    const owned = this._ownedTextures.get(localId)
+    if (owned) return owned
 
     const tileDef = this.tileset.tiles.get(localId)
 
-    // Image-collection tileset: each tile has its own image (loaded separately)
-    if (tileDef?.image) {
-      // For image-collection tilesets, textures must be supplied externally
-      // via setTileTexture(). Return null here.
-      return null
-    }
+    // Image-collection tile with no externally supplied texture yet.
+    if (tileDef?.image) return null
 
     // Single-image tileset: cut sub-rectangle from baseTexture
     if (!this.baseTexture) return null
@@ -39,12 +39,12 @@ export class TileSetRenderer {
     const frame = new Rectangle(x, y, tilewidth, tileheight)
     const texture = new Texture({ source: this.baseTexture.source, frame })
 
-    this._textureCache.set(localId, texture)
+    this._ownedTextures.set(localId, texture)
     return texture
   }
 
   setTileTexture(localId: number, texture: Texture): void {
-    this._textureCache.set(localId, texture)
+    this._externalTextures.set(localId, texture)
   }
 
   getAnimationFrames(localId: number): TiledTileDefinition['animation'] | undefined {
@@ -95,9 +95,10 @@ export class TileSetRenderer {
   }
 
   destroy(): void {
-    for (const tex of this._textureCache.values()) {
+    for (const tex of this._ownedTextures.values()) {
       tex.destroy()
     }
-    this._textureCache.clear()
+    this._ownedTextures.clear()
+    this._externalTextures.clear()
   }
 }
