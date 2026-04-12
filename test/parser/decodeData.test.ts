@@ -23,6 +23,22 @@ describe('decodeLayerData', () => {
     expect(result).toEqual([1, 2, 3, 0])
   })
 
+  it('decodes csv-encoded data', () => {
+    const result = decodeLayerData('1,2,3,0', 'csv')
+    expect(result).toEqual([1, 2, 3, 0])
+  })
+
+  it('decodes csv with whitespace and newlines', () => {
+    const result = decodeLayerData('1,\n2, 3,\n0', 'csv')
+    expect(result).toEqual([1, 2, 3, 0])
+  })
+
+  it('decodes csv with high-bit flip flags', () => {
+    // 0x80000001 = 2147483649
+    const result = decodeLayerData('2147483649,1', 'csv')
+    expect(result).toEqual([2147483649, 1])
+  })
+
   it('throws for unsupported encoding', () => {
     expect(() => decodeLayerData('data', undefined)).toThrow('Unsupported encoding')
   })

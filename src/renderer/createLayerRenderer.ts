@@ -19,7 +19,7 @@ export function createLayerRenderer(
 
     case 'imagelayer': {
       const tex = layer.image ? (imageTextures.get(layer.image) ?? null) : null
-      return new ImageLayerRenderer(layer, tex)
+      return new ImageLayerRenderer(layer, tex, ctx)
     }
 
     case 'objectgroup':

@@ -12,12 +12,16 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **All orientations** — orthogonal, isometric, staggered, hexagonal
 - **Render order** — right-down, right-up, left-down, left-up
 - **Infinite maps** — chunk-based tile layer rendering
-- **Tile features** — animated tiles, flip/rotation flags, image-collection tilesets, tint color
-- **Object rendering** — rectangles, ellipses, polygons, polylines, points, text, tile objects
-- **Data encoding** — CSV and base64 (uncompressed, gzip, zlib)
+- **Tile features** — animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, `tilerendersize` / `fillmode`
+- **Object rendering** — rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects
+- **Object templates** — automatic `.tx` / `.tj` resolution with gid remapping between template and map tileset spaces
+- **Parallax scrolling** — per-layer `parallaxx` / `parallaxy` and map-level `parallaxorigin`, composed multiplicatively through group layers, applied via `TiledMap.applyParallax(cameraX, cameraY)`
+- **Data encoding** — CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
 - **External tilesets** — automatic resolution via the asset loader (`.tsj` and `.tsx`)
 - **Tree-shakable** — ESM + CJS dual build, side-effect-free
 - **Typed** — comprehensive TypeScript types for the full Tiled spec
+
+> **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported — the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour.
 
 ## Installation
 
@@ -87,6 +91,7 @@ app.stage.addChild(container);
 | `parseMapAsync(data)` | Async variant (required for gzip/zlib compressed data)           |
 | `parseTmx(xml)`       | Parse TMX XML string → `TiledMap` data (same shape as JSON)      |
 | `parseTsx(xml)`       | Parse TSX XML string → `TiledTileset` data                       |
+| `parseTx(xml)`        | Parse TX XML string → `TiledObjectTemplate` data                 |
 | `decodeGid(raw)`      | Decode a raw GID into tile ID + flip flags                       |
 
 ### `TiledMap` Container
@@ -104,7 +109,38 @@ map.mapHeight; // tile rows
 map.tileWidth; // tile pixel width
 map.tileHeight; // tile pixel height
 map.getLayer('ground'); // find layer Container by name
+
+// Parallax: call after moving your camera each frame. Layers with
+// parallaxx/parallaxy < 1 move slower than the camera; layers with
+// parallax 0 are pinned in screen space. Group-layer parallax composes
+// multiplicatively with its children.
+map.applyParallax(camera.x, camera.y);
 ```
+
+### Object Templates
+
+When loading through the asset loader, any object with a `template` field
+is resolved automatically — referenced `.tx` / `.tj` files are fetched in
+parallel and merged into the map before rendering.
+
+For manual construction (`parseMap` / `parseMapAsync`), pass templates via
+`ParseOptions.templates`:
+
+```ts
+import { parseMap, parseTx } from 'pixi-tiledmap';
+
+const templates = new Map();
+templates.set('sign.tx', parseTx(await (await fetch('sign.tx')).text()));
+
+const mapData = parseMap(data, { externalTilesets, templates });
+```
+
+Template-instance merging follows Tiled semantics: the template's object
+fields are the base, and the instance overrides any field it explicitly
+sets (name, type, size, properties, gid, shape). If the template carries
+an external-tileset reference whose `source` also exists in the map,
+`gid` is translated from the template firstgid-space to the map
+firstgid-space, preserving flip flags.
 
 ## Migration from v1
 

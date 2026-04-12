@@ -6,6 +6,10 @@ import type { TileSetRenderer } from './TileSetRenderer.js'
 
 export class ObjectLayerRenderer extends Container {
   readonly layerData: ResolvedObjectLayer
+  readonly layerBaseOffsetX: number
+  readonly layerBaseOffsetY: number
+  readonly layerParallaxX: number
+  readonly layerParallaxY: number
 
   constructor(layerData: ResolvedObjectLayer, tilesets: TileSetRenderer[]) {
     super()
@@ -14,6 +18,10 @@ export class ObjectLayerRenderer extends Container {
     this.label = layerData.name
     this.alpha = layerData.opacity
     this.visible = layerData.visible
+    this.layerBaseOffsetX = layerData.offsetx
+    this.layerBaseOffsetY = layerData.offsety
+    this.layerParallaxX = layerData.parallaxx
+    this.layerParallaxY = layerData.parallaxy
     this.position.set(layerData.offsetx, layerData.offsety)
     if (layerData.tintcolor) {
       this.tint = parseTintColor(layerData.tintcolor)
@@ -74,45 +82,66 @@ export class ObjectLayerRenderer extends Container {
     const decoded = decodeGid(obj.gid)
     if (!decoded) return null
 
-    // Find the right tileset
-    for (let i = tilesets.length - 1; i >= 0; i--) {
-      const ts = tilesets[i]
-      if (!ts) continue
-      if (ts.tileset.firstgid <= decoded.gid) {
-        const localId = decoded.gid - ts.tileset.firstgid
-        const texture = ts.getTexture(localId)
-        if (!texture) return null
+    const ts = findRendererForGid(tilesets, decoded.gid)
+    if (!ts) return null
 
-        const sprite = new Sprite(texture)
-        sprite.position.set(obj.x, obj.y - obj.height)
-        sprite.width = obj.width
-        sprite.height = obj.height
-        sprite.angle = obj.rotation
-        sprite.visible = obj.visible
+    const localId = decoded.gid - ts.tileset.firstgid
+    const texture = ts.getTexture(localId)
+    if (!texture) return null
 
-        if (decoded.horizontalFlip) {
-          sprite.scale.x *= -1
-          sprite.anchor.x = 1
-        }
-        if (decoded.verticalFlip) {
-          sprite.scale.y *= -1
-          sprite.anchor.y = 1
-        }
+    const sprite = new Sprite(texture)
+    const offset = ts.tileset.tileoffset
+    // Tile objects are positioned by their bottom-left corner in Tiled,
+    // then the tileset tileoffset is applied on top. If obj.width/height
+    // are set, the tile is resized (fillmode applies to aspect-fit).
+    const sized = this._fitTileSize(ts, localId, obj.width, obj.height)
+    sprite.width = sized.width
+    sprite.height = sized.height
+    sprite.position.set(obj.x + offset.x, obj.y - sized.height + offset.y)
+    sprite.angle = obj.rotation
+    sprite.visible = obj.visible
 
-        return sprite
-      }
+    if (decoded.horizontalFlip) {
+      sprite.scale.x *= -1
+      sprite.anchor.x = 1
     }
-    return null
+    if (decoded.verticalFlip) {
+      sprite.scale.y *= -1
+      sprite.anchor.y = 1
+    }
+
+    return sprite
+  }
+
+  private _fitTileSize(
+    ts: TileSetRenderer,
+    localId: number,
+    objWidth: number,
+    objHeight: number
+  ): { width: number; height: number } {
+    if (objWidth <= 0 || objHeight <= 0) {
+      return ts.getTileSize(localId)
+    }
+    if (ts.tileset.fillmode !== 'preserve-aspect-fit') {
+      return { width: objWidth, height: objHeight }
+    }
+    const intrinsic = ts.getTileSize(localId)
+    if (intrinsic.width === 0 || intrinsic.height === 0) {
+      return { width: objWidth, height: objHeight }
+    }
+    const scale = Math.min(objWidth / intrinsic.width, objHeight / intrinsic.height)
+    return { width: intrinsic.width * scale, height: intrinsic.height * scale }
   }
 
   private _createTextObject(obj: TiledObject): Container {
     const td = obj.text as TiledText
+    const color = td.color ?? '#000000'
     const text = new Text({
       text: td.text,
       style: {
         fontFamily: td.fontfamily ?? 'sans-serif',
         fontSize: td.pixelsize ?? 16,
-        fill: td.color ?? '#000000',
+        fill: color,
         fontWeight: td.bold ? 'bold' : 'normal',
         fontStyle: td.italic ? 'italic' : 'normal',
         wordWrap: td.wrap ?? false,
@@ -120,10 +149,42 @@ export class ObjectLayerRenderer extends Container {
         align: td.halign ?? 'left'
       }
     })
-    text.position.set(obj.x, obj.y)
-    text.angle = obj.rotation
-    text.visible = obj.visible
-    return text
+
+    // PixiJS Text has no built-in underline/strikeout — draw them manually.
+    // Wrap in a Container only when decorations are present so simple text
+    // stays a single Text node.
+    if (!td.underline && !td.strikeout) {
+      text.position.set(obj.x, obj.y)
+      text.angle = obj.rotation
+      text.visible = obj.visible
+      return text
+    }
+
+    const container = new Container()
+    container.addChild(text)
+
+    const metrics = text.getSize()
+    const lineThickness = Math.max(1, (td.pixelsize ?? 16) / 16)
+    if (td.underline) {
+      const ul = new Graphics()
+        .moveTo(0, metrics.height - lineThickness)
+        .lineTo(metrics.width, metrics.height - lineThickness)
+        .stroke({ color, width: lineThickness })
+      container.addChild(ul)
+    }
+    if (td.strikeout) {
+      const y = metrics.height / 2
+      const so = new Graphics()
+        .moveTo(0, y)
+        .lineTo(metrics.width, y)
+        .stroke({ color, width: lineThickness })
+      container.addChild(so)
+    }
+
+    container.position.set(obj.x, obj.y)
+    container.angle = obj.rotation
+    container.visible = obj.visible
+    return container
   }
 
   private _createRectangle(obj: TiledObject): Container {
@@ -172,4 +233,12 @@ export class ObjectLayerRenderer extends Container {
     g.visible = obj.visible
     return g
   }
+}
+
+function findRendererForGid(tilesets: TileSetRenderer[], gid: number): TileSetRenderer | null {
+  for (let i = tilesets.length - 1; i >= 0; i--) {
+    const ts = tilesets[i]
+    if (ts && ts.tileset.firstgid <= gid) return ts
+  }
+  return null
 }

@@ -318,7 +318,7 @@ export interface TiledMap {
 
 export interface TiledObjectTemplate {
   type: 'template'
-  tileset?: TiledTileset
+  tileset?: TiledTileset | TiledTilesetRef
   object: TiledObject
 }
 
@@ -428,6 +428,7 @@ export type ResolvedLayer =
 export interface ResolvedTileset {
   firstgid: number
   name: string
+  source?: string
   tilewidth: number
   tileheight: number
   columns: number
@@ -474,6 +475,7 @@ export interface ResolvedMap {
 
 export interface ParseOptions {
   externalTilesets?: Map<string, TiledTileset>
+  templates?: Map<string, TiledObjectTemplate>
 }
 
 // ─── Renderer options ────────────────────────────────────────────────────────
@@ -499,6 +501,10 @@ export interface MapContext {
   hexsidelength?: number
   staggeraxis?: TiledStaggerAxis
   staggerindex?: TiledStaggerIndex
+  /** Map width in pixels; used by image layers when tiling (repeatx/repeaty). */
+  mapPixelWidth?: number
+  /** Map height in pixels; used by image layers when tiling (repeatx/repeaty). */
+  mapPixelHeight?: number
 }
 
 export interface TilePosition {

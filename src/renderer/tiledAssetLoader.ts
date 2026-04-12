@@ -1,15 +1,15 @@
 import { Assets, ExtensionType, type LoaderParser, path as pixiPath, type Texture } from 'pixi.js'
-import { parseMapAsync, parseTmx, parseTsx } from '../parser'
-import type { ResolvedLayer, TiledMapAsset, TiledMap as TiledMapData, TiledTileset } from '../types'
+import { parseMapAsync, parseTmx, parseTsx, parseTx } from '../parser'
+import { isTilesetRef } from '../parser/tilesetHelpers.js'
+import type {
+  TiledLayer,
+  TiledMapAsset,
+  TiledMap as TiledMapData,
+  TiledObject,
+  TiledObjectTemplate,
+  TiledTileset
+} from '../types'
 import { TiledMap } from './TiledMap.js'
-
-function isXmlExt(ext: string): boolean {
-  return ext === '.tmx'
-}
-
-function isTsxExt(ext: string): boolean {
-  return ext === '.tsx'
-}
 
 export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
   extension: {
@@ -30,7 +30,7 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
     const response = await fetch(url)
 
     let data: TiledMapData
-    if (isXmlExt(ext)) {
+    if (ext === '.tmx') {
       const xml = await response.text()
       data = parseTmx(xml)
     } else {
@@ -42,23 +42,46 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
     // Resolve external tilesets
     const externalTilesets = new Map<string, TiledTileset>()
     for (const ts of data.tilesets) {
-      if ('source' in ts && !('name' in ts)) {
-        const tsUrl = pixiPath.join(basePath, ts.source)
-        const tsResponse = await fetch(tsUrl)
-        const tsExt = pixiPath.extname(ts.source).toLowerCase()
-        let tsData: TiledTileset
-        if (isTsxExt(tsExt)) {
-          const tsXml = await tsResponse.text()
-          tsData = parseTsx(tsXml)
-        } else {
-          tsData = (await tsResponse.json()) as TiledTileset
-        }
-        externalTilesets.set(ts.source, tsData)
+      if (!isTilesetRef(ts)) continue
+      const tsUrl = pixiPath.join(basePath, ts.source)
+      const tsResponse = await fetch(tsUrl)
+      const tsExt = pixiPath.extname(ts.source).toLowerCase()
+      let tsData: TiledTileset
+      if (tsExt === '.tsx') {
+        const tsXml = await tsResponse.text()
+        tsData = parseTsx(tsXml)
+      } else {
+        tsData = (await tsResponse.json()) as TiledTileset
       }
+      externalTilesets.set(ts.source, tsData)
     }
 
+    // Resolve object templates — walk every object layer (including nested
+    // group layers) to find unique template references, then fetch each one
+    // in parallel. Templates may be either .tx (XML) or .tj (JSON).
+    const templates = new Map<string, TiledObjectTemplate>()
+    const templateSources = new Set<string>()
+    for (const obj of walkObjects(data.layers)) {
+      if (obj.template) templateSources.add(obj.template)
+    }
+    await Promise.all(
+      Array.from(templateSources).map(async (src) => {
+        const tplUrl = pixiPath.join(basePath, src)
+        const tplResponse = await fetch(tplUrl)
+        const tplExt = pixiPath.extname(src).toLowerCase()
+        let tpl: TiledObjectTemplate
+        if (tplExt === '.tx') {
+          const tplXml = await tplResponse.text()
+          tpl = parseTx(tplXml)
+        } else {
+          tpl = (await tplResponse.json()) as TiledObjectTemplate
+        }
+        templates.set(src, tpl)
+      })
+    )
+
     // Parse the map to resolved IR
-    const mapData = await parseMapAsync(data, { externalTilesets })
+    const mapData = await parseMapAsync(data, { externalTilesets, templates })
 
     // Load tileset textures
     const tilesetTextures = new Map<string, Texture>()
@@ -115,13 +138,21 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
   }
 }
 
-function flattenLayers(layers: ResolvedLayer[]): ResolvedLayer[] {
-  const result: ResolvedLayer[] = []
+function flattenLayers<L extends { type: string; layers?: L[] }>(layers: L[]): L[] {
+  const result: L[] = []
   for (const layer of layers) {
     result.push(layer)
-    if (layer.type === 'group') {
+    if (layer.type === 'group' && layer.layers) {
       result.push(...flattenLayers(layer.layers))
     }
   }
   return result
+}
+
+function* walkObjects(layers: TiledLayer[]): Generator<TiledObject> {
+  for (const layer of flattenLayers(layers)) {
+    if (layer.type === 'objectgroup' && layer.objects) {
+      for (const obj of layer.objects) yield obj
+    }
+  }
 }
