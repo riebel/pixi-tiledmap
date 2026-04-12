@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { MapContext } from '../../src/renderer/tilePlacement.js'
 import { tileToPixel } from '../../src/renderer/tilePlacement.js'
+import type { MapContext } from '../../src/types/index.js'
 
 describe('tileToPixel', () => {
   describe('orthogonal', () => {

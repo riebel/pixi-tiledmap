@@ -1,5 +1,6 @@
 import { AnimatedSprite, Container, Sprite, type Texture } from 'pixi.js'
 import type {
+  MapContext,
   ResolvedChunk,
   ResolvedTile,
   ResolvedTileLayer,
@@ -8,7 +9,7 @@ import type {
 } from '../types'
 import { parseTintColor } from './parseColor.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
-import { type MapContext, tileToPixel } from './tilePlacement.js'
+import { tileToPixel } from './tilePlacement.js'
 
 export class TileLayerRenderer extends Container {
   readonly layerData: ResolvedTileLayer

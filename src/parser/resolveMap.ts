@@ -181,6 +181,43 @@ function resolveObjects(
   })
 }
 
+// ─── Shared non-tilelayer resolution (sync — no data decoding needed) ───────
+
+function resolveImageLayer(layer: TiledLayer): ResolvedImageLayer {
+  return {
+    type: 'imagelayer',
+    ...layerDefaults(layer),
+    image: layer.image ?? '',
+    imagewidth: layer.imagewidth,
+    imageheight: layer.imageheight,
+    repeatx: layer.repeatx ?? false,
+    repeaty: layer.repeaty ?? false,
+    transparentcolor: layer.transparentcolor
+  }
+}
+
+function resolveObjectLayer(
+  layer: TiledLayer,
+  tilesets: ResolvedTileset[],
+  templates?: Map<string, TiledObjectTemplate>
+): ResolvedObjectLayer {
+  return {
+    type: 'objectgroup',
+    ...layerDefaults(layer),
+    draworder: (layer.draworder ?? 'topdown') as TiledDrawOrder,
+    objects: resolveObjects(layer.objects ?? [], tilesets, templates)
+  }
+}
+
+function resolveTileLayerBase(layer: TiledLayer) {
+  return {
+    type: 'tilelayer' as const,
+    ...layerDefaults(layer),
+    width: layer.width ?? 0,
+    height: layer.height ?? 0
+  }
+}
+
 // ─── Resolve layers (sync) ──────────────────────────────────────────────────
 
 function resolveLayer(
@@ -190,20 +227,15 @@ function resolveLayer(
 ): ResolvedLayer {
   switch (layer.type) {
     case 'tilelayer': {
-      const hasChunks = layer.chunks && layer.chunks.length > 0
-
-      if (hasChunks) {
+      if (layer.chunks && layer.chunks.length > 0) {
         const resolvedChunks = resolveChunksSync(
-          layer.chunks!,
+          layer.chunks,
           layer.encoding,
           layer.compression,
           tilesets
         )
         return {
-          type: 'tilelayer',
-          ...layerDefaults(layer),
-          width: layer.width ?? 0,
-          height: layer.height ?? 0,
+          ...resolveTileLayerBase(layer),
           infinite: true,
           tiles: [],
           chunks: resolvedChunks
@@ -211,36 +243,18 @@ function resolveLayer(
       }
 
       const rawGids = decodeLayerData(layer.data ?? [], layer.encoding, layer.compression)
-      const tiles = resolveGids(rawGids, tilesets)
       return {
-        type: 'tilelayer',
-        ...layerDefaults(layer),
-        width: layer.width ?? 0,
-        height: layer.height ?? 0,
+        ...resolveTileLayerBase(layer),
         infinite: false,
-        tiles
+        tiles: resolveGids(rawGids, tilesets)
       } satisfies ResolvedTileLayer
     }
 
     case 'imagelayer':
-      return {
-        type: 'imagelayer',
-        ...layerDefaults(layer),
-        image: layer.image ?? '',
-        imagewidth: layer.imagewidth,
-        imageheight: layer.imageheight,
-        repeatx: layer.repeatx ?? false,
-        repeaty: layer.repeaty ?? false,
-        transparentcolor: layer.transparentcolor
-      } satisfies ResolvedImageLayer
+      return resolveImageLayer(layer)
 
     case 'objectgroup':
-      return {
-        type: 'objectgroup',
-        ...layerDefaults(layer),
-        draworder: (layer.draworder ?? 'topdown') as TiledDrawOrder,
-        objects: resolveObjects(layer.objects ?? [], tilesets, templates)
-      } satisfies ResolvedObjectLayer
+      return resolveObjectLayer(layer, tilesets, templates)
 
     case 'group':
       return {
@@ -260,20 +274,15 @@ async function resolveLayerAsync(
 ): Promise<ResolvedLayer> {
   switch (layer.type) {
     case 'tilelayer': {
-      const hasChunks = layer.chunks && layer.chunks.length > 0
-
-      if (hasChunks) {
+      if (layer.chunks && layer.chunks.length > 0) {
         const resolvedChunks = await resolveChunksAsync(
-          layer.chunks!,
+          layer.chunks,
           layer.encoding,
           layer.compression,
           tilesets
         )
         return {
-          type: 'tilelayer',
-          ...layerDefaults(layer),
-          width: layer.width ?? 0,
-          height: layer.height ?? 0,
+          ...resolveTileLayerBase(layer),
           infinite: true,
           tiles: [],
           chunks: resolvedChunks
@@ -285,36 +294,18 @@ async function resolveLayerAsync(
         layer.encoding,
         layer.compression
       )
-      const tiles = resolveGids(rawGids, tilesets)
       return {
-        type: 'tilelayer',
-        ...layerDefaults(layer),
-        width: layer.width ?? 0,
-        height: layer.height ?? 0,
+        ...resolveTileLayerBase(layer),
         infinite: false,
-        tiles
+        tiles: resolveGids(rawGids, tilesets)
       } satisfies ResolvedTileLayer
     }
 
     case 'imagelayer':
-      return {
-        type: 'imagelayer',
-        ...layerDefaults(layer),
-        image: layer.image ?? '',
-        imagewidth: layer.imagewidth,
-        imageheight: layer.imageheight,
-        repeatx: layer.repeatx ?? false,
-        repeaty: layer.repeaty ?? false,
-        transparentcolor: layer.transparentcolor
-      } satisfies ResolvedImageLayer
+      return resolveImageLayer(layer)
 
     case 'objectgroup':
-      return {
-        type: 'objectgroup',
-        ...layerDefaults(layer),
-        draworder: (layer.draworder ?? 'topdown') as TiledDrawOrder,
-        objects: resolveObjects(layer.objects ?? [], tilesets, templates)
-      } satisfies ResolvedObjectLayer
+      return resolveObjectLayer(layer, tilesets, templates)
 
     case 'group': {
       const resolvedChildren = await Promise.all(

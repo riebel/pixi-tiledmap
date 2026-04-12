@@ -1,6 +1,5 @@
 import { Rectangle, Texture } from 'pixi.js'
-import type { ResolvedTileset, TiledTileDefinition } from '../types'
-import type { MapContext } from './tilePlacement.js'
+import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../types'
 
 export class TileSetRenderer {
   readonly tileset: ResolvedTileset

@@ -1,7 +1,5 @@
 import type { MapContext, TilePosition } from '../types'
 
-export type { MapContext, TilePosition }
-
 export function tileToPixel(col: number, row: number, ctx: MapContext): TilePosition {
   switch (ctx.orientation) {
     case 'orthogonal':

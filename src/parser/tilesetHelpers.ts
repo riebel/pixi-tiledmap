@@ -30,3 +30,20 @@ export function findTilesetIndexForGid(gid: number, tilesets: { firstgid: number
   }
   return -1
 }
+
+/**
+ * Finds the tileset entry whose firstgid range contains `gid`.
+ * Accepts a key function to extract firstgid from arbitrary element types.
+ * Returns undefined when no tileset matches.
+ */
+export function findTilesetForGid<T>(
+  gid: number,
+  tilesets: T[],
+  getFirstGid: (t: T) => number
+): T | undefined {
+  for (let i = tilesets.length - 1; i >= 0; i--) {
+    const ts = tilesets[i]
+    if (ts && getFirstGid(ts) <= gid) return ts
+  }
+  return undefined
+}
