@@ -4,8 +4,7 @@ import type {
   ResolvedChunk,
   ResolvedTile,
   ResolvedTileLayer,
-  TiledFrame,
-  TiledRenderOrder
+  TiledFrame
 } from '../types'
 import { parseTintColor } from './parseColor.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
@@ -69,43 +68,56 @@ export class TileLayerRenderer extends Container {
     ctx: MapContext
   ): void {
     const order = ctx.renderorder
+    const rightToLeft = order === 'left-down' || order === 'left-up'
+    const bottomToTop = order === 'right-up' || order === 'left-up'
 
-    for (const [col, row] of iterateTiles(layerWidth, layerHeight, order)) {
-      const i = row * layerWidth + col
-      const tile = tiles[i]
-      if (!tile) continue
+    const rowStart = bottomToTop ? layerHeight - 1 : 0
+    const rowEnd = bottomToTop ? -1 : layerHeight
+    const rowStep = bottomToTop ? -1 : 1
 
-      const tsRenderer = tilesets[tile.tilesetIndex]
-      if (!tsRenderer) continue
+    const colStart = rightToLeft ? layerWidth - 1 : 0
+    const colEnd = rightToLeft ? -1 : layerWidth
+    const colStep = rightToLeft ? -1 : 1
 
-      const pos = tileToPixel(originCol + col, originRow + row, ctx)
-      const animFrames = tsRenderer.getAnimationFrames(tile.localId)
+    const tileH = ctx.tileheight
 
-      const offset = tsRenderer.tileset.tileoffset
+    for (let row = rowStart; row !== rowEnd; row += rowStep) {
+      const rowOffset = row * layerWidth
+      for (let col = colStart; col !== colEnd; col += colStep) {
+        const tile = tiles[rowOffset + col]
+        if (!tile) continue
 
-      if (animFrames && animFrames.length > 1) {
-        const sprite = this._createAnimatedTile(tsRenderer, animFrames, tile, pos.x, pos.y, ctx)
-        if (sprite) {
-          sprite.position.x += offset.x
-          sprite.position.y += offset.y
+        const tsRenderer = tilesets[tile.tilesetIndex]
+        if (!tsRenderer) continue
+
+        const pos = tileToPixel(originCol + col, originRow + row, ctx)
+        // Read x/y immediately — pos is a reusable object overwritten on next call.
+        const px = pos.x
+        const py = pos.y
+        const animFrames = tsRenderer.getAnimationFrames(tile.localId)
+
+        const offset = tsRenderer.tileset.tileoffset
+
+        if (animFrames && animFrames.length > 1) {
+          const sprite = this._createAnimatedTile(tsRenderer, animFrames, tile, px, py, ctx)
+          if (sprite) {
+            sprite.position.x += offset.x
+            sprite.position.y += offset.y
+            this.addChild(sprite)
+          }
+        } else {
+          const texture = tsRenderer.getTexture(tile.localId)
+          if (!texture) continue
+
+          const sprite = new Sprite(texture)
+          const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
+          const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
+          sprite.width = renderW
+          sprite.height = renderH
+          sprite.position.set(px + offset.x, py + offset.y + tileH - renderH)
+          applyFlip(sprite, tile, renderW)
           this.addChild(sprite)
         }
-      } else {
-        const texture = tsRenderer.getTexture(tile.localId)
-        if (!texture) continue
-
-        const sprite = new Sprite(texture)
-        // Tiled draws tiles bottom-left aligned to the grid cell, so tiles
-        // taller than the map's tileheight extend upward rather than below.
-        // We read the tile size from tileset metadata (not texture.height)
-        // because textures may still be loading at construction time — a
-        // zero-height texture would otherwise shift the sprite one full row.
-        const renderSize = tsRenderer.getRenderSize(tile.localId, ctx)
-        sprite.width = renderSize.width
-        sprite.height = renderSize.height
-        sprite.position.set(pos.x + offset.x, pos.y + offset.y + ctx.tileheight - renderSize.height)
-        applyFlip(sprite, tile, renderSize.width)
-        this.addChild(sprite)
       }
     }
   }
@@ -127,37 +139,14 @@ export class TileLayerRenderer extends Container {
     }
 
     const sprite = new AnimatedSprite(textures)
-    // Bottom-left align to the grid cell (see _buildTiles for rationale).
-    const renderSize = tsRenderer.getRenderSize(tile.localId, ctx)
-    sprite.width = renderSize.width
-    sprite.height = renderSize.height
-    sprite.position.set(x, y + ctx.tileheight - renderSize.height)
+    const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
+    const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
+    sprite.width = renderW
+    sprite.height = renderH
+    sprite.position.set(x, y + ctx.tileheight - renderH)
     sprite.play()
-    applyFlip(sprite, tile, renderSize.width)
+    applyFlip(sprite, tile, renderW)
     return sprite
-  }
-}
-
-function* iterateTiles(
-  width: number,
-  height: number,
-  order: TiledRenderOrder
-): Generator<[number, number]> {
-  const rightToLeft = order === 'left-down' || order === 'left-up'
-  const bottomToTop = order === 'right-up' || order === 'left-up'
-
-  const rowStart = bottomToTop ? height - 1 : 0
-  const rowEnd = bottomToTop ? -1 : height
-  const rowStep = bottomToTop ? -1 : 1
-
-  const colStart = rightToLeft ? width - 1 : 0
-  const colEnd = rightToLeft ? -1 : width
-  const colStep = rightToLeft ? -1 : 1
-
-  for (let row = rowStart; row !== rowEnd; row += rowStep) {
-    for (let col = colStart; col !== colEnd; col += colStep) {
-      yield [col, row]
-    }
   }
 }
 
