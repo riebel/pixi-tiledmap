@@ -13,6 +13,7 @@ import type {
   TiledMap,
   TiledObject,
   TiledObjectAlignment,
+  TiledObjectTemplate,
   TiledOrientation,
   TiledPoint,
   TiledProperty,
@@ -585,4 +586,33 @@ export function parseTsx(xml: string): TiledTileset {
     throw new Error('TSX file should not contain a source reference')
   }
   return result
+}
+
+// ─── Template (TX) ──────────────────────────────────────────────────────────
+
+export function parseTx(xml: string): TiledObjectTemplate {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(xml, 'text/xml')
+
+  const errorNode = doc.querySelector('parsererror')
+  if (errorNode) {
+    throw new Error(`TX XML parse error: ${errorNode.textContent}`)
+  }
+
+  const tplEl = doc.documentElement
+  if (tplEl.tagName !== 'template') {
+    throw new Error(`Expected root <template> element, got <${tplEl.tagName}>`)
+  }
+
+  const tilesetEl = child(tplEl, 'tileset')
+  const objectEl = child(tplEl, 'object')
+  if (!objectEl) {
+    throw new Error('Template is missing <object>')
+  }
+
+  return {
+    type: 'template',
+    tileset: tilesetEl ? parseTileset(tilesetEl) : undefined,
+    object: parseObject(objectEl)
+  }
 }

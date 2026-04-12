@@ -9,6 +9,10 @@ export function decodeLayerData(
     return data
   }
 
+  if (encoding === 'csv') {
+    return csvToGids(data)
+  }
+
   if (encoding === 'base64') {
     const bytes = base64ToBytes(data)
 
@@ -25,6 +29,27 @@ export function decodeLayerData(
   }
 
   throw new Error(`Unsupported encoding: ${encoding ?? 'unknown'}`)
+}
+
+function csvToGids(csv: string): number[] {
+  const out: number[] = []
+  let cur = 0
+  let hasDigit = false
+  for (let i = 0; i < csv.length; i++) {
+    const code = csv.charCodeAt(i)
+    if (code >= 48 && code <= 57) {
+      cur = cur * 10 + (code - 48)
+      hasDigit = true
+    } else if (code === 44) {
+      // ','
+      if (hasDigit) out.push(cur)
+      cur = 0
+      hasDigit = false
+    }
+    // whitespace / newlines: ignore
+  }
+  if (hasDigit) out.push(cur)
+  return out
 }
 
 function base64ToBytes(base64: string): Uint8Array {
@@ -101,6 +126,10 @@ export async function decodeLayerDataAsync(
 ): Promise<number[]> {
   if (Array.isArray(data)) {
     return data
+  }
+
+  if (encoding === 'csv') {
+    return csvToGids(data)
   }
 
   if (encoding === 'base64') {

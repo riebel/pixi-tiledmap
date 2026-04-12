@@ -12,6 +12,10 @@ import { type MapContext, tileToPixel } from './tilePlacement.js'
 
 export class TileLayerRenderer extends Container {
   readonly layerData: ResolvedTileLayer
+  readonly layerBaseOffsetX: number
+  readonly layerBaseOffsetY: number
+  readonly layerParallaxX: number
+  readonly layerParallaxY: number
 
   constructor(layerData: ResolvedTileLayer, tilesets: TileSetRenderer[], ctx: MapContext) {
     super()
@@ -20,6 +24,10 @@ export class TileLayerRenderer extends Container {
     this.label = layerData.name
     this.alpha = layerData.opacity
     this.visible = layerData.visible
+    this.layerBaseOffsetX = layerData.offsetx
+    this.layerBaseOffsetY = layerData.offsety
+    this.layerParallaxX = layerData.parallaxx
+    this.layerParallaxY = layerData.parallaxy
     this.position.set(layerData.offsetx, layerData.offsety)
     if (layerData.tintcolor) {
       this.tint = parseTintColor(layerData.tintcolor)
@@ -72,9 +80,15 @@ export class TileLayerRenderer extends Container {
       const pos = tileToPixel(originCol + col, originRow + row, ctx)
       const animFrames = tsRenderer.getAnimationFrames(tile.localId)
 
+      const offset = tsRenderer.tileset.tileoffset
+
       if (animFrames && animFrames.length > 1) {
         const sprite = this._createAnimatedTile(tsRenderer, animFrames, tile, pos.x, pos.y, ctx)
-        if (sprite) this.addChild(sprite)
+        if (sprite) {
+          sprite.position.x += offset.x
+          sprite.position.y += offset.y
+          this.addChild(sprite)
+        }
       } else {
         const texture = tsRenderer.getTexture(tile.localId)
         if (!texture) continue
@@ -85,9 +99,11 @@ export class TileLayerRenderer extends Container {
         // We read the tile size from tileset metadata (not texture.height)
         // because textures may still be loading at construction time — a
         // zero-height texture would otherwise shift the sprite one full row.
-        const tileSize = tsRenderer.getTileSize(tile.localId)
-        sprite.position.set(pos.x, pos.y + ctx.tileheight - tileSize.height)
-        applyFlip(sprite, tile, ctx.tilewidth)
+        const renderSize = tsRenderer.getRenderSize(tile.localId, ctx)
+        sprite.width = renderSize.width
+        sprite.height = renderSize.height
+        sprite.position.set(pos.x + offset.x, pos.y + offset.y + ctx.tileheight - renderSize.height)
+        applyFlip(sprite, tile, renderSize.width)
         this.addChild(sprite)
       }
     }
@@ -111,10 +127,12 @@ export class TileLayerRenderer extends Container {
 
     const sprite = new AnimatedSprite(textures)
     // Bottom-left align to the grid cell (see _buildTiles for rationale).
-    const tileSize = tsRenderer.getTileSize(tile.localId)
-    sprite.position.set(x, y + ctx.tileheight - tileSize.height)
+    const renderSize = tsRenderer.getRenderSize(tile.localId, ctx)
+    sprite.width = renderSize.width
+    sprite.height = renderSize.height
+    sprite.position.set(x, y + ctx.tileheight - renderSize.height)
     sprite.play()
-    applyFlip(sprite, tile, tsRenderer.tileset.tilewidth)
+    applyFlip(sprite, tile, renderSize.width)
     return sprite
   }
 }

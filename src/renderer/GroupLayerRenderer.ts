@@ -7,6 +7,10 @@ import type { MapContext } from './tilePlacement.js'
 
 export class GroupLayerRenderer extends Container {
   readonly layerData: ResolvedGroupLayer
+  readonly layerBaseOffsetX: number
+  readonly layerBaseOffsetY: number
+  readonly layerParallaxX: number
+  readonly layerParallaxY: number
 
   constructor(
     layerData: ResolvedGroupLayer,
@@ -20,6 +24,10 @@ export class GroupLayerRenderer extends Container {
     this.label = layerData.name
     this.alpha = layerData.opacity
     this.visible = layerData.visible
+    this.layerBaseOffsetX = layerData.offsetx
+    this.layerBaseOffsetY = layerData.offsety
+    this.layerParallaxX = layerData.parallaxx
+    this.layerParallaxY = layerData.parallaxy
     this.position.set(layerData.offsetx, layerData.offsety)
     if (layerData.tintcolor) {
       this.tint = parseTintColor(layerData.tintcolor)

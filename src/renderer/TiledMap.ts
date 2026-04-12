@@ -1,8 +1,27 @@
 import { Container, Graphics, Rectangle } from 'pixi.js'
 import type { MapContext, ResolvedMap, TiledMapOptions } from '../types'
 import { createLayerRenderer } from './createLayerRenderer.js'
+import { GroupLayerRenderer } from './GroupLayerRenderer.js'
+import { ImageLayerRenderer } from './ImageLayerRenderer.js'
+import { ObjectLayerRenderer } from './ObjectLayerRenderer.js'
 import { parseTintColor } from './parseColor.js'
+import { TileLayerRenderer } from './TileLayerRenderer.js'
 import { TileSetRenderer } from './TileSetRenderer.js'
+
+type ParallaxLayer =
+  | TileLayerRenderer
+  | ImageLayerRenderer
+  | ObjectLayerRenderer
+  | GroupLayerRenderer
+
+function isParallaxLayer(c: Container): c is ParallaxLayer {
+  return (
+    c instanceof TileLayerRenderer ||
+    c instanceof ImageLayerRenderer ||
+    c instanceof ObjectLayerRenderer ||
+    c instanceof GroupLayerRenderer
+  )
+}
 
 export class TiledMap extends Container {
   readonly mapData: ResolvedMap
@@ -92,6 +111,27 @@ export class TiledMap extends Container {
     return this.children.find((c) => c.label === name) as Container | undefined
   }
 
+  /**
+   * Reposition layers to reflect the camera's current position through the
+   * map's parallax factors. Call after moving the camera.
+   *
+   * Effective layer screen position (after your camera transform) is:
+   *   base_offset - parallax_origin * (1 - parallax) - camera * parallax
+   *
+   * so a layer with parallax 1 moves normally with the camera and a layer
+   * with parallax 0 is pinned in screen space. Nested group layers compose
+   * parallax multiplicatively per the Tiled spec.
+   */
+  applyParallax(cameraX: number, cameraY: number): void {
+    const ox = this.mapData.parallaxoriginx
+    const oy = this.mapData.parallaxoriginy
+    for (const child of this.children) {
+      if (isParallaxLayer(child)) {
+        applyParallaxRecursive(child, cameraX, cameraY, ox, oy, 1, 1)
+      }
+    }
+  }
+
   private _buildBackground(mapData: ResolvedMap): void {
     const color = parseTintColor(mapData.backgroundcolor!)
     const pixelWidth = this._computePixelWidth(mapData)
@@ -135,5 +175,31 @@ export class TiledMap extends Container {
       ts.destroy()
     }
     super.destroy(options)
+  }
+}
+
+function applyParallaxRecursive(
+  layer: ParallaxLayer,
+  cameraX: number,
+  cameraY: number,
+  originX: number,
+  originY: number,
+  parentParallaxX: number,
+  parentParallaxY: number
+): void {
+  const px = layer.layerParallaxX * parentParallaxX
+  const py = layer.layerParallaxY * parentParallaxY
+
+  layer.position.set(
+    layer.layerBaseOffsetX + (cameraX - originX) * (1 - px),
+    layer.layerBaseOffsetY + (cameraY - originY) * (1 - py)
+  )
+
+  if (layer instanceof GroupLayerRenderer) {
+    for (const child of layer.children) {
+      if (isParallaxLayer(child)) {
+        applyParallaxRecursive(child, cameraX, cameraY, originX, originY, px, py)
+      }
+    }
   }
 }

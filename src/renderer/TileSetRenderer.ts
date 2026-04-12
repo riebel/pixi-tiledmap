@@ -1,5 +1,6 @@
 import { Rectangle, Texture } from 'pixi.js'
 import type { ResolvedTileset, TiledTileDefinition } from '../types'
+import type { MapContext } from './tilePlacement.js'
 
 export class TileSetRenderer {
   readonly tileset: ResolvedTileset
@@ -67,6 +68,30 @@ export class TileSetRenderer {
       }
     }
     return { width: this.tileset.tilewidth, height: this.tileset.tileheight }
+  }
+
+  /**
+   * Returns the pixel size a tile should be drawn at on the map grid.
+   * When `tilerendersize === 'grid'`, the tile is resized to the map cell
+   * size, honouring `fillmode` for non-stretch aspect handling.
+   * Otherwise the tile's intrinsic size is used.
+   */
+  getRenderSize(localId: number, ctx: MapContext): { width: number; height: number } {
+    const intrinsic = this.getTileSize(localId)
+    if (this.tileset.tilerendersize !== 'grid') return intrinsic
+
+    const gridW = ctx.tilewidth
+    const gridH = ctx.tileheight
+
+    if (this.tileset.fillmode === 'preserve-aspect-fit') {
+      if (intrinsic.width === 0 || intrinsic.height === 0) {
+        return { width: gridW, height: gridH }
+      }
+      const scale = Math.min(gridW / intrinsic.width, gridH / intrinsic.height)
+      return { width: intrinsic.width * scale, height: intrinsic.height * scale }
+    }
+
+    return { width: gridW, height: gridH }
   }
 
   destroy(): void {

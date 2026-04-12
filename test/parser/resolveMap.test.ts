@@ -351,4 +351,161 @@ describe('parseMap', () => {
       expect(chunk1.tiles[3]!.gid).toBe(6)
     }
   })
+
+  it('merges object templates into objects', () => {
+    const templates = new Map()
+    templates.set('sign.tx', {
+      type: 'template',
+      object: {
+        id: 0,
+        name: 'template-name',
+        type: 'sign',
+        x: 0,
+        y: 0,
+        width: 64,
+        height: 32,
+        rotation: 0,
+        visible: true,
+        properties: [{ name: 'fromTpl', type: 'bool', value: true }]
+      }
+    })
+
+    const map = makeMinimalMap({
+      layers: [
+        {
+          type: 'objectgroup',
+          id: 1,
+          name: 'objs',
+          opacity: 1,
+          visible: true,
+          x: 0,
+          y: 0,
+          objects: [
+            // Instance only overrides position — name/type/size come from template.
+            {
+              id: 1,
+              name: '',
+              type: '',
+              x: 100,
+              y: 200,
+              width: 0,
+              height: 0,
+              rotation: 0,
+              visible: true,
+              template: 'sign.tx'
+            }
+          ]
+        }
+      ]
+    })
+
+    const result = parseMap(map, { templates })
+    const layer = result.layers[0]
+    expect(layer?.type).toBe('objectgroup')
+    if (layer?.type === 'objectgroup') {
+      const obj = layer.objects[0]!
+      expect(obj.x).toBe(100)
+      expect(obj.y).toBe(200)
+      expect(obj.name).toBe('template-name')
+      expect(obj.type).toBe('sign')
+      expect(obj.width).toBe(64)
+      expect(obj.height).toBe(32)
+      expect(obj.properties?.[0]?.name).toBe('fromTpl')
+    }
+  })
+
+  it('remaps template gid to the map tileset firstgid', () => {
+    const templates = new Map()
+    templates.set('tile.tx', {
+      type: 'template',
+      // Template references an external tileset with its own firstgid = 1.
+      tileset: { firstgid: 1, source: 'shared.tsx' },
+      object: {
+        id: 0,
+        name: '',
+        type: '',
+        x: 0,
+        y: 0,
+        width: 16,
+        height: 16,
+        rotation: 0,
+        visible: true,
+        gid: 3 // tile id 2 in the template's tileset
+      }
+    })
+
+    const map = makeMinimalMap({
+      tilesets: [
+        {
+          firstgid: 100,
+          name: 'shared',
+          tilewidth: 16,
+          tileheight: 16,
+          columns: 4,
+          tilecount: 16,
+          margin: 0,
+          spacing: 0,
+          image: 'shared.png'
+        }
+      ],
+      layers: [
+        {
+          type: 'objectgroup',
+          id: 1,
+          name: 'objs',
+          opacity: 1,
+          visible: true,
+          x: 0,
+          y: 0,
+          objects: [
+            {
+              id: 1,
+              name: '',
+              type: '',
+              x: 0,
+              y: 0,
+              width: 0,
+              height: 0,
+              rotation: 0,
+              visible: true,
+              template: 'tile.tx'
+            }
+          ]
+        }
+      ]
+    })
+
+    // The template tileset is matched by source, but the map has no tileset
+    // with source 'shared.tsx' so remapping is skipped.
+    const noRemap = parseMap(map, { templates })
+    const obj1 = (noRemap.layers[0] as { objects: { gid?: number }[] }).objects[0]
+    expect(obj1?.gid).toBe(3)
+
+    // Now mark the map's tileset as the same source so remapping kicks in.
+    const mapWithSource = makeMinimalMap({
+      tilesets: [
+        {
+          firstgid: 100,
+          source: 'shared.tsx'
+        }
+      ],
+      layers: map.layers
+    })
+    const externalTilesets = new Map()
+    externalTilesets.set('shared.tsx', {
+      firstgid: 1,
+      name: 'shared',
+      tilewidth: 16,
+      tileheight: 16,
+      columns: 4,
+      tilecount: 16,
+      margin: 0,
+      spacing: 0,
+      image: 'shared.png'
+    })
+    const remap = parseMap(mapWithSource, { templates, externalTilesets })
+    const obj2 = (remap.layers[0] as { objects: { gid?: number }[] }).objects[0]
+    // local id 2 in template → 100 + 2 = 102 in map space
+    expect(obj2?.gid).toBe(102)
+  })
 })

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest'
-import { parseTmx, parseTsx } from '../../src/parser/parseTmx.js'
+import { parseTmx, parseTsx, parseTx } from '../../src/parser/parseTmx.js'
 
 describe('parseTmx', () => {
   it('parses a minimal orthogonal map', () => {
@@ -395,5 +395,57 @@ describe('parseTsx', () => {
 
   it('throws on non-tileset root', () => {
     expect(() => parseTsx('<map/>')).toThrow('Expected root <tileset>')
+  })
+})
+
+describe('parseTx', () => {
+  it('parses a template with an object and an external tileset', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<template>
+  <tileset firstgid="1" source="terrain.tsx"/>
+  <object name="sign" type="decor" width="32" height="32" gid="5">
+    <properties>
+      <property name="blocks" type="bool" value="true"/>
+    </properties>
+  </object>
+</template>`
+
+    const tpl = parseTx(xml)
+    expect(tpl.type).toBe('template')
+    expect(tpl.tileset).toBeDefined()
+    expect('source' in (tpl.tileset ?? {})).toBe(true)
+    if (tpl.tileset && 'source' in tpl.tileset) {
+      expect(tpl.tileset.source).toBe('terrain.tsx')
+      expect(tpl.tileset.firstgid).toBe(1)
+    }
+    expect(tpl.object.name).toBe('sign')
+    expect(tpl.object.type).toBe('decor')
+    expect(tpl.object.gid).toBe(5)
+    expect(tpl.object.width).toBe(32)
+    expect(tpl.object.properties).toHaveLength(1)
+    expect(tpl.object.properties?.[0]?.name).toBe('blocks')
+    expect(tpl.object.properties?.[0]?.value).toBe(true)
+  })
+
+  it('parses a template without a tileset', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<template>
+  <object name="spawnpoint" type="point" width="16" height="16">
+    <point/>
+  </object>
+</template>`
+
+    const tpl = parseTx(xml)
+    expect(tpl.tileset).toBeUndefined()
+    expect(tpl.object.name).toBe('spawnpoint')
+    expect(tpl.object.point).toBe(true)
+  })
+
+  it('throws when root element is not <template>', () => {
+    expect(() => parseTx('<map/>')).toThrow('Expected root <template>')
+  })
+
+  it('throws when template has no <object>', () => {
+    expect(() => parseTx('<template/>')).toThrow('missing <object>')
   })
 })

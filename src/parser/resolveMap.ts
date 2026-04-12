@@ -13,6 +13,8 @@ import type {
   TiledDrawOrder,
   TiledLayer,
   TiledMap,
+  TiledObject,
+  TiledObjectTemplate,
   TiledRenderOrder,
   TiledTileDefinition,
   TiledTileset,
@@ -29,7 +31,7 @@ function isTilesetRef(ts: TiledTileset | TiledTilesetRef): ts is TiledTilesetRef
 
 // ─── Resolve tileset ─────────────────────────────────────────────────────────
 
-function resolveTileset(raw: TiledTileset): ResolvedTileset {
+function resolveTileset(raw: TiledTileset, source?: string): ResolvedTileset {
   const tiles = new Map<number, TiledTileDefinition>()
   if (raw.tiles) {
     for (const tile of raw.tiles) {
@@ -40,6 +42,7 @@ function resolveTileset(raw: TiledTileset): ResolvedTileset {
   return {
     firstgid: raw.firstgid,
     name: raw.name,
+    source,
     tilewidth: raw.tilewidth,
     tileheight: raw.tileheight,
     columns:
@@ -128,9 +131,88 @@ function layerDefaults(layer: TiledLayer) {
   }
 }
 
+// ─── Template merging ────────────────────────────────────────────────────────
+
+function mergeTemplate(
+  obj: TiledObject,
+  template: TiledObjectTemplate,
+  tilesets: ResolvedTileset[]
+): TiledObject {
+  // Start from the template's object, then override with the instance's
+  // own fields (only the ones explicitly set — Tiled stores only deltas).
+  const base: TiledObject = {
+    ...template.object,
+    id: obj.id,
+    // Non-optional fields on the instance always win when present in TiledObject.
+    x: obj.x,
+    y: obj.y,
+    rotation: obj.rotation,
+    visible: obj.visible
+  }
+
+  // name / type are strings on TiledObject with no explicit "unset" sentinel.
+  // Prefer the instance only when it provided a non-empty value.
+  if (obj.name) base.name = obj.name
+  if (obj.type) base.type = obj.type
+  if (obj.width) base.width = obj.width
+  if (obj.height) base.height = obj.height
+  if (obj.properties) base.properties = obj.properties
+  if (obj.text) base.text = obj.text
+  if (obj.gid !== undefined) base.gid = obj.gid
+  if (obj.polygon) base.polygon = obj.polygon
+  if (obj.polyline) base.polyline = obj.polyline
+  if (obj.ellipse) base.ellipse = obj.ellipse
+  if (obj.point) base.point = obj.point
+
+  // GID remapping: the template's gid is relative to the template's own
+  // embedded tileset firstgid. If the template carried a tileset ref and
+  // the map has the same tileset (matched by source), translate the gid
+  // into the map's firstgid space so it points at the right tile.
+  if (
+    base.gid !== undefined &&
+    template.tileset &&
+    'source' in template.tileset &&
+    template.tileset.source
+  ) {
+    const src = template.tileset.source
+    const mapTs = tilesets.find((t) => t.source === src)
+    if (mapTs) {
+      const templateFirstGid = template.tileset.firstgid ?? 1
+      // Preserve flip flags in the high bits.
+      const flipBits = base.gid & ~GID_VALUE_MASK
+      const localId = (base.gid & GID_VALUE_MASK) - templateFirstGid
+      if (localId >= 0) {
+        base.gid = (mapTs.firstgid + localId) | flipBits
+      }
+    }
+  }
+
+  return base
+}
+
+const GID_VALUE_MASK = 0x0fffffff
+
+function resolveObjects(
+  objects: TiledObject[],
+  tilesets: ResolvedTileset[],
+  templates?: Map<string, TiledObjectTemplate>
+): TiledObject[] {
+  if (!templates || templates.size === 0) return objects
+  return objects.map((obj) => {
+    if (!obj.template) return obj
+    const tpl = templates.get(obj.template)
+    if (!tpl) return obj
+    return mergeTemplate(obj, tpl, tilesets)
+  })
+}
+
 // ─── Resolve layers (sync) ──────────────────────────────────────────────────
 
-function resolveLayer(layer: TiledLayer, tilesets: ResolvedTileset[]): ResolvedLayer {
+function resolveLayer(
+  layer: TiledLayer,
+  tilesets: ResolvedTileset[],
+  templates?: Map<string, TiledObjectTemplate>
+): ResolvedLayer {
   switch (layer.type) {
     case 'tilelayer': {
       const hasChunks = layer.chunks && layer.chunks.length > 0
@@ -182,14 +264,14 @@ function resolveLayer(layer: TiledLayer, tilesets: ResolvedTileset[]): ResolvedL
         type: 'objectgroup',
         ...layerDefaults(layer),
         draworder: (layer.draworder ?? 'topdown') as TiledDrawOrder,
-        objects: layer.objects ?? []
+        objects: resolveObjects(layer.objects ?? [], tilesets, templates)
       } satisfies ResolvedObjectLayer
 
     case 'group':
       return {
         type: 'group',
         ...layerDefaults(layer),
-        layers: (layer.layers ?? []).map((l) => resolveLayer(l, tilesets))
+        layers: (layer.layers ?? []).map((l) => resolveLayer(l, tilesets, templates))
       } satisfies ResolvedGroupLayer
   }
 }
@@ -198,7 +280,8 @@ function resolveLayer(layer: TiledLayer, tilesets: ResolvedTileset[]): ResolvedL
 
 async function resolveLayerAsync(
   layer: TiledLayer,
-  tilesets: ResolvedTileset[]
+  tilesets: ResolvedTileset[],
+  templates?: Map<string, TiledObjectTemplate>
 ): Promise<ResolvedLayer> {
   switch (layer.type) {
     case 'tilelayer': {
@@ -255,12 +338,12 @@ async function resolveLayerAsync(
         type: 'objectgroup',
         ...layerDefaults(layer),
         draworder: (layer.draworder ?? 'topdown') as TiledDrawOrder,
-        objects: layer.objects ?? []
+        objects: resolveObjects(layer.objects ?? [], tilesets, templates)
       } satisfies ResolvedObjectLayer
 
     case 'group': {
       const resolvedChildren = await Promise.all(
-        (layer.layers ?? []).map((l) => resolveLayerAsync(l, tilesets))
+        (layer.layers ?? []).map((l) => resolveLayerAsync(l, tilesets, templates))
       )
       return {
         type: 'group',
@@ -275,14 +358,16 @@ async function resolveLayerAsync(
 
 export function parseMap(data: TiledMap, options?: ParseOptions): ResolvedMap {
   const resolvedTilesets = resolveTilesets(data.tilesets, options)
-  const layers = data.layers.map((l) => resolveLayer(l, resolvedTilesets))
+  const layers = data.layers.map((l) => resolveLayer(l, resolvedTilesets, options?.templates))
 
   return buildResolvedMap(data, resolvedTilesets, layers)
 }
 
 export async function parseMapAsync(data: TiledMap, options?: ParseOptions): Promise<ResolvedMap> {
   const resolvedTilesets = resolveTilesets(data.tilesets, options)
-  const layers = await Promise.all(data.layers.map((l) => resolveLayerAsync(l, resolvedTilesets)))
+  const layers = await Promise.all(
+    data.layers.map((l) => resolveLayerAsync(l, resolvedTilesets, options?.templates))
+  )
 
   return buildResolvedMap(data, resolvedTilesets, layers)
 }
@@ -341,7 +426,7 @@ function resolveTilesets(
           `External tileset "${ts.source}" not provided. Pass it via options.externalTilesets.`
         )
       }
-      return resolveTileset({ ...external, firstgid: ts.firstgid })
+      return resolveTileset({ ...external, firstgid: ts.firstgid }, ts.source)
     }
     return resolveTileset(ts)
   })

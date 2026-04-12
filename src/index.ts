@@ -6,7 +6,8 @@ export {
   parseMap,
   parseMapAsync,
   parseTmx,
-  parseTsx
+  parseTsx,
+  parseTx
 } from './parser'
 // Renderer
 export {
