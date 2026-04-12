@@ -1,4 +1,6 @@
+import 'pixi.js/gif'
 import { Assets, ExtensionType, type LoaderParser, path as pixiPath, type Texture } from 'pixi.js'
+import type { GifSource } from 'pixi.js/gif'
 import { parseMapAsync, parseTmx, parseTsx, parseTx } from '../parser'
 import { isTilesetRef } from '../parser/tilesetHelpers.js'
 import type {
@@ -94,8 +96,13 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
       if (ts.image) {
         const imageUrl = pixiPath.join(basePath, ts.image)
         textureLoads.push(
-          Assets.load<Texture>(imageUrl).then((tex) => {
-            tilesetTextures.set(ts.image!, tex)
+          Assets.load<Texture | GifSource>(imageUrl).then((tex) => {
+            tilesetTextures.set(
+              ts.image!,
+              imageUrl.toLowerCase().endsWith('.gif')
+                ? ((tex as GifSource).textures[0] as Texture)
+                : (tex as Texture)
+            )
           })
         )
       }
@@ -105,8 +112,13 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
         if (tileDef.image) {
           const tileImgUrl = pixiPath.join(basePath, tileDef.image)
           textureLoads.push(
-            Assets.load<Texture>(tileImgUrl).then((tex) => {
-              tileImageTextures.set(tileDef.image!, tex)
+            Assets.load<Texture | GifSource>(tileImgUrl).then((tex) => {
+              tileImageTextures.set(
+                tileDef.image!,
+                tileImgUrl.toLowerCase().endsWith('.gif')
+                  ? ((tex as GifSource).textures[0] as Texture)
+                  : (tex as Texture)
+              )
             })
           )
         }
@@ -118,8 +130,13 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
       if (layer.type === 'imagelayer' && layer.image) {
         const imgUrl = pixiPath.join(basePath, layer.image)
         textureLoads.push(
-          Assets.load<Texture>(imgUrl).then((tex) => {
-            imageLayerTextures.set(layer.image, tex)
+          Assets.load<Texture | GifSource>(imgUrl).then((tex) => {
+            imageLayerTextures.set(
+              layer.image,
+              imgUrl.toLowerCase().endsWith('.gif')
+                ? ((tex as GifSource).textures[0] as Texture)
+                : (tex as Texture)
+            )
           })
         )
       }
