@@ -1,12 +1,17 @@
 import { Rectangle, Texture } from 'pixi.js'
-import type { ResolvedTileset, TiledTileDefinition } from '../types'
-import type { MapContext } from './tilePlacement.js'
+import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../types'
 
 export class TileSetRenderer {
   readonly tileset: ResolvedTileset
   readonly baseTexture: Texture | null
   private readonly _ownedTextures = new Map<number, Texture>()
   private readonly _externalTextures = new Map<number, Texture>()
+  // Per-localId cached render dimensions (keyed by localId, value = width | height<<32
+  // is not feasible for floats, so we use two parallel maps).
+  private _renderWidthCache: Map<number, number> | null = null
+  private _renderHeightCache: Map<number, number> | null = null
+  private _cachedCtxTileWidth = 0
+  private _cachedCtxTileHeight = 0
 
   constructor(tileset: ResolvedTileset, baseTexture: Texture | null) {
     this.tileset = tileset
@@ -55,9 +60,6 @@ export class TileSetRenderer {
    * Returns the intrinsic pixel size of a tile based on tileset metadata.
    * For image-collection tilesets, each tile has its own image dimensions.
    * For regular tilesets, all tiles share the tileset's tilewidth/tileheight.
-   *
-   * This does not read from the pixi Texture, so it is safe to call before
-   * textures have finished loading.
    */
   getTileSize(localId: number): { width: number; height: number } {
     const tileDef = this.tileset.tiles.get(localId)
@@ -72,11 +74,58 @@ export class TileSetRenderer {
 
   /**
    * Returns the pixel size a tile should be drawn at on the map grid.
-   * When `tilerendersize === 'grid'`, the tile is resized to the map cell
-   * size, honouring `fillmode` for non-stretch aspect handling.
-   * Otherwise the tile's intrinsic size is used.
+   * Allocates a new object — prefer `getRenderWidth`/`getRenderHeight`
+   * in hot loops to avoid GC pressure.
    */
   getRenderSize(localId: number, ctx: MapContext): { width: number; height: number } {
+    return {
+      width: this.getRenderWidth(localId, ctx),
+      height: this.getRenderHeight(localId, ctx)
+    }
+  }
+
+  /**
+   * Returns the rendered width of a tile (scalar, no allocation).
+   * Results are cached per localId for the lifetime of a single map context.
+   */
+  getRenderWidth(localId: number, ctx: MapContext): number {
+    this._ensureRenderCache(ctx)
+    const cached = this._renderWidthCache!.get(localId)
+    if (cached !== undefined) return cached
+    const size = this._computeRenderSize(localId, ctx)
+    this._renderWidthCache!.set(localId, size.width)
+    this._renderHeightCache!.set(localId, size.height)
+    return size.width
+  }
+
+  /**
+   * Returns the rendered height of a tile (scalar, no allocation).
+   */
+  getRenderHeight(localId: number, ctx: MapContext): number {
+    this._ensureRenderCache(ctx)
+    const cached = this._renderHeightCache!.get(localId)
+    if (cached !== undefined) return cached
+    const size = this._computeRenderSize(localId, ctx)
+    this._renderWidthCache!.set(localId, size.width)
+    this._renderHeightCache!.set(localId, size.height)
+    return size.height
+  }
+
+  private _ensureRenderCache(ctx: MapContext): void {
+    if (
+      this._renderWidthCache &&
+      this._cachedCtxTileWidth === ctx.tilewidth &&
+      this._cachedCtxTileHeight === ctx.tileheight
+    ) {
+      return
+    }
+    this._renderWidthCache = new Map()
+    this._renderHeightCache = new Map()
+    this._cachedCtxTileWidth = ctx.tilewidth
+    this._cachedCtxTileHeight = ctx.tileheight
+  }
+
+  private _computeRenderSize(localId: number, ctx: MapContext): { width: number; height: number } {
     const intrinsic = this.getTileSize(localId)
     if (this.tileset.tilerendersize !== 'grid') return intrinsic
 
@@ -100,5 +149,7 @@ export class TileSetRenderer {
     }
     this._ownedTextures.clear()
     this._externalTextures.clear()
+    this._renderWidthCache = null
+    this._renderHeightCache = null
   }
 }

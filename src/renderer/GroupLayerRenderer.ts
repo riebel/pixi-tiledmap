@@ -1,9 +1,8 @@
 import { Container, type Texture } from 'pixi.js'
-import type { ResolvedGroupLayer } from '../types'
+import type { MapContext, ResolvedGroupLayer } from '../types'
 import { createLayerRenderer } from './createLayerRenderer.js'
 import { parseTintColor } from './parseColor.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
-import type { MapContext } from './tilePlacement.js'
 
 export class GroupLayerRenderer extends Container {
   readonly layerData: ResolvedGroupLayer

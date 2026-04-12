@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, Text } from 'pixi.js'
 import { decodeGid } from '../parser'
+import { findTilesetForGid } from '../parser/tilesetHelpers.js'
 import type { ResolvedObjectLayer, TiledObject, TiledPoint, TiledText } from '../types'
 import { parseTintColor } from './parseColor.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
@@ -82,7 +83,7 @@ export class ObjectLayerRenderer extends Container {
     const decoded = decodeGid(obj.gid)
     if (!decoded) return null
 
-    const ts = findRendererForGid(tilesets, decoded.gid)
+    const ts = findTilesetForGid(decoded.gid, tilesets, (r) => r.tileset.firstgid)
     if (!ts) return null
 
     const localId = decoded.gid - ts.tileset.firstgid
@@ -233,12 +234,4 @@ export class ObjectLayerRenderer extends Container {
     g.visible = obj.visible
     return g
   }
-}
-
-function findRendererForGid(tilesets: TileSetRenderer[], gid: number): TileSetRenderer | null {
-  for (let i = tilesets.length - 1; i >= 0; i--) {
-    const ts = tilesets[i]
-    if (ts && ts.tileset.firstgid <= gid) return ts
-  }
-  return null
 }

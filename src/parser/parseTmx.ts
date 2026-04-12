@@ -35,6 +35,7 @@ import type {
   TiledWangSetType,
   TiledWangTile
 } from '../types'
+import { csvToGids } from './decodeData.js'
 import { computeTilesetColumns } from './tilesetHelpers.js'
 
 // ─── Attribute helpers ──────────────────────────────────────────────────────
@@ -351,13 +352,7 @@ function parseDataContent(el: Element, encoding: TiledEncoding | undefined): num
   }
 
   if (encoding === 'csv') {
-    const out: number[] = []
-    for (const token of (el.textContent ?? '').split(',')) {
-      const trimmed = token.trim()
-      if (trimmed.length === 0) continue
-      out.push(parseInt(trimmed, 10))
-    }
-    return out
+    return csvToGids(el.textContent ?? '')
   }
 
   // XML tile elements (no encoding)

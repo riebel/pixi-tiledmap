@@ -4,8 +4,7 @@
 import { Texture } from 'pixi.js'
 import { describe, expect, it, vi } from 'vitest'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
-import type { MapContext } from '../../src/renderer/tilePlacement.js'
-import type { ResolvedTileset, TiledTileDefinition } from '../../src/types/index.js'
+import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../../src/types/index.js'
 
 const ctx: MapContext = {
   orientation: 'orthogonal',

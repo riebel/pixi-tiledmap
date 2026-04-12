@@ -1,37 +1,6 @@
 import type { TiledCompression, TiledEncoding } from '../types'
 
-export function decodeLayerData(
-  data: number[] | string,
-  encoding?: TiledEncoding,
-  compression?: TiledCompression
-): number[] {
-  if (Array.isArray(data)) {
-    return data
-  }
-
-  if (encoding === 'csv') {
-    return csvToGids(data)
-  }
-
-  if (encoding === 'base64') {
-    const bytes = base64ToBytes(data)
-
-    if (compression === 'gzip' || compression === 'zlib') {
-      const decompressed = decompressBytes(bytes, compression)
-      return bytesToGids(decompressed)
-    }
-
-    if (compression === 'zstd') {
-      throw new Error('zstd compression is not supported in the browser')
-    }
-
-    return bytesToGids(bytes)
-  }
-
-  throw new Error(`Unsupported encoding: ${encoding ?? 'unknown'}`)
-}
-
-function csvToGids(csv: string): number[] {
+export function csvToGids(csv: string): number[] {
   const out: number[] = []
   let cur = 0
   let hasDigit = false
@@ -103,20 +72,47 @@ async function decompressBytesAsync(
   return result
 }
 
-function decompressBytes(_bytes: Uint8Array, compression: 'gzip' | 'zlib'): Uint8Array {
-  if (typeof DecompressionStream !== 'undefined') {
-    // Synchronous wrapper is not possible for DecompressionStream.
-    // We throw here — the async path should be used instead.
+function decodeBase64Sync(data: string, compression?: TiledCompression): number[] {
+  const bytes = base64ToBytes(data)
+
+  if (compression === 'gzip' || compression === 'zlib') {
     throw new Error(
       `Compressed tile data (${compression}) requires the async parser. ` +
         'Use parseMapAsync() instead of parseMap() for compressed maps.'
     )
   }
 
-  throw new Error(
-    `Compressed tile data (${compression}) is not supported in this environment. ` +
-      'DecompressionStream API is required.'
-  )
+  if (compression === 'zstd') {
+    throw new Error('zstd compression is not supported in the browser')
+  }
+
+  return bytesToGids(bytes)
+}
+
+async function decodeBase64Async(data: string, compression?: TiledCompression): Promise<number[]> {
+  const bytes = base64ToBytes(data)
+
+  if (compression === 'gzip' || compression === 'zlib') {
+    const decompressed = await decompressBytesAsync(bytes, compression)
+    return bytesToGids(decompressed)
+  }
+
+  if (compression === 'zstd') {
+    throw new Error('zstd compression is not supported in the browser')
+  }
+
+  return bytesToGids(bytes)
+}
+
+export function decodeLayerData(
+  data: number[] | string,
+  encoding?: TiledEncoding,
+  compression?: TiledCompression
+): number[] {
+  if (Array.isArray(data)) return data
+  if (encoding === 'csv') return csvToGids(data)
+  if (encoding === 'base64') return decodeBase64Sync(data, compression)
+  throw new Error(`Unsupported encoding: ${encoding ?? 'unknown'}`)
 }
 
 export async function decodeLayerDataAsync(
@@ -124,28 +120,8 @@ export async function decodeLayerDataAsync(
   encoding?: TiledEncoding,
   compression?: TiledCompression
 ): Promise<number[]> {
-  if (Array.isArray(data)) {
-    return data
-  }
-
-  if (encoding === 'csv') {
-    return csvToGids(data)
-  }
-
-  if (encoding === 'base64') {
-    const bytes = base64ToBytes(data)
-
-    if (compression === 'gzip' || compression === 'zlib') {
-      const decompressed = await decompressBytesAsync(bytes, compression)
-      return bytesToGids(decompressed)
-    }
-
-    if (compression === 'zstd') {
-      throw new Error('zstd compression is not supported in the browser')
-    }
-
-    return bytesToGids(bytes)
-  }
-
+  if (Array.isArray(data)) return data
+  if (encoding === 'csv') return csvToGids(data)
+  if (encoding === 'base64') return decodeBase64Async(data, compression)
   throw new Error(`Unsupported encoding: ${encoding ?? 'unknown'}`)
 }
