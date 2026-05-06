@@ -120,8 +120,9 @@ export class TileLayerRenderer extends Container {
           } else {
             sprite = new Sprite(texture)
           }
-          sprite.width = renderW
-          sprite.height = renderH
+          const padding = getTileSpritePadding(renderW, renderH, ctx)
+          sprite.width = renderW + padding
+          sprite.height = renderH + padding
           sprite.position.set(px + offset.x, py + offset.y + tileH - renderH)
           applyFlip(sprite, tile, renderW)
           this.addChild(sprite)
@@ -149,13 +150,20 @@ export class TileLayerRenderer extends Container {
     const sprite = new AnimatedSprite(textures)
     const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
     const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
-    sprite.width = renderW
-    sprite.height = renderH
+    const padding = getTileSpritePadding(renderW, renderH, ctx)
+    sprite.width = renderW + padding
+    sprite.height = renderH + padding
     sprite.position.set(x, y + ctx.tileheight - renderH)
     sprite.play()
     applyFlip(sprite, tile, renderW)
     return sprite
   }
+}
+
+function getTileSpritePadding(renderW: number, renderH: number, ctx: MapContext): number {
+  if (ctx.orientation !== 'orthogonal') return 0
+  if (renderW !== ctx.tilewidth || renderH !== ctx.tileheight) return 0
+  return ctx.tileSpritePadding ?? 0
 }
 
 function applyFlip(sprite: Sprite, tile: ResolvedTile, tileWidth: number): void {

@@ -21,21 +21,17 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **Tree-shakable** — ESM + CJS dual build, side-effect-free
 - **Typed** — comprehensive TypeScript types for the full Tiled spec
 
-<<<<<<< ours
-<<<<<<< ours
 > **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported — the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour.
-=======
-=======
->>>>>>> theirs
+
 ## Modernization Check (v2.0.0)
 
 v2.0.0 is modernized for the current PixiJS ecosystem and modern TypeScript package distribution:
 
-- Targets **PixiJS v8** via `peerDependencies` (`pixi.js: ^8.0.0`)
+- Targets **PixiJS v8** via `peerDependencies` (`pixi.js: >=8.7.0`)
 - Ships **ESM + CJS + TypeScript types** through the `exports` map (`import` + `require`)
 - Uses **native LoadParser integration** (`tiledMapLoader`) instead of legacy global loader APIs
 - Declares **side-effect-free** package metadata (`"sideEffects": false`) for tree-shaking
-- Uses a modern toolchain (`typescript`, `eslint` v9, `prettier` v3, `vitest`, `tsup`)
+- Uses a modern toolchain (`typescript`, `biome`, `vitest`, `tsdown`)
 
 ## Why this package stands out
 
@@ -53,10 +49,6 @@ If you want the best runtime behavior in your game/application:
 - Reuse `TiledMap` instances for frequently revisited scenes when possible.
 - Keep large worlds in infinite/chunked maps to avoid over-allocating one giant layer.
 - Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
 
 ## Installation
 
@@ -136,6 +128,8 @@ const map = new TiledMap(resolvedMap, {
   tilesetTextures, // Map<imagePath, Texture>
   imageLayerTextures, // Map<imagePath, Texture>
   tileImageTextures, // Map<imagePath, Texture> (image-collection tiles)
+  layerFilter, // optional (layer) => boolean, for rendering selected layers
+  tileSpritePadding, // optional, defaults to 0.01 to hide fractional-scale seams
 });
 
 map.orientation; // 'orthogonal' | 'isometric' | 'staggered' | 'hexagonal'
@@ -150,6 +144,24 @@ map.getLayer('ground'); // find layer Container by name
 // parallax 0 are pinned in screen space. Group-layer parallax composes
 // multiplicatively with its children.
 map.applyParallax(camera.x, camera.y);
+```
+
+To split a map around a player sprite, render the same resolved map twice with
+different layer filters:
+
+```ts
+const isOverhead = (layer: ResolvedLayer) =>
+  layer.properties.some((prop) => prop.name === 'overhead' && prop.value === true);
+
+const belowPlayer = new TiledMap(resolvedMap, {
+  tilesetTextures,
+  layerFilter: (layer) => !isOverhead(layer),
+});
+
+const abovePlayer = new TiledMap(resolvedMap, {
+  tilesetTextures,
+  layerFilter: isOverhead,
+});
 ```
 
 ### Object Templates

@@ -1,6 +1,6 @@
 import { Container, type Texture } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
-import type { MapContext, ResolvedGroupLayer } from '../types'
+import type { MapContext, ResolvedGroupLayer, TiledLayerFilter } from '../types'
 import { createLayerRenderer } from './createLayerRenderer.js'
 import { parseTintColor } from './parseColor.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
@@ -17,7 +17,8 @@ export class GroupLayerRenderer extends Container {
     tilesets: TileSetRenderer[],
     ctx: MapContext,
     imageTextures: Map<string, Texture>,
-    imageGifSources?: Map<string, GifSource>
+    imageGifSources?: Map<string, GifSource>,
+    layerFilter?: TiledLayerFilter
   ) {
     super()
 
@@ -35,7 +36,14 @@ export class GroupLayerRenderer extends Container {
     }
 
     for (const child of layerData.layers) {
-      const renderer = createLayerRenderer(child, tilesets, ctx, imageTextures, imageGifSources)
+      const renderer = createLayerRenderer(
+        child,
+        tilesets,
+        ctx,
+        imageTextures,
+        imageGifSources,
+        layerFilter
+      )
       if (renderer) this.addChild(renderer)
     }
   }

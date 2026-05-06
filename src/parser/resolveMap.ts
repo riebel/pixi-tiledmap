@@ -41,18 +41,7 @@ function resolveTileset(raw: TiledTileset, source?: string): ResolvedTileset {
     source,
     tilewidth: raw.tilewidth,
     tileheight: raw.tileheight,
-<<<<<<< ours
     columns: computeTilesetColumns(raw),
-=======
-    columns:
-      raw.columns > 0
-        ? raw.columns
-        : raw.imagewidth && raw.tilewidth > 0
-          ? Math.floor(
-              (raw.imagewidth - 2 * raw.margin + raw.spacing) / (raw.tilewidth + raw.spacing)
-            )
-          : 0,
->>>>>>> theirs
     tilecount: raw.tilecount,
     margin: raw.margin,
     spacing: raw.spacing,
@@ -72,34 +61,6 @@ function resolveTileset(raw: TiledTileset, source?: string): ResolvedTileset {
   }
 }
 
-<<<<<<< ours
-=======
-// ─── Find tileset for GID ────────────────────────────────────────────────────
-
-function findTilesetIndex(gid: number, tilesets: ResolvedTileset[]): number {
-  // Tilesets are ordered by firstgid in Tiled data.
-  // Use binary search to avoid O(tilesetCount) scanning for every tile GID.
-  let low = 0
-  let high = tilesets.length - 1
-  let found = 0
-
-  while (low <= high) {
-    const mid = (low + high) >> 1
-    const ts = tilesets[mid]
-    if (!ts) break
-
-    if (ts.firstgid <= gid) {
-      found = mid
-      low = mid + 1
-    } else {
-      high = mid - 1
-    }
-  }
-
-  return found
-}
-
->>>>>>> theirs
 // ─── Resolve tile data ───────────────────────────────────────────────────────
 
 function resolveGids(rawGids: number[], tilesets: ResolvedTileset[]): (ResolvedTile | null)[] {
