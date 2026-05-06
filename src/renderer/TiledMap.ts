@@ -81,7 +81,8 @@ export class TiledMap extends Container {
       staggeraxis: mapData.staggeraxis,
       staggerindex: mapData.staggerindex,
       mapPixelWidth: pixelSize.width,
-      mapPixelHeight: pixelSize.height
+      mapPixelHeight: pixelSize.height,
+      tileSpritePadding: options?.tileSpritePadding ?? 0.01
     }
 
     // Render background
@@ -96,7 +97,8 @@ export class TiledMap extends Container {
         this.tileSetRenderers,
         ctx,
         imageLayerTextures,
-        imageLayerGifSources
+        imageLayerGifSources,
+        options?.layerFilter
       )
       if (child) this.addChild(child)
     }

@@ -487,7 +487,21 @@ export interface TiledMapOptions {
   tileImageTextures?: Map<string, Texture>
   tileImageGifSources?: Map<string, GifSource>
   imageLayerGifSources?: Map<string, GifSource>
+  /**
+   * Render only layers accepted by this predicate. Group layers are kept when
+   * they match directly or contain a matching descendant.
+   */
+  layerFilter?: TiledLayerFilter
+  /**
+   * Extra pixels added to full-size orthogonal tile sprites to hide subpixel
+   * seams when the map container is scaled by a fractional amount.
+   *
+   * Set to 0 to disable.
+   */
+  tileSpritePadding?: number
 }
+
+export type TiledLayerFilter = (layer: ResolvedLayer) => boolean
 
 export interface TiledMapAsset {
   mapData: ResolvedMap
@@ -508,6 +522,7 @@ export interface MapContext {
   mapPixelWidth?: number
   /** Map height in pixels; used by image layers when tiling (repeatx/repeaty). */
   mapPixelHeight?: number
+  tileSpritePadding?: number
 }
 
 export interface TilePosition {

@@ -43,6 +43,7 @@ export type {
   TiledGridOrientation,
   TiledHAlign,
   TiledLayer,
+  TiledLayerFilter,
   TiledLayerType,
   TiledMap as TiledMapData,
   TiledMapAsset,
