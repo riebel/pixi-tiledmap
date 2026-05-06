@@ -21,7 +21,42 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **Tree-shakable** — ESM + CJS dual build, side-effect-free
 - **Typed** — comprehensive TypeScript types for the full Tiled spec
 
+<<<<<<< ours
+<<<<<<< ours
 > **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported — the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour.
+=======
+=======
+>>>>>>> theirs
+## Modernization Check (v2.0.0)
+
+v2.0.0 is modernized for the current PixiJS ecosystem and modern TypeScript package distribution:
+
+- Targets **PixiJS v8** via `peerDependencies` (`pixi.js: ^8.0.0`)
+- Ships **ESM + CJS + TypeScript types** through the `exports` map (`import` + `require`)
+- Uses **native LoadParser integration** (`tiledMapLoader`) instead of legacy global loader APIs
+- Declares **side-effect-free** package metadata (`"sideEffects": false`) for tree-shaking
+- Uses a modern toolchain (`typescript`, `eslint` v9, `prettier` v3, `vitest`, `tsup`)
+
+## Why this package stands out
+
+- **Complete Tiled coverage in one package**: JSON + TMX, all layer types, all map orientations.
+- **PixiJS-native loading path**: register once via `extensions.add(tiledMapLoader)` and load maps through `Assets`.
+- **Performance-minded internals**: chunked infinite-layer rendering, cached tile textures, and efficient GID→tileset resolution.
+- **Production packaging**: side-effect-free metadata, ESM/CJS dual output, and bundled type definitions.
+
+## Optimization checklist (for app integrators)
+
+If you want the best runtime behavior in your game/application:
+
+- Prefer `.tmj` for the fastest parse path when authoring allows it.
+- Preload map, tileset, and image assets with `Assets` before scene transitions.
+- Reuse `TiledMap` instances for frequently revisited scenes when possible.
+- Keep large worlds in infinite/chunked maps to avoid over-allocating one giant layer.
+- Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
+<<<<<<< ours
+>>>>>>> theirs
+=======
+>>>>>>> theirs
 
 ## Installation
 
