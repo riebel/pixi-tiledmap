@@ -1,38 +1,17 @@
-import { AnimatedSprite, Container, Sprite, type Texture } from 'pixi.js'
-import { GifSprite } from 'pixi.js/gif'
-import type {
-  MapContext,
-  ResolvedChunk,
-  ResolvedTile,
-  ResolvedTileLayer,
-  TiledFrame
-} from '../types'
-import { parseTintColor } from './parseColor.js'
+import type { MapContext, ResolvedChunk, ResolvedTile, ResolvedTileLayer } from '../types'
+import { getTileIterationPlan, tileToPixel } from './mapGeometry.js'
+import { PackedTileLayerRenderer } from './PackedTileLayerRenderer.js'
+import { applyLayerState } from './renderableLayer.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
-import { tileToPixel } from './tilePlacement.js'
 
-export class TileLayerRenderer extends Container {
+export class TileLayerRenderer extends PackedTileLayerRenderer {
   readonly layerData: ResolvedTileLayer
-  readonly layerBaseOffsetX: number
-  readonly layerBaseOffsetY: number
-  readonly layerParallaxX: number
-  readonly layerParallaxY: number
 
   constructor(layerData: ResolvedTileLayer, tilesets: TileSetRenderer[], ctx: MapContext) {
-    super()
+    super(estimateTileCapacity(layerData))
 
     this.layerData = layerData
-    this.label = layerData.name
-    this.alpha = layerData.opacity
-    this.visible = layerData.visible
-    this.layerBaseOffsetX = layerData.offsetx
-    this.layerBaseOffsetY = layerData.offsety
-    this.layerParallaxX = layerData.parallaxx
-    this.layerParallaxY = layerData.parallaxy
-    this.position.set(layerData.offsetx, layerData.offsety)
-    if (layerData.tintcolor) {
-      this.tint = parseTintColor(layerData.tintcolor)
-    }
+    applyLayerState(this, layerData)
 
     if (layerData.infinite && layerData.chunks) {
       this._buildChunks(layerData.chunks, tilesets, ctx)
@@ -47,6 +26,8 @@ export class TileLayerRenderer extends Container {
         ctx
       )
     }
+
+    this.finalize()
   }
 
   private _buildChunks(
@@ -68,125 +49,31 @@ export class TileLayerRenderer extends Container {
     tilesets: TileSetRenderer[],
     ctx: MapContext
   ): void {
-    const order = ctx.renderorder
-    const rightToLeft = order === 'left-down' || order === 'left-up'
-    const bottomToTop = order === 'right-up' || order === 'left-up'
+    const plan = getTileIterationPlan(layerWidth, layerHeight, ctx)
 
-    const rowStart = bottomToTop ? layerHeight - 1 : 0
-    const rowEnd = bottomToTop ? -1 : layerHeight
-    const rowStep = bottomToTop ? -1 : 1
-
-    const colStart = rightToLeft ? layerWidth - 1 : 0
-    const colEnd = rightToLeft ? -1 : layerWidth
-    const colStep = rightToLeft ? -1 : 1
-
-    const tileH = ctx.tileheight
-
-    for (let row = rowStart; row !== rowEnd; row += rowStep) {
+    for (let row = plan.rowStart; row !== plan.rowEnd; row += plan.rowStep) {
       const rowOffset = row * layerWidth
-      for (let col = colStart; col !== colEnd; col += colStep) {
+      for (let col = plan.colStart; col !== plan.colEnd; col += plan.colStep) {
         const tile = tiles[rowOffset + col]
         if (!tile) continue
 
         const tsRenderer = tilesets[tile.tilesetIndex]
         if (!tsRenderer) continue
 
+        // Read x/y immediately - tileToPixel returns a reusable object.
         const pos = tileToPixel(originCol + col, originRow + row, ctx)
-        // Read x/y immediately — pos is a reusable object overwritten on next call.
-        const px = pos.x
-        const py = pos.y
-        const animFrames = tsRenderer.getAnimationFrames(tile.localId)
-
-        const offset = tsRenderer.tileset.tileoffset
-
-        if (animFrames && animFrames.length > 1) {
-          const sprite = this._createAnimatedTile(tsRenderer, animFrames, tile, px, py, ctx)
-          if (sprite) {
-            sprite.position.x += offset.x
-            sprite.position.y += offset.y
-            this.addChild(sprite)
-          }
-        } else {
-          const texture = tsRenderer.getTexture(tile.localId)
-          if (!texture) continue
-
-          const gifSource = tsRenderer.getGifSource(tile.localId)
-          const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
-          const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
-
-          let sprite: Sprite
-          if (gifSource) {
-            sprite = new GifSprite({ source: gifSource })
-          } else {
-            sprite = new Sprite(texture)
-          }
-          const padding = getTileSpritePadding(renderW, renderH, ctx)
-          sprite.width = renderW + padding
-          sprite.height = renderH + padding
-          sprite.position.set(px + offset.x, py + offset.y + tileH - renderH)
-          applyFlip(sprite, tile)
-          this.addChild(sprite)
-        }
+        this.addTile(tile, tsRenderer, pos.x, pos.y, ctx)
       }
     }
   }
-
-  private _createAnimatedTile(
-    tsRenderer: TileSetRenderer,
-    frames: TiledFrame[],
-    tile: ResolvedTile,
-    x: number,
-    y: number,
-    ctx: MapContext
-  ): AnimatedSprite | null {
-    const textures: { texture: Texture; time: number }[] = []
-
-    for (const frame of frames) {
-      const tex = tsRenderer.getTexture(frame.tileid)
-      if (!tex) return null
-      textures.push({ texture: tex, time: frame.duration })
-    }
-
-    const sprite = new AnimatedSprite(textures)
-    const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
-    const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
-    const padding = getTileSpritePadding(renderW, renderH, ctx)
-    sprite.width = renderW + padding
-    sprite.height = renderH + padding
-    sprite.position.set(x, y + ctx.tileheight - renderH)
-    sprite.play()
-    applyFlip(sprite, tile)
-    return sprite
-  }
 }
 
-function getTileSpritePadding(renderW: number, renderH: number, ctx: MapContext): number {
-  if (ctx.orientation !== 'orthogonal') return 0
-  if (renderW !== ctx.tilewidth || renderH !== ctx.tileheight) return 0
-  return ctx.tileSpritePadding ?? 0
-}
-
-function applyFlip(sprite: Sprite, tile: ResolvedTile): void {
-  if (tile.diagonalFlip) {
-    // Tiled encodes rotations via the diagonal (anti-diagonal) flip bit combined
-    // with H/V bits. For all diagonal cases rotation is PI/2 (CW); the anchor and
-    // scale vary by H/V to produce the four distinct transforms:
-    //   D      → transpose     anchor(0,0) scale( 1,−1)
-    //   D+H    → 90° CW        anchor(0,1) scale( 1, 1)
-    //   D+V    → 90° CCW       anchor(1,0) scale(−1,−1)
-    //   D+H+V  → 270° CW       anchor(1,1) scale(−1, 1)
-    sprite.rotation = Math.PI / 2
-    sprite.scale.x = tile.verticalFlip ? -1 : 1
-    sprite.scale.y = tile.horizontalFlip ? 1 : -1
-    sprite.anchor.set(tile.verticalFlip ? 1 : 0, tile.horizontalFlip ? 1 : 0)
-  } else {
-    if (tile.horizontalFlip) {
-      sprite.scale.x = -1
-      sprite.anchor.x = 1
-    }
-    if (tile.verticalFlip) {
-      sprite.scale.y = -1
-      sprite.anchor.y = 1
-    }
+function estimateTileCapacity(layerData: ResolvedTileLayer): number {
+  if (layerData.infinite && layerData.chunks) {
+    let count = 0
+    for (const chunk of layerData.chunks) count += chunk.tiles.length
+    return count
   }
+
+  return layerData.tiles.length
 }

@@ -1,11 +1,16 @@
 /**
  * @vitest-environment jsdom
  */
-import { type Sprite, Texture } from 'pixi.js'
+import { Mesh, Texture } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
 import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
-import type { MapContext, ResolvedTile, ResolvedTileLayer, ResolvedTileset } from '../../src/types/index.js'
+import type {
+  MapContext,
+  ResolvedTile,
+  ResolvedTileLayer,
+  ResolvedTileset
+} from '../../src/types/index.js'
 
 const SIZE = 32
 
@@ -71,96 +76,52 @@ function makeLayer(tile: ResolvedTile): TileLayerRenderer {
   return new TileLayerRenderer(layer, [makeTileset()], ctx)
 }
 
-describe('applyFlip — non-diagonal', () => {
-  // Note: applyFlip only sets the scale for the flipped axis; the other axis
-  // retains whatever sprite.width/height set it to. Tests only check the
-  // properties that applyFlip explicitly writes.
+function meshUvs(tile: ResolvedTile): number[] {
+  const mesh = makeLayer(tile).children[0] as Mesh
+  expect(mesh).toBeInstanceOf(Mesh)
+  return Array.from(mesh.geometry.uvs)
+}
 
-  it('no flip: default anchor and rotation', () => {
-    const sprite = makeLayer(makeTile({})).children[0] as Sprite
-    expect(sprite.anchor.x).toBe(0)
-    expect(sprite.anchor.y).toBe(0)
-    expect(sprite.rotation).toBe(0)
-    expect(sprite.position.x).toBe(0)
-    expect(sprite.position.y).toBe(0)
+describe('packed tile UV transforms — non-diagonal', () => {
+  it('no flip: keeps source UV order', () => {
+    expect(meshUvs(makeTile({}))).toEqual([0, 0, 1, 0, 1, 1, 0, 1])
   })
 
-  it('H flip: anchor.x=1, scale.x=-1', () => {
-    const sprite = makeLayer(makeTile({ horizontalFlip: true })).children[0] as Sprite
-    expect(sprite.anchor.x).toBe(1)
-    expect(sprite.anchor.y).toBe(0)
-    expect(sprite.scale.x).toBe(-1)
-    expect(sprite.rotation).toBe(0)
+  it('H flip: mirrors UVs horizontally', () => {
+    expect(meshUvs(makeTile({ horizontalFlip: true }))).toEqual([1, 0, 0, 0, 0, 1, 1, 1])
   })
 
-  it('V flip: anchor.y=1, scale.y=-1', () => {
-    const sprite = makeLayer(makeTile({ verticalFlip: true })).children[0] as Sprite
-    expect(sprite.anchor.x).toBe(0)
-    expect(sprite.anchor.y).toBe(1)
-    expect(sprite.scale.y).toBe(-1)
-    expect(sprite.rotation).toBe(0)
+  it('V flip: mirrors UVs vertically', () => {
+    expect(meshUvs(makeTile({ verticalFlip: true }))).toEqual([0, 1, 1, 1, 1, 0, 0, 0])
   })
 
-  it('H+V flip (180°): anchor(1,1), scale(-1,-1)', () => {
-    const sprite = makeLayer(
-      makeTile({ horizontalFlip: true, verticalFlip: true })
-    ).children[0] as Sprite
-    expect(sprite.anchor.x).toBe(1)
-    expect(sprite.anchor.y).toBe(1)
-    expect(sprite.scale.x).toBe(-1)
-    expect(sprite.scale.y).toBe(-1)
-    expect(sprite.rotation).toBe(0)
+  it('H+V flip: rotates UVs by 180 degrees', () => {
+    expect(meshUvs(makeTile({ horizontalFlip: true, verticalFlip: true }))).toEqual([
+      1, 1, 0, 1, 0, 0, 1, 0
+    ])
   })
 })
 
-describe('applyFlip — diagonal (rotation)', () => {
-  it('D+H (90° CW): anchor(0,1), scale(1,1), rotation=PI/2, no position shift', () => {
-    const sprite = makeLayer(
-      makeTile({ diagonalFlip: true, horizontalFlip: true })
-    ).children[0] as Sprite
-    expect(sprite.rotation).toBeCloseTo(Math.PI / 2)
-    expect(sprite.anchor.x).toBe(0)
-    expect(sprite.anchor.y).toBe(1)
-    expect(sprite.scale.x).toBe(1)
-    expect(sprite.scale.y).toBe(1)
-    expect(sprite.position.x).toBe(0)
-    expect(sprite.position.y).toBe(0)
+describe('packed tile UV transforms — diagonal', () => {
+  it('D+H: rotates UVs clockwise', () => {
+    expect(meshUvs(makeTile({ diagonalFlip: true, horizontalFlip: true }))).toEqual([
+      0, 1, 0, 0, 1, 0, 1, 1
+    ])
   })
 
-  it('D+V (90° CCW): anchor(1,0), scale(-1,-1), rotation=PI/2', () => {
-    const sprite = makeLayer(
-      makeTile({ diagonalFlip: true, verticalFlip: true })
-    ).children[0] as Sprite
-    expect(sprite.rotation).toBeCloseTo(Math.PI / 2)
-    expect(sprite.anchor.x).toBe(1)
-    expect(sprite.anchor.y).toBe(0)
-    expect(sprite.scale.x).toBe(-1)
-    expect(sprite.scale.y).toBe(-1)
-    expect(sprite.position.x).toBe(0)
-    expect(sprite.position.y).toBe(0)
+  it('D+V: rotates UVs counter-clockwise', () => {
+    expect(meshUvs(makeTile({ diagonalFlip: true, verticalFlip: true }))).toEqual([
+      1, 0, 1, 1, 0, 1, 0, 0
+    ])
   })
 
-  it('D alone (transpose): anchor(0,0), scale(1,-1), rotation=PI/2', () => {
-    const sprite = makeLayer(makeTile({ diagonalFlip: true })).children[0] as Sprite
-    expect(sprite.rotation).toBeCloseTo(Math.PI / 2)
-    expect(sprite.anchor.x).toBe(0)
-    expect(sprite.anchor.y).toBe(0)
-    expect(sprite.scale.x).toBe(1)
-    expect(sprite.scale.y).toBe(-1)
-    expect(sprite.position.x).toBe(0)
-    expect(sprite.position.y).toBe(0)
+  it('D alone: transposes UVs', () => {
+    expect(meshUvs(makeTile({ diagonalFlip: true }))).toEqual([0, 0, 0, 1, 1, 1, 1, 0])
   })
 
-  it('D+H+V (270° CW): anchor(1,1), scale(-1,1), rotation=PI/2', () => {
-    const sprite = makeLayer(
-      makeTile({ diagonalFlip: true, horizontalFlip: true, verticalFlip: true })
-    ).children[0] as Sprite
-    expect(sprite.rotation).toBeCloseTo(Math.PI / 2)
-    expect(sprite.anchor.x).toBe(1)
-    expect(sprite.anchor.y).toBe(1)
-    expect(sprite.scale.x).toBe(-1)
-    expect(sprite.scale.y).toBe(1)
-    expect(sprite.position.x).toBe(0)
-    expect(sprite.position.y).toBe(0)
+  it('D+H+V: transposes and flips both axes', () => {
+    expect(
+      meshUvs(makeTile({ diagonalFlip: true, horizontalFlip: true, verticalFlip: true }))
+    ).toEqual([1, 1, 1, 0, 0, 0, 0, 1])
   })
 })

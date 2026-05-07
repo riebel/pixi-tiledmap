@@ -29,6 +29,7 @@ export type {
   ResolvedImageLayer,
   ResolvedLayer,
   ResolvedMap,
+  ResolvedObject,
   ResolvedObjectLayer,
   ResolvedTile,
   ResolvedTileLayer,

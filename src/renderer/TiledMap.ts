@@ -1,29 +1,10 @@
 import { Container, Graphics, Rectangle } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedMap, TiledMapOptions } from '../types'
-import { createLayerRenderer } from './createLayerRenderer.js'
-import { GroupLayerRenderer } from './GroupLayerRenderer.js'
-import { ImageLayerRenderer } from './ImageLayerRenderer.js'
+import { applyParallaxToLayerTree, renderLayerTree } from './layerTreeRenderer.js'
 import { computeMapPixelSize } from './mapSize.js'
-import { ObjectLayerRenderer } from './ObjectLayerRenderer.js'
 import { parseTintColor } from './parseColor.js'
-import { TileLayerRenderer } from './TileLayerRenderer.js'
 import { TileSetRenderer } from './TileSetRenderer.js'
-
-type ParallaxLayer =
-  | TileLayerRenderer
-  | ImageLayerRenderer
-  | ObjectLayerRenderer
-  | GroupLayerRenderer
-
-function isParallaxLayer(c: Container): c is ParallaxLayer {
-  return (
-    c instanceof TileLayerRenderer ||
-    c instanceof ImageLayerRenderer ||
-    c instanceof ObjectLayerRenderer ||
-    c instanceof GroupLayerRenderer
-  )
-}
 
 export class TiledMap extends Container {
   readonly mapData: ResolvedMap
@@ -91,17 +72,14 @@ export class TiledMap extends Container {
     }
 
     // Render layers
-    for (const layer of mapData.layers) {
-      const child = createLayerRenderer(
-        layer,
-        this.tileSetRenderers,
-        ctx,
-        imageLayerTextures,
-        imageLayerGifSources,
-        options?.layerFilter
-      )
-      if (child) this.addChild(child)
+    const layerContext = {
+      tilesets: this.tileSetRenderers,
+      mapContext: ctx,
+      imageTextures: imageLayerTextures,
+      imageGifSources: imageLayerGifSources,
+      layerFilter: options?.layerFilter
     }
+    this.addChild(...renderLayerTree(mapData.layers, layerContext))
   }
 
   get orientation() {
@@ -138,11 +116,7 @@ export class TiledMap extends Container {
   applyParallax(cameraX: number, cameraY: number): void {
     const ox = this.mapData.parallaxoriginx
     const oy = this.mapData.parallaxoriginy
-    for (const child of this.children) {
-      if (isParallaxLayer(child)) {
-        applyParallaxRecursive(child, cameraX, cameraY, ox, oy, 1, 1)
-      }
-    }
+    applyParallaxToLayerTree(this.children, cameraX, cameraY, ox, oy)
   }
 
   private _buildBackground(pixelWidth: number, pixelHeight: number, colorHex: string): void {
@@ -157,31 +131,5 @@ export class TiledMap extends Container {
       ts.destroy()
     }
     super.destroy(options)
-  }
-}
-
-function applyParallaxRecursive(
-  layer: ParallaxLayer,
-  cameraX: number,
-  cameraY: number,
-  originX: number,
-  originY: number,
-  parentParallaxX: number,
-  parentParallaxY: number
-): void {
-  const px = layer.layerParallaxX * parentParallaxX
-  const py = layer.layerParallaxY * parentParallaxY
-
-  layer.position.set(
-    layer.layerBaseOffsetX + (cameraX - originX) * (1 - px),
-    layer.layerBaseOffsetY + (cameraY - originY) * (1 - py)
-  )
-
-  if (layer instanceof GroupLayerRenderer) {
-    for (const child of layer.children) {
-      if (isParallaxLayer(child)) {
-        applyParallaxRecursive(child, cameraX, cameraY, originX, originY, px, py)
-      }
-    }
   }
 }

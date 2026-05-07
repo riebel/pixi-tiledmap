@@ -11,6 +11,7 @@ import { GifAsset } from 'pixi.js/gif'
 import { parseMapAsync, parseTmx, parseTsx, parseTx } from '../parser'
 import { isTilesetRef } from '../parser/tilesetHelpers.js'
 import type {
+  ResolvedMap,
   TiledLayer,
   TiledMapAsset,
   TiledMap as TiledMapData,
@@ -21,6 +22,77 @@ import type {
 import { TiledMap } from './TiledMap.js'
 
 extensions.add(GifAsset)
+
+type FetchFn = (url: string) => Promise<{ text(): Promise<string>; json(): Promise<unknown> }>
+type LoadAssetFn = <T>(url: string) => Promise<T>
+
+interface TiledAssetPipelineOptions {
+  fetchFn?: FetchFn
+  loadAsset?: LoadAssetFn
+}
+
+interface TextureManifestEntry {
+  source: string
+  url: string
+}
+
+interface TextureManifest {
+  tilesetImages: TextureManifestEntry[]
+  tileImages: TextureManifestEntry[]
+  imageLayerImages: TextureManifestEntry[]
+}
+
+interface LoadedTextureSets {
+  tilesetTextures: Map<string, Texture>
+  imageLayerTextures: Map<string, Texture>
+  tileImageTextures: Map<string, Texture>
+  tileImageGifSources: Map<string, GifSource>
+  imageLayerGifSources: Map<string, GifSource>
+}
+
+export async function fetchMapDependencies(
+  data: TiledMapData,
+  basePath: string,
+  fetchFn: FetchFn = fetch
+): Promise<{
+  externalTilesets: Map<string, TiledTileset>
+  templates: Map<string, TiledObjectTemplate>
+}> {
+  const externalTilesets = new Map<string, TiledTileset>()
+  for (const ts of data.tilesets) {
+    if (!isTilesetRef(ts)) continue
+    const tsUrl = pixiPath.join(basePath, ts.source)
+    const tsResponse = await fetchFn(tsUrl)
+    const tsExt = pixiPath.extname(ts.source).toLowerCase()
+    externalTilesets.set(
+      ts.source,
+      tsExt === '.tsx'
+        ? parseTsx(await tsResponse.text())
+        : ((await tsResponse.json()) as TiledTileset)
+    )
+  }
+
+  const templates = new Map<string, TiledObjectTemplate>()
+  const templateSources = new Set<string>()
+  for (const obj of walkObjects(data.layers)) {
+    if (obj.template) templateSources.add(obj.template)
+  }
+  await Promise.all(
+    Array.from(templateSources).map(async (src) => {
+      const tplUrl = pixiPath.join(basePath, src)
+      const tplResponse = await fetchFn(tplUrl)
+      const tplExt = pixiPath.extname(src).toLowerCase()
+      templates.set(
+        src,
+        tplExt === '.tx'
+          ? parseTx(await tplResponse.text())
+          : ((await tplResponse.json()) as TiledObjectTemplate)
+      )
+    })
+  )
+
+  return { externalTilesets, templates }
+}
 
 export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
   extension: {
@@ -37,137 +109,120 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset> = {
   },
 
   async load(url: string): Promise<TiledMapAsset> {
-    const ext = pixiPath.extname(url).toLowerCase()
-    const response = await fetch(url)
+    return loadTiledMapAsset(url)
+  }
+}
 
-    let data: TiledMapData
-    if (ext === '.tmx') {
-      const xml = await response.text()
-      data = parseTmx(xml)
-    } else {
-      data = (await response.json()) as TiledMapData
+export async function loadTiledMapAsset(
+  url: string,
+  options?: TiledAssetPipelineOptions
+): Promise<TiledMapAsset> {
+  const fetchFn = options?.fetchFn ?? fetch
+  const loadAsset = options?.loadAsset
+  const data = await fetchTiledMapData(url, fetchFn)
+  const basePath = pixiPath.dirname(url)
+  const { externalTilesets, templates } = await fetchMapDependencies(data, basePath, fetchFn)
+  const mapData = await parseMapAsync(data, { externalTilesets, templates })
+  const textures = await loadTextureManifest(collectTextureManifest(mapData, basePath), loadAsset)
+  const container = new TiledMap(mapData, {
+    tilesetTextures: textures.tilesetTextures,
+    imageLayerTextures: textures.imageLayerTextures,
+    tileImageTextures: textures.tileImageTextures,
+    tileImageGifSources: textures.tileImageGifSources,
+    imageLayerGifSources: textures.imageLayerGifSources
+  })
+
+  return { mapData, container }
+}
+
+async function fetchTiledMapData(url: string, fetchFn: FetchFn): Promise<TiledMapData> {
+  const ext = pixiPath.extname(url).toLowerCase()
+  const response = await fetchFn(url)
+
+  if (ext === '.tmx') {
+    return parseTmx(await response.text())
+  }
+
+  return (await response.json()) as TiledMapData
+}
+
+export function collectTextureManifest(mapData: ResolvedMap, basePath: string): TextureManifest {
+  const tilesetImages: TextureManifestEntry[] = []
+  const tileImages: TextureManifestEntry[] = []
+  const imageLayerImages: TextureManifestEntry[] = []
+
+  for (const ts of mapData.tilesets) {
+    if (ts.image) {
+      tilesetImages.push({ source: ts.image, url: pixiPath.join(basePath, ts.image) })
     }
 
-    const basePath = pixiPath.dirname(url)
-
-    // Resolve external tilesets
-    const externalTilesets = new Map<string, TiledTileset>()
-    for (const ts of data.tilesets) {
-      if (!isTilesetRef(ts)) continue
-      const tsUrl = pixiPath.join(basePath, ts.source)
-      const tsResponse = await fetch(tsUrl)
-      const tsExt = pixiPath.extname(ts.source).toLowerCase()
-      let tsData: TiledTileset
-      if (tsExt === '.tsx') {
-        const tsXml = await tsResponse.text()
-        tsData = parseTsx(tsXml)
-      } else {
-        tsData = (await tsResponse.json()) as TiledTileset
+    for (const [_localId, tileDef] of ts.tiles) {
+      if (tileDef.image) {
+        tileImages.push({ source: tileDef.image, url: pixiPath.join(basePath, tileDef.image) })
       }
-      externalTilesets.set(ts.source, tsData)
     }
+  }
 
-    // Resolve object templates — walk every object layer (including nested
-    // group layers) to find unique template references, then fetch each one
-    // in parallel. Templates may be either .tx (XML) or .tj (JSON).
-    const templates = new Map<string, TiledObjectTemplate>()
-    const templateSources = new Set<string>()
-    for (const obj of walkObjects(data.layers)) {
-      if (obj.template) templateSources.add(obj.template)
+  for (const layer of flattenLayers(mapData.layers)) {
+    if (layer.type === 'imagelayer' && layer.image) {
+      imageLayerImages.push({ source: layer.image, url: pixiPath.join(basePath, layer.image) })
     }
-    await Promise.all(
-      Array.from(templateSources).map(async (src) => {
-        const tplUrl = pixiPath.join(basePath, src)
-        const tplResponse = await fetch(tplUrl)
-        const tplExt = pixiPath.extname(src).toLowerCase()
-        let tpl: TiledObjectTemplate
-        if (tplExt === '.tx') {
-          const tplXml = await tplResponse.text()
-          tpl = parseTx(tplXml)
+  }
+
+  return { tilesetImages, tileImages, imageLayerImages }
+}
+
+export async function loadTextureManifest(
+  manifest: TextureManifest,
+  loadAsset: LoadAssetFn = (url) => Assets.load(url)
+): Promise<LoadedTextureSets> {
+  const loaded: LoadedTextureSets = {
+    tilesetTextures: new Map(),
+    imageLayerTextures: new Map(),
+    tileImageTextures: new Map(),
+    tileImageGifSources: new Map(),
+    imageLayerGifSources: new Map()
+  }
+
+  await Promise.all([
+    ...manifest.tilesetImages.map((entry) =>
+      loadAsset<Texture | GifSource>(entry.url).then((asset) => {
+        loaded.tilesetTextures.set(entry.source, firstTexture(asset, entry.url))
+      })
+    ),
+    ...manifest.tileImages.map((entry) =>
+      loadAsset<Texture | GifSource>(entry.url).then((asset) => {
+        if (isGifUrl(entry.url)) {
+          const gifSource = asset as GifSource
+          loaded.tileImageTextures.set(entry.source, gifSource.textures[0] as Texture)
+          loaded.tileImageGifSources.set(entry.source, gifSource)
         } else {
-          tpl = (await tplResponse.json()) as TiledObjectTemplate
+          loaded.tileImageTextures.set(entry.source, asset as Texture)
         }
-        templates.set(src, tpl)
+      })
+    ),
+    ...manifest.imageLayerImages.map((entry) =>
+      loadAsset<Texture | GifSource>(entry.url).then((asset) => {
+        if (isGifUrl(entry.url)) {
+          const gifSource = asset as GifSource
+          loaded.imageLayerTextures.set(entry.source, gifSource.textures[0] as Texture)
+          loaded.imageLayerGifSources.set(entry.source, gifSource)
+        } else {
+          loaded.imageLayerTextures.set(entry.source, asset as Texture)
+        }
       })
     )
+  ])
 
-    // Parse the map to resolved IR
-    const mapData = await parseMapAsync(data, { externalTilesets, templates })
+  return loaded
+}
 
-    // Load tileset textures
-    const tilesetTextures = new Map<string, Texture>()
-    const imageLayerTextures = new Map<string, Texture>()
-    const tileImageTextures = new Map<string, Texture>()
-    const tileImageGifSources = new Map<string, GifSource>()
-    const imageLayerGifSources = new Map<string, GifSource>()
+function firstTexture(asset: Texture | GifSource, url: string): Texture {
+  return isGifUrl(url) ? ((asset as GifSource).textures[0] as Texture) : (asset as Texture)
+}
 
-    const textureLoads: Promise<void>[] = []
-
-    for (const ts of mapData.tilesets) {
-      if (ts.image) {
-        const imageUrl = pixiPath.join(basePath, ts.image)
-        textureLoads.push(
-          Assets.load<Texture | GifSource>(imageUrl).then((tex) => {
-            tilesetTextures.set(
-              ts.image!,
-              imageUrl.toLowerCase().endsWith('.gif')
-                ? ((tex as GifSource).textures[0] as Texture)
-                : (tex as Texture)
-            )
-          })
-        )
-      }
-
-      // Image-collection tilesets: each tile has its own image
-      for (const [_localId, tileDef] of ts.tiles) {
-        if (tileDef.image) {
-          const tileImgUrl = pixiPath.join(basePath, tileDef.image)
-          textureLoads.push(
-            Assets.load<Texture | GifSource>(tileImgUrl).then((tex) => {
-              if (tileImgUrl.toLowerCase().endsWith('.gif')) {
-                const gifSource = tex as GifSource
-                tileImageTextures.set(tileDef.image!, gifSource.textures[0] as Texture)
-                tileImageGifSources.set(tileDef.image!, gifSource)
-              } else {
-                tileImageTextures.set(tileDef.image!, tex as Texture)
-              }
-            })
-          )
-        }
-      }
-    }
-
-    // Load image layer textures
-    for (const layer of flattenLayers(mapData.layers)) {
-      if (layer.type === 'imagelayer' && layer.image) {
-        const imgUrl = pixiPath.join(basePath, layer.image)
-        textureLoads.push(
-          Assets.load<Texture | GifSource>(imgUrl).then((tex) => {
-            if (imgUrl.toLowerCase().endsWith('.gif')) {
-              const gifSource = tex as GifSource
-              imageLayerTextures.set(layer.image, gifSource.textures[0] as Texture)
-              imageLayerGifSources.set(layer.image, gifSource)
-            } else {
-              imageLayerTextures.set(layer.image, tex as Texture)
-            }
-          })
-        )
-      }
-    }
-
-    await Promise.all(textureLoads)
-
-    // Build the display tree
-    const container = new TiledMap(mapData, {
-      tilesetTextures,
-      imageLayerTextures,
-      tileImageTextures,
-      tileImageGifSources,
-      imageLayerGifSources
-    })
-
-    return { mapData, container }
-  }
+function isGifUrl(url: string): boolean {
+  return url.toLowerCase().endsWith('.gif')
 }
 
 function flattenLayers<L extends { type: string; layers?: L[] }>(layers: L[]): L[] {

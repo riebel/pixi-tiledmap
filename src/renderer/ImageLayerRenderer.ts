@@ -1,14 +1,10 @@
 import { Container, Sprite, type Texture, TilingSprite } from 'pixi.js'
 import { type GifSource, GifSprite } from 'pixi.js/gif'
 import type { MapContext, ResolvedImageLayer } from '../types'
-import { parseTintColor } from './parseColor.js'
+import { applyLayerState } from './renderableLayer.js'
 
 export class ImageLayerRenderer extends Container {
   readonly layerData: ResolvedImageLayer
-  readonly layerBaseOffsetX: number
-  readonly layerBaseOffsetY: number
-  readonly layerParallaxX: number
-  readonly layerParallaxY: number
 
   constructor(
     layerData: ResolvedImageLayer,
@@ -19,17 +15,7 @@ export class ImageLayerRenderer extends Container {
     super()
 
     this.layerData = layerData
-    this.label = layerData.name
-    this.alpha = layerData.opacity
-    this.visible = layerData.visible
-    this.layerBaseOffsetX = layerData.offsetx
-    this.layerBaseOffsetY = layerData.offsety
-    this.layerParallaxX = layerData.parallaxx
-    this.layerParallaxY = layerData.parallaxy
-    this.position.set(layerData.offsetx, layerData.offsety)
-    if (layerData.tintcolor) {
-      this.tint = parseTintColor(layerData.tintcolor)
-    }
+    applyLayerState(this, layerData)
 
     if (texture) {
       this._buildImage(texture, ctx, gifSource ?? null)

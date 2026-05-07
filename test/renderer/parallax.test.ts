@@ -3,47 +3,25 @@
  */
 import { describe, expect, it } from 'vitest'
 import { TiledMap } from '../../src/renderer/TiledMap.js'
-import type { ResolvedMap } from '../../src/types/index.js'
-
-function makeMap(overrides?: Partial<ResolvedMap>): ResolvedMap {
-  return {
-    orientation: 'orthogonal',
-    renderorder: 'right-down',
-    width: 2,
-    height: 2,
-    tilewidth: 32,
-    tileheight: 32,
-    infinite: false,
-    parallaxoriginx: 0,
-    parallaxoriginy: 0,
-    properties: [],
-    tilesets: [],
-    layers: [],
-    version: '1.10',
-    ...overrides
-  }
-}
+import {
+  makeResolvedGroupLayer,
+  makeResolvedImageLayer,
+  makeResolvedMap
+} from '../helpers/resolved.js'
 
 describe('TiledMap.applyParallax', () => {
   it('leaves layers at base offset when camera is at origin', () => {
     const map = new TiledMap(
-      makeMap({
+      makeResolvedMap({
         layers: [
-          {
-            type: 'imagelayer',
+          makeResolvedImageLayer({
             id: 1,
             name: 'bg',
-            opacity: 1,
-            visible: true,
             offsetx: 10,
             offsety: 20,
             parallaxx: 0.5,
-            parallaxy: 0.5,
-            properties: [],
-            image: '',
-            repeatx: false,
-            repeaty: false
-          }
+            parallaxy: 0.5
+          })
         ]
       })
     )
@@ -56,23 +34,14 @@ describe('TiledMap.applyParallax', () => {
 
   it('pins a parallax-0 layer in screen space as camera moves', () => {
     const map = new TiledMap(
-      makeMap({
+      makeResolvedMap({
         layers: [
-          {
-            type: 'imagelayer',
+          makeResolvedImageLayer({
             id: 1,
             name: 'sky',
-            opacity: 1,
-            visible: true,
-            offsetx: 0,
-            offsety: 0,
             parallaxx: 0,
-            parallaxy: 0,
-            properties: [],
-            image: '',
-            repeatx: false,
-            repeaty: false
-          }
+            parallaxy: 0
+          })
         ]
       })
     )
@@ -86,23 +55,14 @@ describe('TiledMap.applyParallax', () => {
 
   it('moves a parallax-1 layer with the camera (net zero offset shift)', () => {
     const map = new TiledMap(
-      makeMap({
+      makeResolvedMap({
         layers: [
-          {
-            type: 'imagelayer',
+          makeResolvedImageLayer({
             id: 1,
             name: 'world',
-            opacity: 1,
-            visible: true,
             offsetx: 5,
-            offsety: 5,
-            parallaxx: 1,
-            parallaxy: 1,
-            properties: [],
-            image: '',
-            repeatx: false,
-            repeaty: false
-          }
+            offsety: 5
+          })
         ]
       })
     )
@@ -116,23 +76,14 @@ describe('TiledMap.applyParallax', () => {
 
   it('applies half-speed parallax at 0.5 factor', () => {
     const map = new TiledMap(
-      makeMap({
+      makeResolvedMap({
         layers: [
-          {
-            type: 'imagelayer',
+          makeResolvedImageLayer({
             id: 1,
             name: 'mid',
-            opacity: 1,
-            visible: true,
-            offsetx: 0,
-            offsety: 0,
             parallaxx: 0.5,
-            parallaxy: 0.25,
-            properties: [],
-            image: '',
-            repeatx: false,
-            repeaty: false
-          }
+            parallaxy: 0.25
+          })
         ]
       })
     )
@@ -147,25 +98,16 @@ describe('TiledMap.applyParallax', () => {
 
   it('honours parallaxoriginx/y', () => {
     const map = new TiledMap(
-      makeMap({
+      makeResolvedMap({
         parallaxoriginx: 40,
         parallaxoriginy: 80,
         layers: [
-          {
-            type: 'imagelayer',
+          makeResolvedImageLayer({
             id: 1,
             name: 'bg',
-            opacity: 1,
-            visible: true,
-            offsetx: 0,
-            offsety: 0,
             parallaxx: 0,
-            parallaxy: 0,
-            properties: [],
-            image: '',
-            repeatx: false,
-            repeaty: false
-          }
+            parallaxy: 0
+          })
         ]
       })
     )
@@ -179,37 +121,22 @@ describe('TiledMap.applyParallax', () => {
 
   it('composes parallax multiplicatively through group layers', () => {
     const map = new TiledMap(
-      makeMap({
+      makeResolvedMap({
         layers: [
-          {
-            type: 'group',
+          makeResolvedGroupLayer({
             id: 1,
             name: 'outer',
-            opacity: 1,
-            visible: true,
-            offsetx: 0,
-            offsety: 0,
             parallaxx: 0.5,
             parallaxy: 0.5,
-            properties: [],
             layers: [
-              {
-                type: 'imagelayer',
+              makeResolvedImageLayer({
                 id: 2,
                 name: 'inner',
-                opacity: 1,
-                visible: true,
-                offsetx: 0,
-                offsety: 0,
                 parallaxx: 0.5,
-                parallaxy: 0.5,
-                properties: [],
-                image: '',
-                repeatx: false,
-                repeaty: false
-              }
+                parallaxy: 0.5
+              })
             ]
-          }
+          })
         ]
       })
     )

@@ -5,6 +5,7 @@ import type {
   ResolvedImageLayer,
   ResolvedLayer,
   ResolvedMap,
+  ResolvedObject,
   ResolvedObjectLayer,
   ResolvedTile,
   ResolvedTileLayer,
@@ -20,9 +21,9 @@ import type {
   TiledTileset,
   TiledTilesetRef
 } from '../types'
-import { GID_MASK } from '../types'
 import { decodeLayerData, decodeLayerDataAsync } from './decodeData.js'
 import { decodeGid } from './decodeGid.js'
+import { mergeTemplate } from './mergeTemplate.js'
 import { computeTilesetColumns, findTilesetIndexForGid, isTilesetRef } from './tilesetHelpers.js'
 
 // ─── Resolve tileset ─────────────────────────────────────────────────────────
@@ -67,28 +68,29 @@ function resolveGids(rawGids: number[], tilesets: ResolvedTileset[]): (ResolvedT
   const result: (ResolvedTile | null)[] = new Array(rawGids.length)
 
   for (let i = 0; i < rawGids.length; i++) {
-    const rawGid = rawGids[i]
-    if (rawGid === undefined || rawGid === 0) {
-      result[i] = null
-      continue
-    }
-
-    const decoded = decodeGid(rawGid)
-    if (!decoded) {
-      result[i] = null
-      continue
-    }
-
-    const tsIdx = findTilesetIndexForGid(decoded.gid, tilesets)
-    const ts = tsIdx >= 0 ? tilesets[tsIdx] : undefined
-    if (ts) {
-      decoded.tilesetIndex = tsIdx
-      decoded.localId = decoded.gid - ts.firstgid
-    }
-    result[i] = decoded
+    result[i] = resolveTileGid(rawGids[i], tilesets)
   }
 
   return result
+}
+
+function resolveTileGid(
+  rawGid: number | undefined,
+  tilesets: ResolvedTileset[],
+  options?: { requireTileset: boolean }
+): ResolvedTile | null {
+  if (rawGid === undefined || rawGid === 0) return null
+
+  const decoded = decodeGid(rawGid)
+  if (!decoded) return null
+
+  const tsIdx = findTilesetIndexForGid(decoded.gid, tilesets)
+  const ts = tsIdx >= 0 ? tilesets[tsIdx] : undefined
+  if (!ts) return options?.requireTileset ? null : decoded
+
+  decoded.tilesetIndex = tsIdx
+  decoded.localId = decoded.gid - ts.firstgid
+  return decoded
 }
 
 // ─── Layer defaults ──────────────────────────────────────────────────────────
@@ -108,76 +110,27 @@ function layerDefaults(layer: TiledLayer) {
   }
 }
 
-// ─── Template merging ────────────────────────────────────────────────────────
-
-function mergeTemplate(
-  obj: TiledObject,
-  template: TiledObjectTemplate,
-  tilesets: ResolvedTileset[]
-): TiledObject {
-  // Start from the template's object, then override with the instance's
-  // own fields (only the ones explicitly set — Tiled stores only deltas).
-  const base: TiledObject = {
-    ...template.object,
-    id: obj.id,
-    // Non-optional fields on the instance always win when present in TiledObject.
-    x: obj.x,
-    y: obj.y,
-    rotation: obj.rotation,
-    visible: obj.visible
-  }
-
-  // name / type are strings on TiledObject with no explicit "unset" sentinel.
-  // Prefer the instance only when it provided a non-empty value.
-  if (obj.name) base.name = obj.name
-  if (obj.type) base.type = obj.type
-  if (obj.width) base.width = obj.width
-  if (obj.height) base.height = obj.height
-  if (obj.properties) base.properties = obj.properties
-  if (obj.text) base.text = obj.text
-  if (obj.gid !== undefined) base.gid = obj.gid
-  if (obj.polygon) base.polygon = obj.polygon
-  if (obj.polyline) base.polyline = obj.polyline
-  if (obj.ellipse) base.ellipse = obj.ellipse
-  if (obj.point) base.point = obj.point
-
-  // GID remapping: the template's gid is relative to the template's own
-  // embedded tileset firstgid. If the template carried a tileset ref and
-  // the map has the same tileset (matched by source), translate the gid
-  // into the map's firstgid space so it points at the right tile.
-  if (
-    base.gid !== undefined &&
-    template.tileset &&
-    'source' in template.tileset &&
-    template.tileset.source
-  ) {
-    const src = template.tileset.source
-    const mapTs = tilesets.find((t) => t.source === src)
-    if (mapTs) {
-      const templateFirstGid = template.tileset.firstgid ?? 1
-      // Preserve flip flags in the high bits.
-      const flipBits = base.gid & ~GID_MASK
-      const localId = (base.gid & GID_MASK) - templateFirstGid
-      if (localId >= 0) {
-        base.gid = (mapTs.firstgid + localId) | flipBits
-      }
-    }
-  }
-
-  return base
-}
-
 function resolveObjects(
   objects: TiledObject[],
   tilesets: ResolvedTileset[],
   templates?: Map<string, TiledObjectTemplate>
-): TiledObject[] {
-  if (!templates || templates.size === 0) return objects
-  return objects.map((obj) => {
-    if (!obj.template) return obj
-    const tpl = templates.get(obj.template)
-    if (!tpl) return obj
-    return mergeTemplate(obj, tpl, tilesets)
+): ResolvedObject[] {
+  return objects.map((raw): ResolvedObject => {
+    let merged: TiledObject = raw
+    if (raw.template && templates) {
+      const tpl = templates.get(raw.template)
+      if (tpl) merged = mergeTemplate(raw, tpl, tilesets)
+    }
+
+    const { gid, template: _template, ...rest } = merged
+    const resolved: ResolvedObject = rest
+
+    if (gid !== undefined) {
+      const tile = resolveTileGid(gid, tilesets, { requireTileset: true })
+      if (tile) resolved.tile = tile
+    }
+
+    return resolved
   })
 }
 
@@ -226,42 +179,13 @@ function resolveLayer(
   templates?: Map<string, TiledObjectTemplate>
 ): ResolvedLayer {
   switch (layer.type) {
-    case 'tilelayer': {
-      if (layer.chunks && layer.chunks.length > 0) {
-        const resolvedChunks = resolveChunksSync(
-          layer.chunks,
-          layer.encoding,
-          layer.compression,
-          tilesets
-        )
-        return {
-          ...resolveTileLayerBase(layer),
-          infinite: true,
-          tiles: [],
-          chunks: resolvedChunks
-        } satisfies ResolvedTileLayer
-      }
+    case 'tilelayer':
+      return resolveTileLayerSync(layer, tilesets)
 
-      const rawGids = decodeLayerData(layer.data ?? [], layer.encoding, layer.compression)
-      return {
-        ...resolveTileLayerBase(layer),
-        infinite: false,
-        tiles: resolveGids(rawGids, tilesets)
-      } satisfies ResolvedTileLayer
-    }
-
-    case 'imagelayer':
-      return resolveImageLayer(layer)
-
-    case 'objectgroup':
-      return resolveObjectLayer(layer, tilesets, templates)
-
-    case 'group':
-      return {
-        type: 'group',
-        ...layerDefaults(layer),
-        layers: (layer.layers ?? []).map((l) => resolveLayer(l, tilesets, templates))
-      } satisfies ResolvedGroupLayer
+    default:
+      return resolveNonTileLayer(layer, tilesets, templates, (child) =>
+        resolveLayer(child, tilesets, templates)
+      )
   }
 }
 
@@ -273,50 +197,11 @@ async function resolveLayerAsync(
   templates?: Map<string, TiledObjectTemplate>
 ): Promise<ResolvedLayer> {
   switch (layer.type) {
-    case 'tilelayer': {
-      if (layer.chunks && layer.chunks.length > 0) {
-        const resolvedChunks = await resolveChunksAsync(
-          layer.chunks,
-          layer.encoding,
-          layer.compression,
-          tilesets
-        )
-        return {
-          ...resolveTileLayerBase(layer),
-          infinite: true,
-          tiles: [],
-          chunks: resolvedChunks
-        } satisfies ResolvedTileLayer
-      }
+    case 'tilelayer':
+      return resolveTileLayerAsync(layer, tilesets)
 
-      const rawGids = await decodeLayerDataAsync(
-        layer.data ?? [],
-        layer.encoding,
-        layer.compression
-      )
-      return {
-        ...resolveTileLayerBase(layer),
-        infinite: false,
-        tiles: resolveGids(rawGids, tilesets)
-      } satisfies ResolvedTileLayer
-    }
-
-    case 'imagelayer':
-      return resolveImageLayer(layer)
-
-    case 'objectgroup':
-      return resolveObjectLayer(layer, tilesets, templates)
-
-    case 'group': {
-      const resolvedChildren = await Promise.all(
-        (layer.layers ?? []).map((l) => resolveLayerAsync(l, tilesets, templates))
-      )
-      return {
-        type: 'group',
-        ...layerDefaults(layer),
-        layers: resolvedChildren
-      } satisfies ResolvedGroupLayer
-    }
+    default:
+      return resolveNonTileLayerAsync(layer, tilesets, templates)
   }
 }
 
@@ -396,6 +281,113 @@ function resolveTilesets(
     }
     return resolveTileset(ts)
   })
+}
+
+function resolveTileLayerSync(layer: TiledLayer, tilesets: ResolvedTileset[]): ResolvedTileLayer {
+  if (layer.chunks && layer.chunks.length > 0) {
+    return resolveInfiniteTileLayer(
+      layer,
+      resolveChunksSync(layer.chunks, layer.encoding, layer.compression, tilesets)
+    )
+  }
+
+  return resolveFiniteTileLayer(
+    layer,
+    decodeLayerData(layer.data ?? [], layer.encoding, layer.compression),
+    tilesets
+  )
+}
+
+async function resolveTileLayerAsync(
+  layer: TiledLayer,
+  tilesets: ResolvedTileset[]
+): Promise<ResolvedTileLayer> {
+  if (layer.chunks && layer.chunks.length > 0) {
+    return resolveInfiniteTileLayer(
+      layer,
+      await resolveChunksAsync(layer.chunks, layer.encoding, layer.compression, tilesets)
+    )
+  }
+
+  return resolveFiniteTileLayer(
+    layer,
+    await decodeLayerDataAsync(layer.data ?? [], layer.encoding, layer.compression),
+    tilesets
+  )
+}
+
+function resolveFiniteTileLayer(
+  layer: TiledLayer,
+  rawGids: number[],
+  tilesets: ResolvedTileset[]
+): ResolvedTileLayer {
+  return {
+    ...resolveTileLayerBase(layer),
+    infinite: false,
+    tiles: resolveGids(rawGids, tilesets)
+  }
+}
+
+function resolveInfiniteTileLayer(layer: TiledLayer, chunks: ResolvedChunk[]): ResolvedTileLayer {
+  return {
+    ...resolveTileLayerBase(layer),
+    infinite: true,
+    tiles: [],
+    chunks
+  }
+}
+
+function resolveNonTileLayer(
+  layer: TiledLayer,
+  tilesets: ResolvedTileset[],
+  templates: Map<string, TiledObjectTemplate> | undefined,
+  resolveChild: (layer: TiledLayer) => ResolvedLayer
+): ResolvedLayer {
+  switch (layer.type) {
+    case 'imagelayer':
+      return resolveImageLayer(layer)
+
+    case 'objectgroup':
+      return resolveObjectLayer(layer, tilesets, templates)
+
+    case 'group':
+      return {
+        type: 'group',
+        ...layerDefaults(layer),
+        layers: (layer.layers ?? []).map(resolveChild)
+      } satisfies ResolvedGroupLayer
+
+    case 'tilelayer':
+      throw new Error('resolveNonTileLayer received a tile layer')
+
+    default:
+      return assertUnhandledLayer(layer)
+  }
+}
+
+async function resolveNonTileLayerAsync(
+  layer: TiledLayer,
+  tilesets: ResolvedTileset[],
+  templates?: Map<string, TiledObjectTemplate>
+): Promise<ResolvedLayer> {
+  if (layer.type !== 'group') {
+    return resolveNonTileLayer(layer, tilesets, templates, (child) =>
+      resolveLayer(child, tilesets, templates)
+    )
+  }
+
+  const resolvedChildren = await Promise.all(
+    (layer.layers ?? []).map((l) => resolveLayerAsync(l, tilesets, templates))
+  )
+  return {
+    type: 'group',
+    ...layerDefaults(layer),
+    layers: resolvedChildren
+  } satisfies ResolvedGroupLayer
+}
+
+function assertUnhandledLayer(layer: TiledLayer): never {
+  throw new Error(`Unhandled layer type: ${(layer as TiledLayer).type}`)
 }
 
 function buildResolvedMap(

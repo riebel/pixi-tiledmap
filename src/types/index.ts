@@ -342,6 +342,25 @@ export interface ResolvedTile {
   diagonalFlip: boolean
 }
 
+export interface ResolvedObject {
+  id: number
+  name: string
+  type: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+  visible: boolean
+  properties?: TiledProperty[]
+  tile?: ResolvedTile
+  text?: TiledText
+  ellipse?: boolean
+  point?: boolean
+  polygon?: TiledPoint[]
+  polyline?: TiledPoint[]
+}
+
 export interface ResolvedChunk {
   x: number
   y: number
@@ -402,7 +421,7 @@ export interface ResolvedObjectLayer {
   tintcolor?: string
   properties: TiledProperty[]
   draworder: TiledDrawOrder
-  objects: TiledObject[]
+  objects: ResolvedObject[]
 }
 
 export interface ResolvedGroupLayer {

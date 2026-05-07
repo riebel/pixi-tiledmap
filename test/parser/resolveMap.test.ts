@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseMap } from '../../src/parser/resolveMap.js'
-import type { TiledMap } from '../../src/types/index.js'
+import type { ResolvedObjectLayer, TiledMap } from '../../src/types/index.js'
 
 function makeMinimalMap(overrides?: Partial<TiledMap>): TiledMap {
   return {
@@ -476,10 +476,11 @@ describe('parseMap', () => {
     })
 
     // The template tileset is matched by source, but the map has no tileset
-    // with source 'shared.tsx' so remapping is skipped.
+    // with source 'shared.tsx' so remapping is skipped. Because gid=3 is below
+    // the map tileset firstgid=100, it must not resolve to a renderable tile.
     const noRemap = parseMap(map, { templates })
-    const obj1 = (noRemap.layers[0] as { objects: { gid?: number }[] }).objects[0]
-    expect(obj1?.gid).toBe(3)
+    const obj1 = (noRemap.layers[0] as ResolvedObjectLayer).objects[0]
+    expect(obj1?.tile).toBeUndefined()
 
     // Now mark the map's tileset as the same source so remapping kicks in.
     const mapWithSource = makeMinimalMap({
@@ -504,8 +505,8 @@ describe('parseMap', () => {
       image: 'shared.png'
     })
     const remap = parseMap(mapWithSource, { templates, externalTilesets })
-    const obj2 = (remap.layers[0] as { objects: { gid?: number }[] }).objects[0]
+    const obj2 = (remap.layers[0] as ResolvedObjectLayer).objects[0]
     // local id 2 in template → 100 + 2 = 102 in map space
-    expect(obj2?.gid).toBe(102)
+    expect(obj2?.tile?.gid).toBe(102)
   })
 })
