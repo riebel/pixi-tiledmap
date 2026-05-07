@@ -47,6 +47,7 @@
     "lint:fix": "biome lint --write src/ test/",
     "check": "biome check src/ test/",
     "check:fix": "biome check --write src/ test/",
+    "bench": "vitest bench --run",
     "test": "tsdown && vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
@@ -62,7 +63,9 @@
     "@biomejs/biome": "^2.4.11",
     "@types/node": "^24.12.2",
     "jsdom": "^29.0.2",
+    "pixelmatch": "^7.2.0",
     "pixi.js": "^8.17.1",
+    "pngjs": "^7.0.0",
     "tsdown": "^0.21.7",
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"

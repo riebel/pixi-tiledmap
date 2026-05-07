@@ -12,6 +12,7 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **All orientations** — orthogonal, isometric, staggered, hexagonal
 - **Render order** — right-down, right-up, left-down, left-up
 - **Infinite maps** — chunk-based tile layer rendering
+- **Packed tile layers** — static map tiles render as PixiJS batchable mesh geometry grouped by texture source, without an external tilemap dependency
 - **Tile features** — animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, `tilerendersize` / `fillmode`
 - **Object rendering** — rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects
 - **Object templates** — automatic `.tx` / `.tj` resolution with gid remapping between template and map tileset spaces
@@ -37,8 +38,19 @@ v2.0.0 is modernized for the current PixiJS ecosystem and modern TypeScript pack
 
 - **Complete Tiled coverage in one package**: JSON + TMX, all layer types, all map orientations.
 - **PixiJS-native loading path**: register once via `extensions.add(tiledMapLoader)` and load maps through `Assets`.
-- **Performance-minded internals**: chunked infinite-layer rendering, cached tile textures, and efficient GID→tileset resolution.
+- **Performance-minded internals**: batchable packed mesh-backed tile layers, chunked infinite-layer traversal, cached tile textures, and efficient GID→tileset resolution.
+- **Composable renderer pipeline**: layer filtering, parallax, tile visuals, and texture loading are factored so manual and loader-based usage share the same rendering behavior.
 - **Production packaging**: side-effect-free metadata, ESM/CJS dual output, and bundled type definitions.
+
+## Internal Model
+
+The library keeps three concepts separate:
+
+- **Tiled map data**: TMJ JSON or TMX XML in the shape Tiled writes.
+- **Resolved map IR**: normalized data with defaults applied, external tilesets supplied, templates merged, GIDs decoded, and layer data decoded.
+- **PixiJS rendering**: a `TiledMap` container built from a resolved map, texture maps, layer tree rendering, packed tile meshes, tile visuals for object/animated cases, and map geometry.
+
+The asset loader runs the complete pipeline for `.tmj` and `.tmx` files. Manual construction gives you the same pieces directly: parse to a resolved map, load textures, then construct `TiledMap`.
 
 ## Optimization checklist (for app integrators)
 
@@ -49,6 +61,9 @@ If you want the best runtime behavior in your game/application:
 - Reuse `TiledMap` instances for frequently revisited scenes when possible.
 - Keep large worlds in infinite/chunked maps to avoid over-allocating one giant layer.
 - Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
+- Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are usually `Mesh` children now, not one `Sprite` per tile.
+- Run `npm run bench` before and after renderer hot-path changes if you maintain a fork.
+- `npm test` includes a headless MagicLand visual regression that renders a real TMX + GIF tileset fixture and pixel-compares it against a checked-in reference image.
 
 ## Installation
 
@@ -101,6 +116,8 @@ const container = new TiledMap(mapData, { tilesetTextures });
 app.stage.addChild(container);
 ```
 
+For image layers, image-collection tilesets, and animated GIF sources, pass the corresponding texture maps through `TiledMapOptions`. The asset loader fills these maps automatically.
+
 ## API Reference
 
 ### Exports
@@ -109,10 +126,11 @@ app.stage.addChild(container);
 | --------------------- | ---------------------------------------------------------------- |
 | `tiledMapLoader`      | PixiJS `LoadParser` extension — register with `extensions.add()` |
 | `TiledMap`            | `Container` subclass that renders a resolved map                 |
-| `TileLayerRenderer`   | `Container` for a single tile layer                              |
+| `TileLayerRenderer`   | Packed mesh-backed `Container` for a single tile layer           |
 | `ImageLayerRenderer`  | `Container` for a single image layer                             |
 | `ObjectLayerRenderer` | `Container` for a single object layer                            |
 | `GroupLayerRenderer`  | `Container` for a group layer (recursive)                        |
+| `PackedTileLayerRenderer` | Internal packed tile mesh base used by `TileLayerRenderer`   |
 | `TileSetRenderer`     | Texture manager for a tileset                                    |
 | `parseMap(data)`      | Synchronous Tiled JSON → resolved IR                             |
 | `parseMapAsync(data)` | Async variant (required for gzip/zlib compressed data)           |
@@ -128,6 +146,8 @@ const map = new TiledMap(resolvedMap, {
   tilesetTextures, // Map<imagePath, Texture>
   imageLayerTextures, // Map<imagePath, Texture>
   tileImageTextures, // Map<imagePath, Texture> (image-collection tiles)
+  tileImageGifSources, // Map<imagePath, GifSource> (animated image-collection tiles)
+  imageLayerGifSources, // Map<imagePath, GifSource> (animated image layers)
   layerFilter, // optional (layer) => boolean, for rendering selected layers
   tileSpritePadding, // optional, defaults to 0.01 to hide fractional-scale seams
 });
@@ -207,8 +227,11 @@ npm run build        # ESM + CJS + types via tsdown
 npm run dev          # watch mode
 npm run check        # Biome lint + format
 npm run typecheck    # tsc --noEmit
-npm test             # Vitest
+npm test             # Build, Vitest, and MagicLand visual regression
+npm run bench        # renderer hot-path benchmarks
 ```
+
+Benchmark guidance and the current smoke baseline live in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 [npm-url]: https://npmjs.org/package/pixi-tiledmap
 [npm-image]: http://img.shields.io/npm/v/pixi-tiledmap.svg?style=flat
