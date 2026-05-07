@@ -124,7 +124,7 @@ export class TileLayerRenderer extends Container {
           sprite.width = renderW + padding
           sprite.height = renderH + padding
           sprite.position.set(px + offset.x, py + offset.y + tileH - renderH)
-          applyFlip(sprite, tile, renderW)
+          applyFlip(sprite, tile)
           this.addChild(sprite)
         }
       }
@@ -155,7 +155,7 @@ export class TileLayerRenderer extends Container {
     sprite.height = renderH + padding
     sprite.position.set(x, y + ctx.tileheight - renderH)
     sprite.play()
-    applyFlip(sprite, tile, renderW)
+    applyFlip(sprite, tile)
     return sprite
   }
 }
@@ -166,13 +166,19 @@ function getTileSpritePadding(renderW: number, renderH: number, ctx: MapContext)
   return ctx.tileSpritePadding ?? 0
 }
 
-function applyFlip(sprite: Sprite, tile: ResolvedTile, tileWidth: number): void {
+function applyFlip(sprite: Sprite, tile: ResolvedTile): void {
   if (tile.diagonalFlip) {
+    // Tiled encodes rotations via the diagonal (anti-diagonal) flip bit combined
+    // with H/V bits. For all diagonal cases rotation is PI/2 (CW); the anchor and
+    // scale vary by H/V to produce the four distinct transforms:
+    //   D      → transpose     anchor(0,0) scale( 1,−1)
+    //   D+H    → 90° CW        anchor(0,1) scale( 1, 1)
+    //   D+V    → 90° CCW       anchor(1,0) scale(−1,−1)
+    //   D+H+V  → 270° CW       anchor(1,1) scale(−1, 1)
     sprite.rotation = Math.PI / 2
-    sprite.scale.x = tile.horizontalFlip ? -1 : 1
-    sprite.scale.y = tile.verticalFlip ? -1 : 1
-    sprite.anchor.set(0, 1)
-    sprite.position.x += tileWidth
+    sprite.scale.x = tile.verticalFlip ? -1 : 1
+    sprite.scale.y = tile.horizontalFlip ? 1 : -1
+    sprite.anchor.set(tile.verticalFlip ? 1 : 0, tile.horizontalFlip ? 1 : 0)
   } else {
     if (tile.horizontalFlip) {
       sprite.scale.x = -1
