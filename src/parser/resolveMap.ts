@@ -134,7 +134,7 @@ function resolveObjects(
   })
 }
 
-// ─── Shared non-tilelayer resolution (sync — no data decoding needed) ───────
+// ─── Shared non-tilelayer resolution (sync -no data decoding needed) ───────
 
 function resolveImageLayer(layer: TiledLayer): ResolvedImageLayer {
   return {
@@ -189,7 +189,7 @@ function resolveLayer(
   }
 }
 
-// ─── Resolve layers (async — needed for compressed data) ─────────────────────
+// ─── Resolve layers (async -needed for compressed data) ─────────────────────
 
 async function resolveLayerAsync(
   layer: TiledLayer,

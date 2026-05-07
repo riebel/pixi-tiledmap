@@ -22,7 +22,7 @@ export class TiledMap extends Container {
 
     // Force local bounds to the logical map size. Without this, pixi's
     // .width/.height setters (and getLocalBounds) would use the extent of
-    // the rendered children — which misbehaves when the map has empty
+    // the rendered children - which misbehaves when the map has empty
     // top/left rows (bounds.minY > 0, causing content to overflow the
     // canvas when scaling via `.height = ...`) or when tall decoration
     // tiles extend beyond the grid.

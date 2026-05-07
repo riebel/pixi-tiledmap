@@ -6,23 +6,23 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 
 ## Features
 
-- **PixiJS v8** — uses the modern `Assets` / `LoadParser` extension system
-- **Tiled JSON + TMX XML** — full spec coverage (Tiled 1.11), both `.tmj` and `.tmx` formats
-- **All layer types** — tile, image, object, and group layers
-- **All orientations** — orthogonal, isometric, staggered, hexagonal
-- **Render order** — right-down, right-up, left-down, left-up
-- **Infinite maps** — chunk-based tile layer rendering
-- **Packed tile layers** — static map tiles render as PixiJS batchable mesh geometry grouped by texture source, without an external tilemap dependency
-- **Tile features** — animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, `tilerendersize` / `fillmode`
-- **Object rendering** — rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects
-- **Object templates** — automatic `.tx` / `.tj` resolution with gid remapping between template and map tileset spaces
-- **Parallax scrolling** — per-layer `parallaxx` / `parallaxy` and map-level `parallaxorigin`, composed multiplicatively through group layers, applied via `TiledMap.applyParallax(cameraX, cameraY)`
-- **Data encoding** — CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
-- **External tilesets** — automatic resolution via the asset loader (`.tsj` and `.tsx`)
-- **Tree-shakable** — ESM + CJS dual build, side-effect-free
-- **Typed** — comprehensive TypeScript types for the full Tiled spec
+- **PixiJS v8** - uses the modern `Assets` / `LoadParser` extension system
+- **Tiled JSON + TMX XML** - full spec coverage (Tiled 1.11), both `.tmj` and `.tmx` formats
+- **All layer types** - tile, image, object, and group layers
+- **All orientations** - orthogonal, isometric, staggered, hexagonal
+- **Render order** - right-down, right-up, left-down, left-up
+- **Infinite maps** - chunk-based tile layer rendering
+- **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source, without an external tilemap dependency
+- **Tile features** - animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, `tilerendersize` / `fillmode`
+- **Object rendering** - rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects
+- **Object templates** - automatic `.tx` / `.tj` resolution with gid remapping between template and map tileset spaces
+- **Parallax scrolling** - per-layer `parallaxx` / `parallaxy` and map-level `parallaxorigin`, composed multiplicatively through group layers, applied via `TiledMap.applyParallax(cameraX, cameraY)`
+- **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
+- **External tilesets** - automatic resolution via the asset loader (`.tsj` and `.tsx`)
+- **Tree-shakable** - ESM + CJS dual build, side-effect-free
+- **Typed** - comprehensive TypeScript types for the full Tiled spec
 
-> **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported — the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour.
+> **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported - the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour.
 
 ## Modernization Check (v2.0.0)
 
@@ -71,7 +71,7 @@ If you want the best runtime behavior in your game/application:
 npm install pixi-tiledmap pixi.js
 ```
 
-## Quick Start — Asset Loader (recommended)
+## Quick Start - Asset Loader (recommended)
 
 Register the loader extension once, then load `.tmj` (JSON) or `.tmx` (XML) files through `Assets`:
 
@@ -124,7 +124,7 @@ For image layers, image-collection tilesets, and animated GIF sources, pass the 
 
 | Export                | Description                                                      |
 | --------------------- | ---------------------------------------------------------------- |
-| `tiledMapLoader`      | PixiJS `LoadParser` extension — register with `extensions.add()` |
+| `tiledMapLoader`      | PixiJS `LoadParser` extension - register with `extensions.add()` |
 | `TiledMap`            | `Container` subclass that renders a resolved map                 |
 | `TileLayerRenderer`   | Packed mesh-backed `Container` for a single tile layer           |
 | `ImageLayerRenderer`  | `Container` for a single image layer                             |
@@ -187,7 +187,7 @@ const abovePlayer = new TiledMap(resolvedMap, {
 ### Object Templates
 
 When loading through the asset loader, any object with a `template` field
-is resolved automatically — referenced `.tx` / `.tj` files are fetched in
+is resolved automatically - referenced `.tx` / `.tj` files are fetched in
 parallel and merged into the map before rendering.
 
 For manual construction (`parseMap` / `parseMapAsync`), pass templates via

@@ -82,7 +82,7 @@ function meshUvs(tile: ResolvedTile): number[] {
   return Array.from(mesh.geometry.uvs)
 }
 
-describe('packed tile UV transforms — non-diagonal', () => {
+describe('packed tile UV transforms -non-diagonal', () => {
   it('no flip: keeps source UV order', () => {
     expect(meshUvs(makeTile({}))).toEqual([0, 0, 1, 0, 1, 1, 0, 1])
   })
@@ -102,7 +102,7 @@ describe('packed tile UV transforms — non-diagonal', () => {
   })
 })
 
-describe('packed tile UV transforms — diagonal', () => {
+describe('packed tile UV transforms -diagonal', () => {
   it('D+H: rotates UVs clockwise', () => {
     expect(meshUvs(makeTile({ diagonalFlip: true, horizontalFlip: true }))).toEqual([
       0, 1, 0, 0, 1, 0, 1, 1

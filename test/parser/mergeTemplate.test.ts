@@ -118,17 +118,17 @@ describe('mergeTemplate', () => {
   })
 
   describe('GID remapping', () => {
-    it('no GID on merged object — no tile field set', () => {
+    it('no GID on merged object -no tile field set', () => {
       const result = mergeTemplate(makeInstance(), makeTemplate({}), [])
       expect(result.gid).toBeUndefined()
     })
 
-    it('GID from template, no tileset on template — GID unchanged', () => {
+    it('GID from template, no tileset on template -GID unchanged', () => {
       const result = mergeTemplate(makeInstance(), makeTemplate({ gid: 3 }), [])
       expect(result.gid).toBe(3)
     })
 
-    it('GID from template, template tileset has no source — GID unchanged', () => {
+    it('GID from template, template tileset has no source -GID unchanged', () => {
       const tpl = makeTemplate({ gid: 3 })
       tpl.tileset = {
         firstgid: 1,
@@ -144,7 +144,7 @@ describe('mergeTemplate', () => {
       expect(result.gid).toBe(3)
     })
 
-    it('GID from template, template tileset source not found in map — GID unchanged', () => {
+    it('GID from template, template tileset source not found in map -GID unchanged', () => {
       const result = mergeTemplate(
         makeInstance(),
         makeTemplate({ gid: 3 }, { firstgid: 1, source: 'other.tsx' }),

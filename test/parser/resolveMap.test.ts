@@ -381,7 +381,7 @@ describe('parseMap', () => {
           x: 0,
           y: 0,
           objects: [
-            // Instance only overrides position — name/type/size come from template.
+            // Instance only overrides position - name/type/size come from template.
             {
               id: 1,
               name: '',

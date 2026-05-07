@@ -90,7 +90,7 @@ export class ObjectLayerRenderer extends Container {
       }
     })
 
-    // PixiJS Text has no built-in underline/strikeout — draw them manually.
+    // PixiJS Text has no built-in underline/strikeout - draw them manually.
     // Wrap in a Container only when decorations are present so simple text
     // stays a single Text node.
     if (!td.underline && !td.strikeout) {

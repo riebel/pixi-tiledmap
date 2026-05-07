@@ -84,7 +84,7 @@ export class TileSetRenderer {
 
   /**
    * Returns the pixel size a tile should be drawn at on the map grid.
-   * Allocates a new object — prefer `getRenderWidth`/`getRenderHeight`
+   * Allocates a new object - prefer `getRenderWidth`/`getRenderHeight`
    * in hot loops to avoid GC pressure.
    */
   getRenderSize(localId: number, ctx: MapContext): { width: number; height: number } {
