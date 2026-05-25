@@ -9,6 +9,24 @@ export {
   parseTsx,
   parseTx
 } from './parser'
+export type {
+  CreateChunkOptions,
+  CreateGroupLayerOptions,
+  CreateImageLayerOptions,
+  CreateLayerOptions,
+  CreateMapOptions,
+  CreateObjectLayerOptions,
+  CreateTileLayerOptions,
+  CreateTilesetOptions
+} from './procedural'
+export {
+  createGroupLayer,
+  createImageLayer,
+  createMap,
+  createObjectLayer,
+  createTileLayer,
+  createTileset
+} from './procedural'
 // Renderer
 export {
   createLayerRenderer,
@@ -62,7 +80,10 @@ export type {
   TiledTerrain,
   TiledText,
   TiledTileDefinition,
+  TiledTileInput,
+  TiledTileLayerSelector,
   TiledTileOffset,
+  TiledTileRef,
   TiledTileRenderSize,
   TiledTileset,
   TiledTilesetRef,

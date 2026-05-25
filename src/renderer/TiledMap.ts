@@ -1,9 +1,19 @@
 import { Container, Graphics, Rectangle } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
-import type { MapContext, ResolvedMap, TiledMapOptions } from '../types'
+import { resolveTileInput } from '../resolvedTile.js'
+import type {
+  MapContext,
+  ResolvedMap,
+  ResolvedTile,
+  TiledMapOptions,
+  TiledTileInput,
+  TiledTileLayerSelector
+} from '../types'
+import { findLayerByName, findTileLayerRenderer } from './layerTreeLookup.js'
 import { applyParallaxToLayerTree, renderLayerTree } from './layerTreeRenderer.js'
 import { computeMapPixelSize } from './mapSize.js'
 import { parseTintColor } from './parseColor.js'
+import type { TileLayerRenderer } from './TileLayerRenderer.js'
 import { TileSetRenderer } from './TileSetRenderer.js'
 
 export class TiledMap extends Container {
@@ -65,7 +75,6 @@ export class TiledMap extends Container {
       mapPixelHeight: pixelSize.height,
       tileSpritePadding: options?.tileSpritePadding ?? 0.01
     }
-
     // Render background
     if (mapData.backgroundcolor) {
       this._buildBackground(pixelSize.width, pixelSize.height, mapData.backgroundcolor)
@@ -79,7 +88,8 @@ export class TiledMap extends Container {
       imageGifSources: imageLayerGifSources,
       layerFilter: options?.layerFilter
     }
-    this.addChild(...renderLayerTree(mapData.layers, layerContext))
+    const renderedLayers = renderLayerTree(mapData.layers, layerContext)
+    if (renderedLayers.length > 0) this.addChild(...renderedLayers)
   }
 
   get orientation() {
@@ -99,7 +109,23 @@ export class TiledMap extends Container {
   }
 
   getLayer(name: string): Container | undefined {
-    return this.children.find((c) => c.label === name) as Container | undefined
+    return findLayerByName(this.children, name) ?? undefined
+  }
+
+  getTile(layer: TiledTileLayerSelector, col: number, row: number): ResolvedTile | null {
+    return this._getTileLayerRenderer(layer).getTile(col, row)
+  }
+
+  setTile(layer: TiledTileLayerSelector, col: number, row: number, tile: TiledTileInput): void {
+    this._getTileLayerRenderer(layer).setTile(
+      col,
+      row,
+      resolveTileInput(tile, this.mapData.tilesets)
+    )
+  }
+
+  clearTile(layer: TiledTileLayerSelector, col: number, row: number): void {
+    this._getTileLayerRenderer(layer).clearTile(col, row)
   }
 
   /**
@@ -124,6 +150,14 @@ export class TiledMap extends Container {
     this._background = new Graphics().rect(0, 0, pixelWidth, pixelHeight).fill(color)
     this._background.label = 'background'
     this.addChild(this._background)
+  }
+
+  private _getTileLayerRenderer(selector: TiledTileLayerSelector): TileLayerRenderer {
+    const layer = findTileLayerRenderer(this.children, selector)
+    if (!layer) {
+      throw new Error(`Tile layer "${selector}" is not rendered in this TiledMap.`)
+    }
+    return layer
   }
 
   override destroy(options?: Parameters<Container['destroy']>[0]): void {

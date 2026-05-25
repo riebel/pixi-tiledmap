@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Tiled Map Editor loader and renderer for PixiJS v8",
   "keywords": [
     "pixi",
@@ -61,12 +61,12 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.11",
-    "@types/node": "^24.12.2",
+    "@types/node": "^25.9.1",
     "jsdom": "^29.0.2",
     "pixelmatch": "^7.2.0",
     "pixi.js": "^8.17.1",
     "pngjs": "^7.0.0",
-    "tsdown": "^0.21.7",
+    "tsdown": "^0.22.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"
   }

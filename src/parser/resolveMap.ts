@@ -1,3 +1,9 @@
+import {
+  resolvedLayerDefaults,
+  resolvedMapDefaults,
+  resolvedObjectDefaults,
+  resolvedTilesetDefaults
+} from '../resolvedDefaults.js'
 import type {
   ParseOptions,
   ResolvedChunk,
@@ -16,7 +22,6 @@ import type {
   TiledMap,
   TiledObject,
   TiledObjectTemplate,
-  TiledRenderOrder,
   TiledTileDefinition,
   TiledTileset,
   TiledTilesetRef
@@ -24,7 +29,7 @@ import type {
 import { decodeLayerData, decodeLayerDataAsync } from './decodeData.js'
 import { decodeGid } from './decodeGid.js'
 import { mergeTemplate } from './mergeTemplate.js'
-import { computeTilesetColumns, findTilesetIndexForGid, isTilesetRef } from './tilesetHelpers.js'
+import { findTilesetIndexForGid, isTilesetRef } from './tilesetHelpers.js'
 
 // ─── Resolve tileset ─────────────────────────────────────────────────────────
 
@@ -35,26 +40,18 @@ function resolveTileset(raw: TiledTileset, source?: string): ResolvedTileset {
       tiles.set(tile.id, tile)
     }
   }
+  const defaults = resolvedTilesetDefaults({
+    ...raw,
+    tileDefinitionCount: raw.tiles?.length
+  })
 
   return {
-    firstgid: raw.firstgid,
-    name: raw.name,
+    ...defaults,
     source,
-    tilewidth: raw.tilewidth,
-    tileheight: raw.tileheight,
-    columns: computeTilesetColumns(raw),
-    tilecount: raw.tilecount,
-    margin: raw.margin,
-    spacing: raw.spacing,
     image: raw.image,
     imagewidth: raw.imagewidth,
     imageheight: raw.imageheight,
-    tileoffset: raw.tileoffset ?? { x: 0, y: 0 },
-    objectalignment: raw.objectalignment ?? 'unspecified',
-    tilerendersize: raw.tilerendersize ?? 'tile',
-    fillmode: raw.fillmode ?? 'stretch',
     tiles,
-    properties: raw.properties ?? [],
     transformations: raw.transformations,
     grid: raw.grid,
     wangsets: raw.wangsets,
@@ -96,18 +93,7 @@ function resolveTileGid(
 // ─── Layer defaults ──────────────────────────────────────────────────────────
 
 function layerDefaults(layer: TiledLayer) {
-  return {
-    id: layer.id,
-    name: layer.name,
-    opacity: layer.opacity,
-    visible: layer.visible,
-    offsetx: layer.offsetx ?? 0,
-    offsety: layer.offsety ?? 0,
-    parallaxx: layer.parallaxx ?? 1,
-    parallaxy: layer.parallaxy ?? 1,
-    tintcolor: layer.tintcolor,
-    properties: layer.properties ?? []
-  }
+  return resolvedLayerDefaults(layer)
 }
 
 function resolveObjects(
@@ -122,8 +108,8 @@ function resolveObjects(
       if (tpl) merged = mergeTemplate(raw, tpl, tilesets)
     }
 
-    const { gid, template: _template, ...rest } = merged
-    const resolved: ResolvedObject = rest
+    const { gid } = merged
+    const resolved = resolvedObjectDefaults(merged)
 
     if (gid !== undefined) {
       const tile = resolveTileGid(gid, tilesets, { requireTileset: true })
@@ -208,16 +194,18 @@ async function resolveLayerAsync(
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 export function parseMap(data: TiledMap, options?: ParseOptions): ResolvedMap {
-  const resolvedTilesets = resolveTilesets(data.tilesets, options)
-  const layers = data.layers.map((l) => resolveLayer(l, resolvedTilesets, options?.templates))
+  const resolvedTilesets = resolveTilesets(data.tilesets ?? [], options)
+  const layers = (data.layers ?? []).map((l) =>
+    resolveLayer(l, resolvedTilesets, options?.templates)
+  )
 
   return buildResolvedMap(data, resolvedTilesets, layers)
 }
 
 export async function parseMapAsync(data: TiledMap, options?: ParseOptions): Promise<ResolvedMap> {
-  const resolvedTilesets = resolveTilesets(data.tilesets, options)
+  const resolvedTilesets = resolveTilesets(data.tilesets ?? [], options)
   const layers = await Promise.all(
-    data.layers.map((l) => resolveLayerAsync(l, resolvedTilesets, options?.templates))
+    (data.layers ?? []).map((l) => resolveLayerAsync(l, resolvedTilesets, options?.templates))
   )
 
   return buildResolvedMap(data, resolvedTilesets, layers)
@@ -395,24 +383,16 @@ function buildResolvedMap(
   tilesets: ResolvedTileset[],
   layers: ResolvedLayer[]
 ): ResolvedMap {
+  const defaults = resolvedMapDefaults(data)
+
   return {
-    orientation: data.orientation,
-    renderorder: (data.renderorder ?? 'right-down') as TiledRenderOrder,
-    width: data.width,
-    height: data.height,
-    tilewidth: data.tilewidth,
-    tileheight: data.tileheight,
-    infinite: data.infinite,
+    ...defaults,
     backgroundcolor: data.backgroundcolor,
     hexsidelength: data.hexsidelength,
     staggeraxis: data.staggeraxis,
     staggerindex: data.staggerindex,
-    parallaxoriginx: data.parallaxoriginx ?? 0,
-    parallaxoriginy: data.parallaxoriginy ?? 0,
-    properties: data.properties ?? [],
     tilesets,
     layers,
-    version: data.version,
     tiledversion: data.tiledversion
   }
 }

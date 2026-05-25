@@ -13,12 +13,15 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **Render order** - right-down, right-up, left-down, left-up
 - **Infinite maps** - chunk-based tile layer rendering
 - **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source, without an external tilemap dependency
+- **Partial tile updates** - same-atlas runtime tile edits update packed mesh buffers in place; structural changes safely rebuild the affected tile layer
 - **Tile features** - animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, `tilerendersize` / `fillmode`
 - **Object rendering** - rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects
 - **Object templates** - automatic `.tx` / `.tj` resolution with gid remapping between template and map tileset spaces
 - **Parallax scrolling** - per-layer `parallaxx` / `parallaxy` and map-level `parallaxorigin`, composed multiplicatively through group layers, applied via `TiledMap.applyParallax(cameraX, cameraY)`
 - **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
 - **External tilesets** - automatic resolution via the asset loader (`.tsj` and `.tsx`)
+- **Runtime editing and generation** - edit loaded maps in place or create resolved maps procedurally
+- **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
 - **Tree-shakable** - ESM + CJS dual build, side-effect-free
 - **Typed** - comprehensive TypeScript types for the full Tiled spec
 
@@ -38,7 +41,7 @@ v2.0.0 is modernized for the current PixiJS ecosystem and modern TypeScript pack
 
 - **Complete Tiled coverage in one package**: JSON + TMX, all layer types, all map orientations.
 - **PixiJS-native loading path**: register once via `extensions.add(tiledMapLoader)` and load maps through `Assets`.
-- **Performance-minded internals**: batchable packed mesh-backed tile layers, chunked infinite-layer traversal, cached tile textures, and efficient GID→tileset resolution.
+- **Performance-minded internals**: batchable packed mesh-backed tile layers, partial packed mesh updates for same-atlas tile edits, chunked infinite-layer traversal, cached tile textures, and efficient GID→tileset resolution.
 - **Composable renderer pipeline**: layer filtering, parallax, tile visuals, and texture loading are factored so manual and loader-based usage share the same rendering behavior.
 - **Production packaging**: side-effect-free metadata, ESM/CJS dual output, and bundled type definitions.
 
@@ -47,10 +50,14 @@ v2.0.0 is modernized for the current PixiJS ecosystem and modern TypeScript pack
 The library keeps three concepts separate:
 
 - **Tiled map data**: TMJ JSON or TMX XML in the shape Tiled writes.
-- **Resolved map IR**: normalized data with defaults applied, external tilesets supplied, templates merged, GIDs decoded, and layer data decoded.
+- **Resolved map IR**: normalized data with Tiled-compatible defaults applied, external tilesets supplied, templates merged, GIDs decoded, and layer data decoded.
 - **PixiJS rendering**: a `TiledMap` container built from a resolved map, texture maps, layer tree rendering, packed tile meshes, tile visuals for object/animated cases, and map geometry.
 
 The asset loader runs the complete pipeline for `.tmj` and `.tmx` files. Manual construction gives you the same pieces directly: parse to a resolved map, load textures, then construct `TiledMap`.
+
+Procedural construction starts at the same **Resolved map IR** boundary. Maps created with `createMap` render through the same `TiledMap` container and support the same runtime editing methods as loaded maps.
+
+TMJ/JSON maps may omit fields whose values match Tiled defaults. `parseMap` and `parseMapAsync` normalize those omissions when building the resolved map: map defaults such as `orientation`, `renderorder`, `infinite`, and parallax origins; layer defaults such as `opacity`, `visible`, offsets, parallax, and properties; object defaults such as empty `name` / `type`, zero size, zero rotation, and visible state; and tileset defaults such as margin, spacing, computed columns, tile offset, render size, fill mode, object alignment, and properties.
 
 ## Optimization checklist (for app integrators)
 
@@ -118,6 +125,53 @@ app.stage.addChild(container);
 
 For image layers, image-collection tilesets, and animated GIF sources, pass the corresponding texture maps through `TiledMapOptions`. The asset loader fills these maps automatically.
 
+## Runtime Editing and Procedural Maps
+
+Use `setTile`, `getTile`, and `clearTile` to update rendered tile layers by layer name or numeric layer id:
+
+```ts
+// Load save data and swap a chest tile.
+map.setTile('chests', 12, 8, { tileset: 'dungeon', tileId: save.chestOpen ? 5 : 4 });
+```
+
+For static packed tiles, edits that stay on the same texture source update the existing packed mesh geometry buffers in place. Clearing a packed tile degenerates its quad without replacing the mesh. Edits that add a previously empty tile, switch texture sources, or change between packed tiles and sprite-backed tiles such as animations or GIFs rebuild the affected tile layer automatically.
+
+Use `createMap` for generated maps. It returns the same resolved map shape as `parseMap`, so the rendered result supports the same editing API:
+
+```ts
+import { createMap, TiledMap } from 'pixi-tiledmap';
+
+const generated = createMap({
+  width: 40,
+  height: 24,
+  tilewidth: 16,
+  tileheight: 16,
+  tilesets: [
+    {
+      name: 'dungeon',
+      image: 'dungeon.png',
+      imagewidth: 256,
+      tilewidth: 16,
+      tileheight: 16,
+      tilecount: 128,
+    },
+  ],
+  layers: [
+    {
+      name: 'floor',
+      tiles: floorTiles.map((tileId) => ({ tileset: 'dungeon', tileId })),
+    },
+    {
+      name: 'details',
+      tiles: new Array(40 * 24).fill(null),
+    },
+  ],
+});
+
+const map = new TiledMap(generated, { tilesetTextures });
+map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
+```
+
 ## API Reference
 
 ### Exports
@@ -132,6 +186,12 @@ For image layers, image-collection tilesets, and animated GIF sources, pass the 
 | `GroupLayerRenderer`  | `Container` for a group layer (recursive)                        |
 | `PackedTileLayerRenderer` | Internal packed tile mesh base used by `TileLayerRenderer`   |
 | `TileSetRenderer`     | Texture manager for a tileset                                    |
+| `createMap(options)`  | Create a resolved map procedurally                               |
+| `createTileset(options)` | Create a resolved tileset                                     |
+| `createTileLayer(options, tilesets?)` | Create a resolved tile layer                    |
+| `createImageLayer(options)` | Create a resolved image layer                              |
+| `createObjectLayer(options)` | Create a resolved object layer                          |
+| `createGroupLayer(options, tilesets?)` | Create a resolved group layer                  |
 | `parseMap(data)`      | Synchronous Tiled JSON → resolved IR                             |
 | `parseMapAsync(data)` | Async variant (required for gzip/zlib compressed data)           |
 | `parseTmx(xml)`       | Parse TMX XML string → `TiledMap` data (same shape as JSON)      |
@@ -158,6 +218,12 @@ map.mapHeight; // tile rows
 map.tileWidth; // tile pixel width
 map.tileHeight; // tile pixel height
 map.getLayer('ground'); // find layer Container by name
+
+// Runtime tile editing. Layer can be a tile-layer name or numeric layer id.
+map.getTile('ground', 12, 8);
+map.setTile('ground', 12, 8, 42); // raw Tiled GID
+map.setTile('ground', 12, 8, { tileset: 'dungeon', tileId: 4 });
+map.clearTile('ground', 12, 8);
 
 // Parallax: call after moving your camera each frame. Layers with
 // parallaxx/parallaxy < 1 move slower than the camera; layers with

@@ -1,3 +1,4 @@
+import { computeResolvedTilesetColumns } from '../resolvedDefaults.js'
 import type { TiledTileset, TiledTilesetRef } from '../types'
 
 export function isTilesetRef(ts: TiledTileset | TiledTilesetRef): ts is TiledTilesetRef {
@@ -13,9 +14,7 @@ interface ColumnsSource {
 }
 
 export function computeTilesetColumns(ts: ColumnsSource): number {
-  if (ts.columns && ts.columns > 0) return ts.columns
-  if (!ts.imagewidth || ts.tilewidth <= 0) return 0
-  return Math.floor((ts.imagewidth - 2 * ts.margin + ts.spacing) / (ts.tilewidth + ts.spacing))
+  return computeResolvedTilesetColumns(ts)
 }
 
 /**
