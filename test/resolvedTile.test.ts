@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveTileInput } from '../src/resolvedTile.js'
+import { resolveTileGid, resolveTileInput } from '../src/resolvedTile.js'
 import {
   FLIPPED_DIAGONALLY_FLAG,
   FLIPPED_HORIZONTALLY_FLAG,
@@ -49,6 +49,30 @@ describe('Resolved Tile identity', () => {
     })
     expect(resolveTileInput({ gid: 1, alpha: -1 }, [makeResolvedTileset()])).toMatchObject({
       alpha: 0
+    })
+  })
+
+  it('keeps runtime GID resolution strict by default', () => {
+    expect(() =>
+      resolveTileGid(99, [makeResolvedTileset({ firstgid: 100, tilecount: 4 })])
+    ).toThrow('GID 99 does not match any tileset')
+  })
+
+  it('supports Parser Defaulting modes for unresolved GIDs', () => {
+    const tilesets = [makeResolvedTileset({ firstgid: 100, tilecount: 4 })]
+
+    expect(resolveTileGid(99, tilesets, { missingTileset: 'null' })).toBeNull()
+    expect(
+      resolveTileGid(99 | FLIPPED_HORIZONTALLY_FLAG, tilesets, {
+        missingTileset: 'decoded'
+      })
+    ).toEqual({
+      gid: 99,
+      localId: 0,
+      tilesetIndex: 0,
+      horizontalFlip: true,
+      verticalFlip: false,
+      diagonalFlip: false
     })
   })
 })

@@ -20,33 +20,57 @@ export function resolveTileInput(
 export function resolveTileGid(
   rawGid: number | undefined,
   tilesets: ResolvedTileset[],
-  flips?: {
+  options?: {
     horizontalFlip?: boolean
     verticalFlip?: boolean
     diagonalFlip?: boolean
     alpha?: number
+    missingTileset?: 'throw' | 'null' | 'decoded'
   }
 ): ResolvedTile | null {
   if (rawGid === undefined || rawGid === 0) return null
 
-  const gid = rawGid & GID_MASK
-  const tilesetIndex = findTilesetIndexForGid(gid, tilesets)
+  const decoded = decodeTileGid(rawGid)
+  if (!decoded) return null
+
+  const tilesetIndex = findTilesetIndexForGid(decoded.gid, tilesets)
   if (tilesetIndex < 0) {
-    throw new RangeError(`GID ${gid} does not match any tileset in this map.`)
+    switch (options?.missingTileset) {
+      case 'null':
+        return null
+      case 'decoded':
+        return decoded
+      default:
+        throw new RangeError(`GID ${decoded.gid} does not match any tileset in this map.`)
+    }
   }
 
   const tileset = tilesets[tilesetIndex]!
   const tile: ResolvedTile = {
-    gid,
-    localId: gid - tileset.firstgid,
+    gid: decoded.gid,
+    localId: decoded.gid - tileset.firstgid,
     tilesetIndex,
-    horizontalFlip: flips?.horizontalFlip ?? (rawGid & FLIPPED_HORIZONTALLY_FLAG) !== 0,
-    verticalFlip: flips?.verticalFlip ?? (rawGid & FLIPPED_VERTICALLY_FLAG) !== 0,
-    diagonalFlip: flips?.diagonalFlip ?? (rawGid & FLIPPED_DIAGONALLY_FLAG) !== 0
+    horizontalFlip: options?.horizontalFlip ?? decoded.horizontalFlip,
+    verticalFlip: options?.verticalFlip ?? decoded.verticalFlip,
+    diagonalFlip: options?.diagonalFlip ?? decoded.diagonalFlip
   }
-  const alpha = normalizeAlpha(flips?.alpha)
+  const alpha = normalizeAlpha(options?.alpha)
   if (alpha !== undefined) tile.alpha = alpha
   return tile
+}
+
+export function decodeTileGid(rawGid: number): ResolvedTile | null {
+  const gid = rawGid & GID_MASK
+  if (gid === 0) return null
+
+  return {
+    gid,
+    localId: 0,
+    tilesetIndex: 0,
+    horizontalFlip: (rawGid & FLIPPED_HORIZONTALLY_FLAG) !== 0,
+    verticalFlip: (rawGid & FLIPPED_VERTICALLY_FLAG) !== 0,
+    diagonalFlip: (rawGid & FLIPPED_DIAGONALLY_FLAG) !== 0
+  }
 }
 
 export function resolveLocalTile(

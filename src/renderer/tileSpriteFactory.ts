@@ -2,6 +2,7 @@ import { AnimatedSprite, Sprite, type Texture } from 'pixi.js'
 import { GifSprite } from 'pixi.js/gif'
 import type { MapContext, ResolvedTile } from '../types'
 import type { TileSetRenderer } from './TileSetRenderer.js'
+import { getMapTileDrawRect } from './tileDrawPlan.js'
 
 export interface TileSpritePlacement {
   x: number
@@ -65,7 +66,6 @@ function createMapTileVisualAt(
   y: number,
   ctx: MapContext
 ): Sprite | null {
-  const offset = tsRenderer.tileset.tileoffset
   const animFrames = tsRenderer.getAnimationFrames(tile.localId)
 
   if (animFrames && animFrames.length > 1) {
@@ -75,14 +75,12 @@ function createMapTileVisualAt(
       if (!tex) return null
       textures.push({ texture: tex, time: frame.duration })
     }
-    const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
-    const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
-    const padding = getTileSpritePadding(renderW, renderH, ctx)
+    const rect = getMapTileDrawRect(tile, tsRenderer, x, y, ctx)
     const sprite = new AnimatedSprite(textures)
-    sprite.width = renderW + padding
-    sprite.height = renderH + padding
-    sprite.position.set(x + offset.x, y + offset.y + ctx.tileheight - renderH)
-    sprite.alpha = tile.alpha ?? 1
+    sprite.width = rect.width
+    sprite.height = rect.height
+    sprite.position.set(rect.x, rect.y)
+    sprite.alpha = rect.alpha
     sprite.play()
     applyFlip(sprite, tile)
     return sprite
@@ -92,14 +90,12 @@ function createMapTileVisualAt(
   if (!texture) return null
 
   const gifSource = tsRenderer.getGifSource(tile.localId)
-  const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
-  const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
-  const padding = getTileSpritePadding(renderW, renderH, ctx)
+  const rect = getMapTileDrawRect(tile, tsRenderer, x, y, ctx)
   const sprite = gifSource ? new GifSprite({ source: gifSource }) : new Sprite(texture)
-  sprite.width = renderW + padding
-  sprite.height = renderH + padding
-  sprite.position.set(x + offset.x, y + offset.y + ctx.tileheight - renderH)
-  sprite.alpha = tile.alpha ?? 1
+  sprite.width = rect.width
+  sprite.height = rect.height
+  sprite.position.set(rect.x, rect.y)
+  sprite.alpha = rect.alpha
   applyFlip(sprite, tile)
   return sprite
 }
@@ -177,10 +173,4 @@ export function applyFlip(sprite: Sprite, tile: ResolvedTile): void {
       sprite.anchor.y = 1
     }
   }
-}
-
-function getTileSpritePadding(renderW: number, renderH: number, ctx: MapContext): number {
-  if (ctx.orientation !== 'orthogonal') return 0
-  if (renderW !== ctx.tilewidth || renderH !== ctx.tileheight) return 0
-  return ctx.tileSpritePadding ?? 0
 }

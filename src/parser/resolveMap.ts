@@ -4,6 +4,7 @@ import {
   resolvedObjectDefaults,
   resolvedTilesetDefaults
 } from '../resolvedDefaults.js'
+import { resolveTileGid as resolveResolvedTileGid } from '../resolvedTile.js'
 import type {
   ParseOptions,
   ResolvedChunk,
@@ -27,9 +28,8 @@ import type {
   TiledTilesetRef
 } from '../types'
 import { decodeLayerData, decodeLayerDataAsync } from './decodeData.js'
-import { decodeGid } from './decodeGid.js'
 import { mergeTemplate } from './mergeTemplate.js'
-import { findTilesetIndexForGid, isTilesetRef } from './tilesetHelpers.js'
+import { isTilesetRef } from './tilesetHelpers.js'
 
 // ─── Resolve tileset ─────────────────────────────────────────────────────────
 
@@ -65,29 +65,20 @@ function resolveGids(rawGids: number[], tilesets: ResolvedTileset[]): (ResolvedT
   const result: (ResolvedTile | null)[] = new Array(rawGids.length)
 
   for (let i = 0; i < rawGids.length; i++) {
-    result[i] = resolveTileGid(rawGids[i], tilesets)
+    result[i] = resolveParserTileGid(rawGids[i], tilesets)
   }
 
   return result
 }
 
-function resolveTileGid(
+function resolveParserTileGid(
   rawGid: number | undefined,
   tilesets: ResolvedTileset[],
   options?: { requireTileset: boolean }
 ): ResolvedTile | null {
-  if (rawGid === undefined || rawGid === 0) return null
-
-  const decoded = decodeGid(rawGid)
-  if (!decoded) return null
-
-  const tsIdx = findTilesetIndexForGid(decoded.gid, tilesets)
-  const ts = tsIdx >= 0 ? tilesets[tsIdx] : undefined
-  if (!ts) return options?.requireTileset ? null : decoded
-
-  decoded.tilesetIndex = tsIdx
-  decoded.localId = decoded.gid - ts.firstgid
-  return decoded
+  return resolveResolvedTileGid(rawGid, tilesets, {
+    missingTileset: options?.requireTileset ? 'null' : 'decoded'
+  })
 }
 
 // ─── Layer defaults ──────────────────────────────────────────────────────────
@@ -112,7 +103,7 @@ function resolveObjects(
     const resolved = resolvedObjectDefaults(merged)
 
     if (gid !== undefined) {
-      const tile = resolveTileGid(gid, tilesets, { requireTileset: true })
+      const tile = resolveParserTileGid(gid, tilesets, { requireTileset: true })
       if (tile) resolved.tile = tile
     }
 

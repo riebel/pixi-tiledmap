@@ -83,7 +83,7 @@ export class PackedTileLayerRenderer extends Container {
       width: renderW + padding,
       height: renderH + padding,
       alpha: tile.alpha,
-      uvOrder: getUvOrder(tile),
+      uvOrder: getTileUvOrder(tile),
       uvKey: getTileUvKey(tile)
     })
   }
@@ -317,7 +317,7 @@ function writeTileUvs(
   texture: Texture,
   tile: ResolvedTile
 ): void {
-  writeTextureUvs(uvs, offset, texture, getUvOrder(tile))
+  writeTextureUvs(uvs, offset, texture, getTileUvOrder(tile))
 }
 
 function writeTextureUvs(
@@ -341,7 +341,7 @@ function writeTextureUvs(
   }
 }
 
-function getUvOrder(tile: ResolvedTile): [number, number, number, number] {
+function getTileUvOrder(tile: ResolvedTile): [number, number, number, number] {
   const h = tile.horizontalFlip
   const v = tile.verticalFlip
   const d = tile.diagonalFlip

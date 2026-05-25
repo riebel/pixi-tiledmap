@@ -1,4 +1,5 @@
 import { computeResolvedTilesetColumns } from '../resolvedDefaults.js'
+import { findTilesetIndexForGid } from '../resolvedTile.js'
 import type { TiledTileset, TiledTilesetRef } from '../types'
 
 export function isTilesetRef(ts: TiledTileset | TiledTilesetRef): ts is TiledTilesetRef {
@@ -17,18 +18,7 @@ export function computeTilesetColumns(ts: ColumnsSource): number {
   return computeResolvedTilesetColumns(ts)
 }
 
-/**
- * Finds the index of the tileset whose firstgid range contains `gid`.
- * Works with any array where each element exposes `firstgid`.
- * Returns -1 when no tileset matches.
- */
-export function findTilesetIndexForGid(gid: number, tilesets: { firstgid: number }[]): number {
-  for (let i = tilesets.length - 1; i >= 0; i--) {
-    const ts = tilesets[i]
-    if (ts && ts.firstgid <= gid) return i
-  }
-  return -1
-}
+export { findTilesetIndexForGid }
 
 /**
  * Finds the tileset entry whose firstgid range contains `gid`.
