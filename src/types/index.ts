@@ -527,6 +527,22 @@ export interface TiledMapAsset {
   container: Container
 }
 
+// ─── Runtime tile editing ───────────────────────────────────────────────────
+
+export type TiledTileLayerSelector = string | number
+
+export interface TiledTileRef {
+  gid?: number
+  tileset?: string | number
+  tileId?: number
+  localId?: number
+  horizontalFlip?: boolean
+  verticalFlip?: boolean
+  diagonalFlip?: boolean
+}
+
+export type TiledTileInput = number | ResolvedTile | TiledTileRef | null
+
 // ─── Tile placement ──────────────────────────────────────────────────────────
 
 export interface MapContext {

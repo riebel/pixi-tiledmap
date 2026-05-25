@@ -13,8 +13,10 @@ const referencePath = join(fixtureDir, 'reference-render-1000x700.png')
 const outputDir = join(fixtureDir, '.visual-output')
 const actualPath = join(outputDir, 'actual-render-1000x700.png')
 const diffPath = join(outputDir, 'diff-render-1000x700.png')
+const chromeProfileDir = join(outputDir, 'chrome-profile')
 
 const viewport = process.env.MAGICLAND_VIEWPORT ?? '1000,700'
+const { width: viewportWidth, height: viewportHeight } = parseViewport(viewport)
 const maxDiffPixels = Number(process.env.MAGICLAND_MAX_DIFF_PIXELS ?? '3500')
 
 describe('MagicLand visual render', () => {
@@ -22,6 +24,7 @@ describe('MagicLand visual render', () => {
     mkdirSync(outputDir, { recursive: true })
     rmSync(actualPath, { force: true })
     rmSync(diffPath, { force: true })
+    rmSync(chromeProfileDir, { recursive: true, force: true })
 
     const server = await startFixtureServer()
     try {
@@ -34,6 +37,7 @@ describe('MagicLand visual render', () => {
       )
     } finally {
       await new Promise<void>((resolveClose) => server.instance.close(() => resolveClose()))
+      rmSync(chromeProfileDir, { recursive: true, force: true })
     }
   }, 60_000)
 })
@@ -75,6 +79,8 @@ function runChromeCapture(url: string): Promise<void> {
       '--headless=new',
       '--disable-gpu',
       '--hide-scrollbars',
+      '--force-device-scale-factor=1',
+      `--user-data-dir=${chromeProfileDir}`,
       `--window-size=${viewport}`,
       '--virtual-time-budget=5000',
       `--screenshot=${actualPath}`,
@@ -155,8 +161,8 @@ function renderFixturePage(): string {
   <head>
     <meta charset="utf-8">
     <style>
-      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: rgb(26, 26, 46); }
-      canvas { display: block; }
+      html, body { margin: 0; width: ${viewportWidth}px; height: ${viewportHeight}px; overflow: hidden; background: rgb(26, 26, 46); }
+      canvas { display: block; width: ${viewportWidth}px; height: ${viewportHeight}px; }
     </style>
     <script src="/node_modules/pixi.js/dist/pixi.js"></script>
     <script src="/node_modules/pixi.js/dist/packages/gif.js"></script>
@@ -177,7 +183,7 @@ function renderFixturePage(): string {
       extensions.add(tiledMapLoader);
 
       const app = new Application();
-      await app.init({ background: '#1099bb', resizeTo: window });
+      await app.init({ background: '#1099bb', width: ${viewportWidth}, height: ${viewportHeight} });
       document.body.appendChild(app.canvas);
 
       const { container } = await Assets.load('/fixtures/magicland/MagicLand.tmx');
@@ -185,6 +191,14 @@ function renderFixturePage(): string {
     </script>
   </body>
 </html>`
+}
+
+function parseViewport(value: string): { width: number; height: number } {
+  const [rawWidth, rawHeight] = value.split(',').map((part) => Number(part))
+  if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight)) {
+    throw new Error(`Invalid MAGICLAND_VIEWPORT value: ${value}`)
+  }
+  return { width: rawWidth, height: rawHeight }
 }
 
 function renderPixiShim(): string {

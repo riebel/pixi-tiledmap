@@ -237,6 +237,103 @@ describe('parseMap', () => {
     }
   })
 
+  it('applies Tiled defaults for sparse JSON map and layer data', () => {
+    const result = parseMap({
+      type: 'map',
+      width: 1,
+      height: 1,
+      tilewidth: 16,
+      tileheight: 16,
+      layers: [
+        {
+          type: 'objectgroup',
+          id: 1,
+          name: 'objects',
+          objects: [
+            {
+              id: 2,
+              x: 4,
+              y: 8
+            }
+          ]
+        }
+      ]
+    } as TiledMap)
+
+    expect(result.orientation).toBe('orthogonal')
+    expect(result.renderorder).toBe('right-down')
+    expect(result.infinite).toBe(false)
+    expect(result.parallaxoriginx).toBe(0)
+    expect(result.parallaxoriginy).toBe(0)
+    expect(result.properties).toEqual([])
+    expect(result.version).toBe('1.0')
+    expect(result.tilesets).toEqual([])
+
+    const layer = result.layers[0]!
+    expect(layer.type).toBe('objectgroup')
+    if (layer.type === 'objectgroup') {
+      expect(layer.opacity).toBe(1)
+      expect(layer.visible).toBe(true)
+      expect(layer.offsetx).toBe(0)
+      expect(layer.offsety).toBe(0)
+      expect(layer.parallaxx).toBe(1)
+      expect(layer.parallaxy).toBe(1)
+      expect(layer.draworder).toBe('topdown')
+
+      expect(layer.objects[0]).toMatchObject({
+        id: 2,
+        name: '',
+        type: '',
+        x: 4,
+        y: 8,
+        width: 0,
+        height: 0,
+        rotation: 0,
+        visible: true
+      })
+    }
+  })
+
+  it('applies tileset defaults for sparse JSON tilesets', () => {
+    const result = parseMap({
+      type: 'map',
+      version: '1.10',
+      orientation: 'orthogonal',
+      width: 1,
+      height: 1,
+      tilewidth: 16,
+      tileheight: 16,
+      infinite: false,
+      layers: [],
+      tilesets: [
+        {
+          firstgid: 1,
+          name: 'terrain',
+          tilewidth: 16,
+          tileheight: 16,
+          image: 'terrain.png',
+          imagewidth: 64
+        }
+      ]
+    } as TiledMap)
+
+    expect(result.tilesets[0]).toMatchObject({
+      firstgid: 1,
+      name: 'terrain',
+      tilewidth: 16,
+      tileheight: 16,
+      columns: 4,
+      tilecount: 0,
+      margin: 0,
+      spacing: 0,
+      tileoffset: { x: 0, y: 0 },
+      objectalignment: 'unspecified',
+      tilerendersize: 'tile',
+      fillmode: 'stretch',
+      properties: []
+    })
+  })
+
   it('throws for unresolved external tileset', () => {
     const map = makeMinimalMap({
       tilesets: [{ firstgid: 1, source: 'external.tsj' }]

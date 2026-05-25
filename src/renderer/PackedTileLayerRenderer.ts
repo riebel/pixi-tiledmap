@@ -10,11 +10,19 @@ interface PackedTileBatch {
   positions: Float32Array
   uvs: Float32Array
   indices: Uint16Array
+  handles: PackedTileRenderHandle[]
   positionCursor: number
   uvCursor: number
   indexCursor: number
   vertexCount: number
   tileCapacity: number
+}
+
+export interface PackedTileRenderHandle {
+  mesh: Mesh | null
+  textureSource: TextureSource
+  positionOffset: number
+  uvOffset: number
 }
 
 export class PackedTileLayerRenderer extends Container {
@@ -32,44 +40,40 @@ export class PackedTileLayerRenderer extends Container {
     x: number,
     y: number,
     ctx: MapContext
-  ): void {
+  ): PackedTileRenderHandle | null {
     if (this._needsSpriteTile(tile, tsRenderer)) {
       const sprite = createTileSprite(tile, tsRenderer, x, y, ctx)
       if (sprite) this.addChild(sprite)
-      return
+      return null
     }
 
     const texture = tsRenderer.getTexture(tile.localId)
-    if (!texture) return
+    if (!texture) return null
 
-    const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
-    const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
-    const padding = getTileMeshPadding(renderW, renderH, ctx)
-    const offset = tsRenderer.tileset.tileoffset
-    const left = x + offset.x
-    const top = y + offset.y + ctx.tileheight - renderH
-    const right = left + renderW + padding
-    const bottom = top + renderH + padding
     const batch = this._getBatch(texture)
     ensureBatchCapacity(batch, batch.vertexCount / 4 + 1)
     const vertexOffset = batch.vertexCount
+    const handle: PackedTileRenderHandle = {
+      mesh: null,
+      textureSource: texture.source,
+      positionOffset: batch.positionCursor,
+      uvOffset: batch.uvCursor
+    }
 
-    batch.positions[batch.positionCursor++] = left
-    batch.positions[batch.positionCursor++] = top
-    batch.positions[batch.positionCursor++] = right
-    batch.positions[batch.positionCursor++] = top
-    batch.positions[batch.positionCursor++] = right
-    batch.positions[batch.positionCursor++] = bottom
-    batch.positions[batch.positionCursor++] = left
-    batch.positions[batch.positionCursor++] = bottom
-    pushTileUvs(batch, texture, tile)
+    writeTilePositions(batch.positions, batch.positionCursor, tile, tsRenderer, x, y, ctx)
+    batch.positionCursor += 8
+    writeTileUvs(batch.uvs, batch.uvCursor, texture, tile)
+    batch.uvCursor += 8
     batch.indices[batch.indexCursor++] = vertexOffset
     batch.indices[batch.indexCursor++] = vertexOffset + 1
     batch.indices[batch.indexCursor++] = vertexOffset + 2
     batch.indices[batch.indexCursor++] = vertexOffset
     batch.indices[batch.indexCursor++] = vertexOffset + 2
     batch.indices[batch.indexCursor++] = vertexOffset + 3
+    batch.handles.push(handle)
     batch.vertexCount += 4
+
+    return handle
   }
 
   finalize(): void {
@@ -84,11 +88,47 @@ export class PackedTileLayerRenderer extends Container {
         })
         geometry.batchMode = 'batch'
 
-        this.addChild(new Mesh({ geometry, texture: batch.texture }))
+        const mesh = new Mesh({ geometry, texture: batch.texture })
+        for (const handle of batch.handles) {
+          handle.mesh = mesh
+        }
+        this.addChild(mesh)
       }
     }
 
     this._batches.clear()
+  }
+
+  updatePackedTile(
+    handle: PackedTileRenderHandle,
+    tile: ResolvedTile,
+    tsRenderer: TileSetRenderer,
+    x: number,
+    y: number,
+    ctx: MapContext
+  ): boolean {
+    if (!handle.mesh || this._needsSpriteTile(tile, tsRenderer)) return false
+
+    const texture = tsRenderer.getTexture(tile.localId)
+    if (!texture || texture.source !== handle.textureSource) return false
+
+    const geometry = handle.mesh.geometry
+    writeTilePositions(geometry.positions, handle.positionOffset, tile, tsRenderer, x, y, ctx)
+    writeTileUvs(geometry.uvs, handle.uvOffset, texture, tile)
+    geometry.getBuffer('aPosition').update()
+    geometry.getBuffer('aUV').update()
+    return true
+  }
+
+  clearPackedTile(handle: PackedTileRenderHandle): boolean {
+    if (!handle.mesh) return false
+
+    const geometry = handle.mesh.geometry
+    geometry.positions.fill(0, handle.positionOffset, handle.positionOffset + 8)
+    geometry.uvs.fill(0, handle.uvOffset, handle.uvOffset + 8)
+    geometry.getBuffer('aPosition').update()
+    geometry.getBuffer('aUV').update()
+    return true
   }
 
   private _getBatch(texture: Texture): PackedTileBatch {
@@ -110,6 +150,7 @@ export class PackedTileLayerRenderer extends Container {
         positions: new Float32Array(this._initialTileCapacity * 8),
         uvs: new Float32Array(this._initialTileCapacity * 8),
         indices: new Uint16Array(this._initialTileCapacity * 6),
+        handles: [],
         positionCursor: 0,
         uvCursor: 0,
         indexCursor: 0,
@@ -127,6 +168,34 @@ export class PackedTileLayerRenderer extends Container {
     if (animation && animation.length > 1) return true
     return !!tsRenderer.getGifSource(tile.localId)
   }
+}
+
+function writeTilePositions(
+  positions: Float32Array,
+  offset: number,
+  tile: ResolvedTile,
+  tsRenderer: TileSetRenderer,
+  x: number,
+  y: number,
+  ctx: MapContext
+): void {
+  const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
+  const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
+  const padding = getTileMeshPadding(renderW, renderH, ctx)
+  const tileOffset = tsRenderer.tileset.tileoffset
+  const left = x + tileOffset.x
+  const top = y + tileOffset.y + ctx.tileheight - renderH
+  const right = left + renderW + padding
+  const bottom = top + renderH + padding
+
+  positions[offset] = left
+  positions[offset + 1] = top
+  positions[offset + 2] = right
+  positions[offset + 3] = top
+  positions[offset + 4] = right
+  positions[offset + 5] = bottom
+  positions[offset + 6] = left
+  positions[offset + 7] = bottom
 }
 
 function ensureBatchCapacity(batch: PackedTileBatch, tileCount: number): void {
@@ -156,7 +225,12 @@ function getTileMeshPadding(renderW: number, renderH: number, ctx: MapContext): 
   return ctx.tileSpritePadding ?? 0
 }
 
-function pushTileUvs(batch: PackedTileBatch, texture: Texture, tile: ResolvedTile): void {
+function writeTileUvs(
+  uvs: Float32Array,
+  offset: number,
+  texture: Texture,
+  tile: ResolvedTile
+): void {
   const { x0, y0, x1, y1, x2, y2, x3, y3 } = texture.uvs
   const corners: [[number, number], [number, number], [number, number], [number, number]] = [
     [x0, y0],
@@ -167,8 +241,8 @@ function pushTileUvs(batch: PackedTileBatch, texture: Texture, tile: ResolvedTil
 
   for (const index of getUvOrder(tile)) {
     const corner = corners[index]!
-    batch.uvs[batch.uvCursor++] = corner[0]
-    batch.uvs[batch.uvCursor++] = corner[1]
+    uvs[offset++] = corner[0]
+    uvs[offset++] = corner[1]
   }
 }
 

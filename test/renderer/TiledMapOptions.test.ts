@@ -91,6 +91,22 @@ describe('TiledMap layerFilter', () => {
     expect(group).toBeDefined()
     expect(group?.children.map((child) => child.label)).toEqual(['below'])
   })
+
+  it('finds nested rendered layers by name', () => {
+    const map = new TiledMap(
+      makeResolvedMap({
+        layers: [
+          makeResolvedGroupLayer({
+            id: 10,
+            name: 'decor',
+            layers: [makeResolvedTileLayer({ id: 11, name: 'below' })]
+          })
+        ]
+      })
+    )
+
+    expect(map.getLayer('below')?.label).toBe('below')
+  })
 })
 
 describe('tileSpritePadding', () => {
