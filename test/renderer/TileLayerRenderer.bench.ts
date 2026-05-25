@@ -20,6 +20,11 @@ const ctx: MapContext = {
   tileSpritePadding: 0.01
 }
 
+const legacyBatchCtx: MapContext = {
+  ...ctx,
+  tileMeshBatchSize: 2000
+}
+
 const tileset = makeTileSetRenderer()
 
 function makeTiles(count: number) {
@@ -27,6 +32,19 @@ function makeTiles(count: number) {
 }
 
 describe('TileLayerRenderer hot path', () => {
+  bench('finite 64x64 tile layer legacy 2k batches', () => {
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({
+        width: 64,
+        height: 64,
+        tiles: makeTiles(64 * 64)
+      }),
+      [tileset],
+      legacyBatchCtx
+    )
+    renderer.destroy({ children: true })
+  })
+
   bench('finite 64x64 tile layer', () => {
     const renderer = new TileLayerRenderer(
       makeResolvedTileLayer({
@@ -63,6 +81,33 @@ describe('TileLayerRenderer hot path', () => {
         chunks
       }),
       [tileset],
+      ctx
+    )
+    renderer.destroy({ children: true })
+  })
+
+  bench('animated finite 64x64 tile layer', () => {
+    const animatedTileset = makeTileSetRenderer({
+      tiles: new Map([
+        [
+          0,
+          {
+            id: 0,
+            animation: [
+              { tileid: 0, duration: 100 },
+              { tileid: 0, duration: 100 }
+            ]
+          }
+        ]
+      ])
+    })
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({
+        width: 64,
+        height: 64,
+        tiles: makeTiles(64 * 64)
+      }),
+      [animatedTileset],
       ctx
     )
     renderer.destroy({ children: true })

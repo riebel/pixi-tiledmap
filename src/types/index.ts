@@ -340,6 +340,7 @@ export interface ResolvedTile {
   horizontalFlip: boolean
   verticalFlip: boolean
   diagonalFlip: boolean
+  alpha?: number
 }
 
 export interface ResolvedObject {
@@ -518,6 +519,13 @@ export interface TiledMapOptions {
    * Set to 0 to disable.
    */
   tileSpritePadding?: number
+  /**
+   * Maximum number of quads to place in one packed tile mesh.
+   *
+   * The default keeps one mesh below 16-bit index limits while reducing draw
+   * object count for large layers.
+   */
+  tileMeshBatchSize?: number
 }
 
 export type TiledLayerFilter = (layer: ResolvedLayer) => boolean
@@ -539,6 +547,7 @@ export interface TiledTileRef {
   horizontalFlip?: boolean
   verticalFlip?: boolean
   diagonalFlip?: boolean
+  alpha?: number
 }
 
 export type TiledTileInput = number | ResolvedTile | TiledTileRef | null
@@ -558,6 +567,7 @@ export interface MapContext {
   /** Map height in pixels; used by image layers when tiling (repeatx/repeaty). */
   mapPixelHeight?: number
   tileSpritePadding?: number
+  tileMeshBatchSize?: number
 }
 
 export interface TilePosition {

@@ -82,6 +82,7 @@ function createMapTileVisualAt(
     sprite.width = renderW + padding
     sprite.height = renderH + padding
     sprite.position.set(x + offset.x, y + offset.y + ctx.tileheight - renderH)
+    sprite.alpha = tile.alpha ?? 1
     sprite.play()
     applyFlip(sprite, tile)
     return sprite
@@ -98,6 +99,7 @@ function createMapTileVisualAt(
   sprite.width = renderW + padding
   sprite.height = renderH + padding
   sprite.position.set(x + offset.x, y + offset.y + ctx.tileheight - renderH)
+  sprite.alpha = tile.alpha ?? 1
   applyFlip(sprite, tile)
   return sprite
 }
@@ -126,6 +128,7 @@ function createObjectTileVisual(
   sprite.position.set(placement.x + offset.x, placement.y - sized.height + offset.y)
   sprite.angle = placement.rotation
   sprite.visible = placement.visible
+  sprite.alpha = tile.alpha ?? 1
   applyFlip(sprite, tile)
 
   return sprite

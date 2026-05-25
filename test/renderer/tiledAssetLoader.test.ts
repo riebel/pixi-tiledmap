@@ -483,7 +483,7 @@ describe('loadTiledMapAsset', () => {
     for (const child of background?.children ?? []) {
       const mesh = child as Mesh
       expect(mesh.geometry.batchMode).toBe('batch')
-      expect(mesh.geometry.positions.length).toBeLessThanOrEqual(2_000 * 8)
+      expect(mesh.geometry.positions.length).toBeLessThanOrEqual(16_000 * 8)
     }
   })
 

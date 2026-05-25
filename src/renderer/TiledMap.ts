@@ -73,7 +73,8 @@ export class TiledMap extends Container {
       staggerindex: mapData.staggerindex,
       mapPixelWidth: pixelSize.width,
       mapPixelHeight: pixelSize.height,
-      tileSpritePadding: options?.tileSpritePadding ?? 0.01
+      tileSpritePadding: options?.tileSpritePadding ?? 0.01,
+      tileMeshBatchSize: options?.tileMeshBatchSize
     }
     // Render background
     if (mapData.backgroundcolor) {

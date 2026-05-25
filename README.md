@@ -12,9 +12,9 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **All orientations** - orthogonal, isometric, staggered, hexagonal
 - **Render order** - right-down, right-up, left-down, left-up
 - **Infinite maps** - chunk-based tile layer rendering
-- **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source, without an external tilemap dependency
+- **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source and alpha, with large source-inspired batches and no external tilemap dependency
 - **Partial tile updates** - same-atlas runtime tile edits update packed mesh buffers in place; structural changes safely rebuild the affected tile layer
-- **Tile features** - animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, `tilerendersize` / `fillmode`
+- **Tile features** - animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, runtime tile alpha, `tilerendersize` / `fillmode`
 - **Object rendering** - rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects
 - **Object templates** - automatic `.tx` / `.tj` resolution with gid remapping between template and map tileset spaces
 - **Parallax scrolling** - per-layer `parallaxx` / `parallaxy` and map-level `parallaxorigin`, composed multiplicatively through group layers, applied via `TiledMap.applyParallax(cameraX, cameraY)`
@@ -41,7 +41,7 @@ v2.0.0 is modernized for the current PixiJS ecosystem and modern TypeScript pack
 
 - **Complete Tiled coverage in one package**: JSON + TMX, all layer types, all map orientations.
 - **PixiJS-native loading path**: register once via `extensions.add(tiledMapLoader)` and load maps through `Assets`.
-- **Performance-minded internals**: batchable packed mesh-backed tile layers, partial packed mesh updates for same-atlas tile edits, chunked infinite-layer traversal, cached tile textures, and efficient GID→tileset resolution.
+- **Performance-minded internals**: batchable packed mesh-backed tile layers, cached quad indices, partial packed mesh updates for same-atlas/same-alpha tile edits, chunked infinite-layer traversal, cached tile textures, and efficient GID→tileset resolution.
 - **Composable renderer pipeline**: layer filtering, parallax, tile visuals, and texture loading are factored so manual and loader-based usage share the same rendering behavior.
 - **Production packaging**: side-effect-free metadata, ESM/CJS dual output, and bundled type definitions.
 
@@ -68,6 +68,7 @@ If you want the best runtime behavior in your game/application:
 - Reuse `TiledMap` instances for frequently revisited scenes when possible.
 - Keep large worlds in infinite/chunked maps to avoid over-allocating one giant layer.
 - Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
+- Keep the default `tileMeshBatchSize` unless you are profiling a GPU/driver that prefers smaller meshes; the default keeps packed meshes below 16-bit index limits while reducing render object count.
 - Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are usually `Mesh` children now, not one `Sprite` per tile.
 - Run `npm run bench` before and after renderer hot-path changes if you maintain a fork.
 - `npm test` includes a headless MagicLand visual regression that renders a real TMX + GIF tileset fixture and pixel-compares it against a checked-in reference image.
@@ -134,7 +135,7 @@ Use `setTile`, `getTile`, and `clearTile` to update rendered tile layers by laye
 map.setTile('chests', 12, 8, { tileset: 'dungeon', tileId: save.chestOpen ? 5 : 4 });
 ```
 
-For static packed tiles, edits that stay on the same texture source update the existing packed mesh geometry buffers in place. Clearing a packed tile degenerates its quad without replacing the mesh. Edits that add a previously empty tile, switch texture sources, or change between packed tiles and sprite-backed tiles such as animations or GIFs rebuild the affected tile layer automatically.
+For static packed tiles, edits that stay on the same texture source and alpha group update the existing packed mesh geometry buffers in place. Unchanged rect/UV edits skip buffer uploads. Clearing a packed tile degenerates its quad without replacing the mesh. Edits that add a previously empty tile, switch texture sources or alpha groups, or change between packed tiles and sprite-backed tiles such as animations or GIFs rebuild the affected tile layer automatically.
 
 Use `createMap` for generated maps. It returns the same resolved map shape as `parseMap`, so the rendered result supports the same editing API:
 
@@ -184,7 +185,7 @@ map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 | `ImageLayerRenderer`  | `Container` for a single image layer                             |
 | `ObjectLayerRenderer` | `Container` for a single object layer                            |
 | `GroupLayerRenderer`  | `Container` for a group layer (recursive)                        |
-| `PackedTileLayerRenderer` | Internal packed tile mesh base used by `TileLayerRenderer`   |
+| `PackedTileLayerRenderer` | Packed mesh base used by `TileLayerRenderer`, with a low-level `addTextureRect()` seam |
 | `TileSetRenderer`     | Texture manager for a tileset                                    |
 | `createMap(options)`  | Create a resolved map procedurally                               |
 | `createTileset(options)` | Create a resolved tileset                                     |
@@ -199,6 +200,12 @@ map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 | `parseTx(xml)`        | Parse TX XML string → `TiledObjectTemplate` data                 |
 | `decodeGid(raw)`      | Decode a raw GID into tile ID + flip flags                       |
 
+### Low-Level Packing
+
+`PackedTileLayerRenderer.addTextureRect()` is available for renderer-level integrations that need to pack an already-resolved texture rectangle without going through Tiled tile placement. It uses the same batch sizing, texture-source/alpha grouping, cached quad indices, and final `MeshGeometry` path as normal tile layers.
+
+Most applications should use `TiledMap` and `TileLayerRenderer`; the low-level seam exists for renderer extensions and focused tests.
+
 ### `TiledMap` Container
 
 ```ts
@@ -210,6 +217,7 @@ const map = new TiledMap(resolvedMap, {
   imageLayerGifSources, // Map<imagePath, GifSource> (animated image layers)
   layerFilter, // optional (layer) => boolean, for rendering selected layers
   tileSpritePadding, // optional, defaults to 0.01 to hide fractional-scale seams
+  tileMeshBatchSize, // optional, defaults to 16000 quads per packed mesh
 });
 
 map.orientation; // 'orthogonal' | 'isometric' | 'staggered' | 'hexagonal'
@@ -223,6 +231,7 @@ map.getLayer('ground'); // find layer Container by name
 map.getTile('ground', 12, 8);
 map.setTile('ground', 12, 8, 42); // raw Tiled GID
 map.setTile('ground', 12, 8, { tileset: 'dungeon', tileId: 4 });
+map.setTile('ground', 12, 8, { tileset: 'dungeon', tileId: 4, alpha: 0.5 });
 map.clearTile('ground', 12, 8);
 
 // Parallax: call after moving your camera each frame. Layers with

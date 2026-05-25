@@ -2,7 +2,8 @@
  * @vitest-environment jsdom
  */
 import { type Mesh, Texture } from 'pixi.js'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { PackedTileLayerRenderer } from '../../src/renderer/PackedTileLayerRenderer.js'
 import { TiledMap } from '../../src/renderer/TiledMap.js'
 import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
@@ -31,6 +32,24 @@ const ctx: MapContext = {
 }
 
 describe('TileLayerRenderer runtime editing', () => {
+  it('packs raw texture rectangles through the lower-level renderer seam', () => {
+    const renderer = new PackedTileLayerRenderer()
+
+    renderer.addTextureRect({
+      texture: Texture.EMPTY,
+      x: 4,
+      y: 8,
+      width: 16,
+      height: 24,
+      alpha: 0.75
+    })
+    renderer.finalize()
+
+    const mesh = renderer.children[0] as Mesh
+    expect(mesh.alpha).toBe(0.75)
+    expect(Array.from(mesh.geometry.positions)).toEqual([4, 8, 20, 8, 20, 32, 4, 32])
+  })
+
   it('reads, sets, and clears finite layer tiles', () => {
     const layerData = makeResolvedTileLayer({
       width: 2,
@@ -94,6 +113,23 @@ describe('TileLayerRenderer runtime editing', () => {
     expect(renderer.getTile(0, 0)).toMatchObject({ gid: 2, localId: 1 })
   })
 
+  it('skips packed mesh buffer uploads when an edit keeps the same rect and UVs', () => {
+    const layerData = makeResolvedTileLayer({
+      width: 1,
+      height: 1,
+      tiles: [makeResolvedTile({ gid: 1, localId: 0 })]
+    })
+    const renderer = new TileLayerRenderer(layerData, [makeTileSetRenderer()], ctx)
+    const mesh = renderer.children[0] as Mesh
+    const positionUpdate = vi.spyOn(mesh.geometry.getBuffer('aPosition'), 'update')
+    const uvUpdate = vi.spyOn(mesh.geometry.getBuffer('aUV'), 'update')
+
+    renderer.setTile(0, 0, makeResolvedTile({ gid: 1, localId: 0 }))
+
+    expect(positionUpdate).not.toHaveBeenCalled()
+    expect(uvUpdate).not.toHaveBeenCalled()
+  })
+
   it('updates chunked infinite packed mesh tiles in place', () => {
     const layerData = makeResolvedTileLayer({
       infinite: true,
@@ -137,6 +173,49 @@ describe('TileLayerRenderer runtime editing', () => {
     expect(renderer.children[0]).toBe(mesh)
     expect(Array.from(mesh.geometry.positions)).toEqual(new Array(8).fill(0))
     expect(renderer.getTile(0, 0)).toBeNull()
+  })
+
+  it('keeps same-alpha tiles packed together', () => {
+    const layerData = makeResolvedTileLayer({
+      width: 2,
+      height: 1,
+      tiles: [makeResolvedTile({ alpha: 0.5 }), makeResolvedTile({ alpha: 0.5 })]
+    })
+    const renderer = new TileLayerRenderer(layerData, [makeTileSetRenderer()], ctx)
+    const mesh = renderer.children[0] as Mesh
+
+    expect(renderer.children).toHaveLength(1)
+    expect(mesh.alpha).toBe(0.5)
+    expect(mesh.geometry.positions.length).toBe(16)
+  })
+
+  it('rebuilds when a packed tile edit changes alpha', () => {
+    const layerData = makeResolvedTileLayer({
+      width: 1,
+      height: 1,
+      tiles: [makeResolvedTile()]
+    })
+    const renderer = new TileLayerRenderer(layerData, [makeTileSetRenderer()], ctx)
+    const initialMesh = renderer.children[0]
+
+    renderer.setTile(0, 0, makeResolvedTile({ alpha: 0.5 }))
+
+    expect(renderer.children[0]).not.toBe(initialMesh)
+    expect(renderer.children[0]?.alpha).toBe(0.5)
+  })
+
+  it('honors the packed mesh batch size option', () => {
+    const layerData = makeResolvedTileLayer({
+      width: 3,
+      height: 1,
+      tiles: [makeResolvedTile(), makeResolvedTile(), makeResolvedTile()]
+    })
+    const renderer = new TileLayerRenderer(layerData, [makeTileSetRenderer()], {
+      ...ctx,
+      tileMeshBatchSize: 2
+    })
+
+    expect(renderer.children).toHaveLength(2)
   })
 
   it('rebuilds when clearing a sprite-backed tile', () => {

@@ -1,4 +1,5 @@
 // Parser
+
 export {
   decodeGid,
   decodeLayerData,
@@ -27,12 +28,14 @@ export {
   createTileLayer,
   createTileset
 } from './procedural'
-// Renderer
 export {
   createLayerRenderer,
   GroupLayerRenderer,
   ImageLayerRenderer,
   ObjectLayerRenderer,
+  type PackedTextureRect,
+  PackedTileLayerRenderer,
+  type PackedTileRenderHandle,
   TiledMap,
   TileLayerRenderer,
   TileSetRenderer,

@@ -11,7 +11,7 @@ export class TileLayerRenderer extends PackedTileLayerRenderer {
   private readonly _cellRenderHandles = new Map<string, PackedTileRenderHandle>()
 
   constructor(layerData: ResolvedTileLayer, tilesets: TileSetRenderer[], ctx: MapContext) {
-    super(estimateTileCapacity(layerData))
+    super(estimateTileCapacity(layerData), ctx.tileMeshBatchSize)
 
     this.layerData = layerData
     this._tilesets = tilesets
@@ -130,8 +130,9 @@ export class TileLayerRenderer extends PackedTileLayerRenderer {
         // Read x/y immediately - tileToPixel returns a reusable object.
         const pos = tileToPixel(originCol + col, originRow + row, ctx)
         const handle = this.addTile(tile, tsRenderer, pos.x, pos.y, ctx)
-        if (handle)
+        if (handle) {
           this._cellRenderHandles.set(getCellKey(originCol + col, originRow + row), handle)
+        }
       }
     }
   }

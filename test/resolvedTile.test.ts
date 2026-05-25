@@ -42,4 +42,13 @@ describe('Resolved Tile identity', () => {
     expect(resolveTileInput({ tileset: 'decor.tsx', tileId: 2 }, tilesets)?.gid).toBe(102)
     expect(resolveTileInput({ tileset: 'decor.png', tileId: 3 }, tilesets)?.gid).toBe(103)
   })
+
+  it('clamps runtime tile alpha', () => {
+    expect(resolveTileInput({ gid: 1, alpha: 2 }, [makeResolvedTileset()])).toMatchObject({
+      alpha: 1
+    })
+    expect(resolveTileInput({ gid: 1, alpha: -1 }, [makeResolvedTileset()])).toMatchObject({
+      alpha: 0
+    })
+  })
 })

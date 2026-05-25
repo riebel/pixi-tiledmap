@@ -20,7 +20,12 @@ export function resolveTileInput(
 export function resolveTileGid(
   rawGid: number | undefined,
   tilesets: ResolvedTileset[],
-  flips?: { horizontalFlip?: boolean; verticalFlip?: boolean; diagonalFlip?: boolean }
+  flips?: {
+    horizontalFlip?: boolean
+    verticalFlip?: boolean
+    diagonalFlip?: boolean
+    alpha?: number
+  }
 ): ResolvedTile | null {
   if (rawGid === undefined || rawGid === 0) return null
 
@@ -31,7 +36,7 @@ export function resolveTileGid(
   }
 
   const tileset = tilesets[tilesetIndex]!
-  return {
+  const tile: ResolvedTile = {
     gid,
     localId: gid - tileset.firstgid,
     tilesetIndex,
@@ -39,6 +44,9 @@ export function resolveTileGid(
     verticalFlip: flips?.verticalFlip ?? (rawGid & FLIPPED_VERTICALLY_FLAG) !== 0,
     diagonalFlip: flips?.diagonalFlip ?? (rawGid & FLIPPED_DIAGONALLY_FLAG) !== 0
   }
+  const alpha = normalizeAlpha(flips?.alpha)
+  if (alpha !== undefined) tile.alpha = alpha
+  return tile
 }
 
 export function resolveLocalTile(
@@ -54,7 +62,7 @@ export function resolveLocalTile(
       `Local tile ID ${localId} is outside tileset "${tileset.name}" (${tileset.tilecount} tiles).`
     )
   }
-  return {
+  const tile: ResolvedTile = {
     gid: tileset.firstgid + localId,
     localId,
     tilesetIndex,
@@ -62,6 +70,9 @@ export function resolveLocalTile(
     verticalFlip: input.verticalFlip ?? false,
     diagonalFlip: input.diagonalFlip ?? false
   }
+  const alpha = normalizeAlpha(input.alpha)
+  if (alpha !== undefined) tile.alpha = alpha
+  return tile
 }
 
 export function findTilesetIndex(
@@ -83,6 +94,12 @@ export function findTilesetIndex(
   )
   if (index < 0) throw new Error(`Tileset "${selector}" not found.`)
   return index
+}
+
+function normalizeAlpha(alpha: number | undefined): number | undefined {
+  if (alpha === undefined) return undefined
+  if (!Number.isFinite(alpha)) throw new RangeError('Tile alpha must be a finite number.')
+  return Math.min(1, Math.max(0, alpha))
 }
 
 export function findTilesetIndexForGid(
