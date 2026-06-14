@@ -207,6 +207,7 @@ export const AnimatedSprite = PIXI.AnimatedSprite;
 export const Application = PIXI.Application;
 export const Assets = PIXI.Assets;
 export const Container = PIXI.Container;
+export const DOMAdapter = PIXI.DOMAdapter;
 export const ExtensionType = PIXI.ExtensionType;
 export const Graphics = PIXI.Graphics;
 export const Mesh = PIXI.Mesh;

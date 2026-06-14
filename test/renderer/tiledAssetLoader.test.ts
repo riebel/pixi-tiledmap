@@ -3,7 +3,7 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { Assets, BufferImageSource, Mesh, Texture } from 'pixi.js'
+import { Assets, BufferImageSource, DOMAdapter, Mesh, Texture } from 'pixi.js'
 import { describe, expect, it, vi } from 'vitest'
 import {
   fetchMapDependencies,
@@ -419,6 +419,26 @@ describe('loadTextureManifest', () => {
 })
 
 describe('loadTiledMapAsset', () => {
+  it('defaults to Pixi DOMAdapter fetch when no fetchFn is provided', async () => {
+    const map = makeMap({ width: 1, height: 1 })
+    const previousAdapter = DOMAdapter.get()
+    const adapterFetch = vi.fn((url: RequestInfo | URL) => {
+      expect(url).toBe('maps/level.tmj')
+      return Promise.resolve(jsonResponse(map) as Response)
+    })
+
+    DOMAdapter.set({ ...previousAdapter, fetch: adapterFetch })
+
+    try {
+      const asset = await loadTiledMapAsset('maps/level.tmj')
+
+      expect(asset.mapData.width).toBe(1)
+      expect(adapterFetch).toHaveBeenCalledWith('maps/level.tmj')
+    } finally {
+      DOMAdapter.set(previousAdapter)
+    }
+  })
+
   it('loads a TMJ map through the full asset pipeline', async () => {
     const map = makeMap({
       width: 1,
