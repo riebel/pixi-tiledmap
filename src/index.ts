@@ -30,12 +30,16 @@ export {
 } from './procedural'
 export {
   createLayerRenderer,
+  type FetchFn,
   GroupLayerRenderer,
   ImageLayerRenderer,
+  type LoadAssetFn,
+  loadTiledMapAsset,
   ObjectLayerRenderer,
   type PackedTextureRect,
   PackedTileLayerRenderer,
   type PackedTileRenderHandle,
+  type TiledAssetPipelineOptions,
   TiledMap,
   TileLayerRenderer,
   TileSetRenderer,
