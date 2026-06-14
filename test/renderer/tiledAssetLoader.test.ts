@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { Assets, BufferImageSource, DOMAdapter, Mesh, Texture } from 'pixi.js'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  type FetchFn,
   fetchMapDependencies,
   loadTextureManifest,
   loadTiledMapAsset
@@ -64,10 +65,11 @@ function makeMap(overrides: Partial<TiledMapData> = {}): TiledMapData {
 type FakeResponse = { text(): Promise<string>; json(): Promise<unknown> }
 
 function makeFetcher(responses: Record<string, FakeResponse>) {
-  return vi.fn((url: string): Promise<FakeResponse> => {
+  return vi.fn<FetchFn>((resource) => {
+    const url = String(resource)
     const entry = responses[url]
     if (!entry) return Promise.reject(new Error(`Unexpected fetch: ${url}`))
-    return Promise.resolve(entry)
+    return Promise.resolve(entry as Response)
   })
 }
 
