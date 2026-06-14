@@ -24,9 +24,7 @@ import { TiledMap } from './TiledMap.js'
 
 extensions.add(GifAsset)
 
-export type FetchFn = (
-  url: string
-) => Promise<{ text(): Promise<string>; json(): Promise<unknown> }>
+export type FetchFn = ReturnType<typeof DOMAdapter.get>['fetch']
 export type LoadAssetFn = <T>(url: string) => Promise<T>
 
 export interface TiledAssetPipelineOptions {
@@ -56,7 +54,7 @@ interface LoadedTextureSets {
 export async function fetchMapDependencies(
   data: TiledMapData,
   basePath: string,
-  fetchFn: FetchFn = defaultFetch
+  fetchFn: FetchFn = DOMAdapter.get().fetch
 ): Promise<{
   externalTilesets: Map<string, TiledTileset>
   templates: Map<string, TiledObjectTemplate>
@@ -120,7 +118,7 @@ export async function loadTiledMapAsset(
   url: string,
   options?: TiledAssetPipelineOptions
 ): Promise<TiledMapAsset> {
-  const fetchFn = options?.fetchFn ?? defaultFetch
+  const fetchFn = options?.fetchFn ?? DOMAdapter.get().fetch
   const loadAsset = options?.loadAsset
   const data = await fetchTiledMapData(url, fetchFn)
   const basePath = pixiPath.dirname(url)
@@ -136,10 +134,6 @@ export async function loadTiledMapAsset(
   })
 
   return { mapData, container }
-}
-
-function defaultFetch(url: string): ReturnType<FetchFn> {
-  return DOMAdapter.get().fetch(url)
 }
 
 async function fetchTiledMapData(url: string, fetchFn: FetchFn): Promise<TiledMapData> {
