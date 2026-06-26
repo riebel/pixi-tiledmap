@@ -63,13 +63,16 @@ export class ImageLayerRenderer extends Container {
     const effectiveParallaxY = this.layerData.parallaxy * parentParallaxY
     const repeatsX = this.layerData.repeatx && this._tiledImage !== null
     const repeatsY = this.layerData.repeaty && this._tiledImage !== null
+    const layerX = this.layerData.offsetx + dx * (1 - effectiveParallaxX)
+    const layerY = this.layerData.offsety + dy * (1 - effectiveParallaxY)
 
-    this.position.set(
-      this.layerData.offsetx + dx * (repeatsX ? parentParallaxX : 1 - effectiveParallaxX),
-      this.layerData.offsety + dy * (repeatsY ? parentParallaxY : 1 - effectiveParallaxY)
-    )
+    this.position.set(layerX, layerY)
 
     if (this._tiledImage) {
+      this._tiledImage.position.set(
+        repeatsX ? this.layerData.offsetx - layerX : 0,
+        repeatsY ? this.layerData.offsety - layerY : 0
+      )
       this._tiledImage.tilePosition.set(
         repeatsX ? -dx * effectiveParallaxX : 0,
         repeatsY ? -dy * effectiveParallaxY : 0
