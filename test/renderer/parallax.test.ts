@@ -151,7 +151,7 @@ describe('TiledMap.applyParallax', () => {
     expect(inner.position.x).toBe(75)
   })
 
-  it('keeps repeated image layers covering the camera while scrolling the tiled texture', () => {
+  it('keeps repeated image layers anchored while scrolling the tiled texture', () => {
     const map = new TiledMap(
       makeResolvedMap({
         width: 4,
@@ -164,7 +164,9 @@ describe('TiledMap.applyParallax', () => {
             name: 'clouds',
             image: 'clouds.png',
             repeatx: true,
-            parallaxx: 0.5
+            repeaty: true,
+            parallaxx: 0.5,
+            parallaxy: 0.5
           })
         ]
       }),
@@ -177,9 +179,48 @@ describe('TiledMap.applyParallax', () => {
     const tiledImage = layer.children[0]
     expect(tiledImage).toBeInstanceOf(TilingSprite)
 
-    map.applyParallax(64, 0)
+    map.applyParallax(100, 100)
 
-    expect(layer.position.x).toBe(64)
-    expect((tiledImage as TilingSprite).tilePosition.x).toBe(-32)
+    expect(layer.position.x + tiledImage.position.x).toBe(0)
+    expect(layer.position.y + tiledImage.position.y).toBe(0)
+    expect((tiledImage as TilingSprite).tilePosition.x).toBe(-50)
+    expect((tiledImage as TilingSprite).tilePosition.y).toBe(-50)
+  })
+
+  it('only anchors the axes that repeat', () => {
+    const map = new TiledMap(
+      makeResolvedMap({
+        width: 4,
+        height: 2,
+        tilewidth: 32,
+        tileheight: 32,
+        layers: [
+          makeResolvedImageLayer({
+            id: 1,
+            name: 'mist',
+            image: 'mist.png',
+            repeatx: true,
+            repeaty: false,
+            parallaxx: 0.5,
+            parallaxy: 0.25
+          })
+        ]
+      }),
+      {
+        imageLayerTextures: new Map([['mist.png', Texture.EMPTY]])
+      }
+    )
+
+    const layer = map.getLayer('mist')!
+    const tiledImage = layer.children[0]
+    expect(tiledImage).toBeInstanceOf(TilingSprite)
+
+    map.applyParallax(100, 100)
+
+    expect(layer.position.x + tiledImage.position.x).toBe(0)
+    expect(layer.position.y).toBe(75)
+    expect(tiledImage.position.y).toBe(0)
+    expect((tiledImage as TilingSprite).tilePosition.x).toBe(-50)
+    expect((tiledImage as TilingSprite).tilePosition.y).toBe(0)
   })
 })
