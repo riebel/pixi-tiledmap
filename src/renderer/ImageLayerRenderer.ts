@@ -5,6 +5,7 @@ import { applyLayerState } from './renderableLayer.js'
 
 export class ImageLayerRenderer extends Container {
   readonly layerData: ResolvedImageLayer
+  private _tiledImage: TilingSprite | null = null
 
   constructor(
     layerData: ResolvedImageLayer,
@@ -40,12 +41,39 @@ export class ImageLayerRenderer extends Container {
     const spanH =
       ctx?.mapPixelHeight && ctx.mapPixelHeight > 0 ? ctx.mapPixelHeight : texture.height
 
-    this.addChild(
-      new TilingSprite({
-        texture,
-        width: repeatx ? spanW : texture.width,
-        height: repeaty ? spanH : texture.height
-      })
+    this._tiledImage = new TilingSprite({
+      texture,
+      width: repeatx ? spanW : texture.width,
+      height: repeaty ? spanH : texture.height
+    })
+    this.addChild(this._tiledImage)
+  }
+
+  applyParallax(
+    cameraX: number,
+    cameraY: number,
+    originX: number,
+    originY: number,
+    parentParallaxX: number,
+    parentParallaxY: number
+  ): void {
+    const dx = cameraX - originX
+    const dy = cameraY - originY
+    const effectiveParallaxX = this.layerData.parallaxx * parentParallaxX
+    const effectiveParallaxY = this.layerData.parallaxy * parentParallaxY
+    const repeatsX = this.layerData.repeatx && this._tiledImage !== null
+    const repeatsY = this.layerData.repeaty && this._tiledImage !== null
+
+    this.position.set(
+      this.layerData.offsetx + dx * (repeatsX ? parentParallaxX : 1 - effectiveParallaxX),
+      this.layerData.offsety + dy * (repeatsY ? parentParallaxY : 1 - effectiveParallaxY)
     )
+
+    if (this._tiledImage) {
+      this._tiledImage.tilePosition.set(
+        repeatsX ? -dx * effectiveParallaxX : 0,
+        repeatsY ? -dy * effectiveParallaxY : 0
+      )
+    }
   }
 }

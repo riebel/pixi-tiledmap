@@ -96,10 +96,14 @@ function applyParallaxRecursive(
   const px = layer.layerParallaxX * parentParallaxX
   const py = layer.layerParallaxY * parentParallaxY
 
-  layer.position.set(
-    layer.layerBaseOffsetX + (cameraX - originX) * (1 - px),
-    layer.layerBaseOffsetY + (cameraY - originY) * (1 - py)
-  )
+  if (layer instanceof ImageLayerRenderer) {
+    layer.applyParallax(cameraX, cameraY, originX, originY, parentParallaxX, parentParallaxY)
+  } else {
+    layer.position.set(
+      layer.layerBaseOffsetX + (cameraX - originX) * (1 - px),
+      layer.layerBaseOffsetY + (cameraY - originY) * (1 - py)
+    )
+  }
 
   for (const child of layer.children) {
     if (isRenderableLayer(child)) {
