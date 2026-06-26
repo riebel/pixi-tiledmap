@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { Texture, TilingSprite } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
 import { TiledMap } from '../../src/renderer/TiledMap.js'
 import {
@@ -148,5 +149,37 @@ describe('TiledMap.applyParallax', () => {
     expect(outer.position.x).toBe(50)
     // inner effective parallax = 0.5 * 0.5 = 0.25 → 100 * (1 - 0.25) = 75
     expect(inner.position.x).toBe(75)
+  })
+
+  it('keeps repeated image layers covering the camera while scrolling the tiled texture', () => {
+    const map = new TiledMap(
+      makeResolvedMap({
+        width: 4,
+        height: 2,
+        tilewidth: 32,
+        tileheight: 32,
+        layers: [
+          makeResolvedImageLayer({
+            id: 1,
+            name: 'clouds',
+            image: 'clouds.png',
+            repeatx: true,
+            parallaxx: 0.5
+          })
+        ]
+      }),
+      {
+        imageLayerTextures: new Map([['clouds.png', Texture.EMPTY]])
+      }
+    )
+
+    const layer = map.getLayer('clouds')!
+    const tiledImage = layer.children[0]
+    expect(tiledImage).toBeInstanceOf(TilingSprite)
+
+    map.applyParallax(64, 0)
+
+    expect(layer.position.x).toBe(64)
+    expect((tiledImage as TilingSprite).tilePosition.x).toBe(-32)
   })
 })
