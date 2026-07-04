@@ -1,3 +1,4 @@
+import { DOMAdapter } from 'pixi.js'
 import type {
   TiledDrawOrder,
   TiledLayer,
@@ -15,7 +16,18 @@ import { parseData } from './tmxData.js'
 import { parseObject } from './tmxObjects.js'
 import { parseProperties } from './tmxProperties.js'
 import { parseImage, parseTileset } from './tmxTilesets.js'
-import { bool, child, children, float, int, optFloat, optInt, optStr, str } from './xmlHelpers.js'
+import {
+  bool,
+  child,
+  children,
+  elementChildren,
+  float,
+  int,
+  optFloat,
+  optInt,
+  optStr,
+  str
+} from './xmlHelpers.js'
 
 // ─── Layers ─────────────────────────────────────────────────────────────────
 
@@ -86,8 +98,9 @@ function parseGroupLayer(el: Element): TiledLayer {
 
 function parseLayers(parentEl: Element): TiledLayer[] {
   const layers: TiledLayer[] = []
-  for (let i = 0; i < parentEl.children.length; i++) {
-    const el = parentEl.children[i]!
+  const childEls = elementChildren(parentEl)
+  for (let i = 0; i < childEls.length; i++) {
+    const el = childEls[i]!
     switch (el.tagName) {
       case 'layer':
         layers.push(parseTileLayer(el))
@@ -108,14 +121,23 @@ function parseLayers(parentEl: Element): TiledLayer[] {
 
 // ─── Map ────────────────────────────────────────────────────────────────────
 
-export function parseTmx(xml: string): TiledMap {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(xml, 'text/xml')
+// Parse an XML string into a Document via Pixi's DOMAdapter so the parser works
+// in browsers, web workers, and Node (see https://github.com/riebel/pixi-tiledmap/issues/29).
+function parseXmlDocument(xml: string, kind: string): Document {
+  const doc = DOMAdapter.get().parseXML(xml)
 
-  const errorNode = doc.querySelector('parsererror')
+  // Browsers surface malformed XML as a <parsererror> element. Use
+  // getElementsByTagName rather than querySelector, which xmldom does not implement.
+  const errorNode = doc.getElementsByTagName('parsererror')[0]
   if (errorNode) {
-    throw new Error(`TMX XML parse error: ${errorNode.textContent}`)
+    throw new Error(`${kind} XML parse error: ${errorNode.textContent}`)
   }
+
+  return doc
+}
+
+export function parseTmx(xml: string): TiledMap {
+  const doc = parseXmlDocument(xml, 'TMX')
 
   const mapEl = doc.documentElement
   if (mapEl.tagName !== 'map') {
@@ -156,13 +178,7 @@ export function parseTmx(xml: string): TiledMap {
 }
 
 export function parseTsx(xml: string): TiledTileset {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(xml, 'text/xml')
-
-  const errorNode = doc.querySelector('parsererror')
-  if (errorNode) {
-    throw new Error(`TSX XML parse error: ${errorNode.textContent}`)
-  }
+  const doc = parseXmlDocument(xml, 'TSX')
 
   const tsEl = doc.documentElement
   if (tsEl.tagName !== 'tileset') {
@@ -179,13 +195,7 @@ export function parseTsx(xml: string): TiledTileset {
 // ─── Template (TX) ──────────────────────────────────────────────────────────
 
 export function parseTx(xml: string): TiledObjectTemplate {
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(xml, 'text/xml')
-
-  const errorNode = doc.querySelector('parsererror')
-  if (errorNode) {
-    throw new Error(`TX XML parse error: ${errorNode.textContent}`)
-  }
+  const doc = parseXmlDocument(xml, 'TX')
 
   const tplEl = doc.documentElement
   if (tplEl.tagName !== 'template') {

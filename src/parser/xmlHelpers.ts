@@ -33,19 +33,40 @@ export function optFloat(el: Element, name: string): number | undefined {
   return value != null ? parseFloat(value) : undefined
 }
 
+// `Element.children` is not implemented by every DOM backend Pixi's DOMAdapter
+// may use (notably `@xmldom/xmldom` in web workers / Node). Iterate `childNodes`
+// and filter to element nodes instead, which is universally supported.
+const ELEMENT_NODE = 1
+
+function isElementNode(node: ChildNode): node is Element {
+  return node.nodeType === ELEMENT_NODE
+}
+
+export function elementChildren(el: Element): Element[] {
+  const result: Element[] = []
+  const nodes = el.childNodes
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!
+    if (isElementNode(node)) result.push(node)
+  }
+  return result
+}
+
 export function children(el: Element, tag: string): Element[] {
   const result: Element[] = []
-  for (let i = 0; i < el.children.length; i++) {
-    const child = el.children[i]!
-    if (child.tagName === tag) result.push(child)
+  const nodes = el.childNodes
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!
+    if (isElementNode(node) && node.tagName === tag) result.push(node)
   }
   return result
 }
 
 export function child(el: Element, tag: string): Element | null {
-  for (let i = 0; i < el.children.length; i++) {
-    const current = el.children[i]!
-    if (current.tagName === tag) return current
+  const nodes = el.childNodes
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!
+    if (isElementNode(node) && node.tagName === tag) return node
   }
   return null
 }
