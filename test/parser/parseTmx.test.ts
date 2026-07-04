@@ -1,7 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it } from 'vitest'
+import { DOMAdapter, WebWorkerAdapter } from 'pixi.js'
+import { afterEach, describe, expect, it } from 'vitest'
 import { parseTmx, parseTsx, parseTx } from '../../src/parser/parseTmx.js'
 
 describe('parseTmx', () => {
@@ -447,5 +448,72 @@ describe('parseTx', () => {
 
   it('throws when template has no <object>', () => {
     expect(() => parseTx('<template/>')).toThrow('missing <object>')
+  })
+})
+
+// Regression for https://github.com/riebel/pixi-tiledmap/issues/29: the XML
+// parsers must not depend on browser-only DOM APIs (DOMParser, querySelector,
+// Element.children). Driving them through Pixi's WebWorkerAdapter, which is
+// backed by @xmldom/xmldom, exercises the worker/Node code path.
+describe('XML parsing under WebWorkerAdapter (xmldom)', () => {
+  const original = DOMAdapter.get()
+
+  afterEach(() => {
+    // Restore the jsdom-backed default for the remaining suites in this file.
+    DOMAdapter.set(original)
+  })
+
+  it('parses a TMX map with nested layers', () => {
+    DOMAdapter.set(WebWorkerAdapter)
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" orientation="orthogonal" renderorder="right-down"
+     width="2" height="1" tilewidth="32" tileheight="32" infinite="0"
+     nextlayerid="3" nextobjectid="1">
+  <tileset firstgid="1" name="test" tilewidth="32" tileheight="32"
+           tilecount="2" columns="2">
+    <image source="test.png" width="64" height="32"/>
+  </tileset>
+  <group id="2" name="grp">
+    <layer id="1" name="ground" width="2" height="1">
+      <data encoding="csv">1,2</data>
+    </layer>
+  </group>
+</map>`
+
+    const map = parseTmx(xml)
+    expect(map.width).toBe(2)
+    expect(map.tilesets).toHaveLength(1)
+    expect(map.layers).toHaveLength(1)
+    expect(map.layers[0]!.type).toBe('group')
+    const group = map.layers[0] as { layers: { name: string }[] }
+    expect(group.layers[0]!.name).toBe('ground')
+  })
+
+  it('parses a TSX tileset', () => {
+    DOMAdapter.set(WebWorkerAdapter)
+
+    const ts = parseTsx(
+      `<tileset name="terrain" tilewidth="32" tileheight="32" tilecount="4" columns="2">
+         <image source="terrain.png" width="64" height="64"/>
+       </tileset>`
+    )
+    expect(ts.name).toBe('terrain')
+    expect(ts.image).toBe('terrain.png')
+  })
+
+  it('parses a TX object template', () => {
+    DOMAdapter.set(WebWorkerAdapter)
+
+    const tpl = parseTx(
+      `<template>
+         <object name="spawnpoint" type="marker">
+           <point/>
+         </object>
+       </template>`
+    )
+    expect(tpl.type).toBe('template')
+    expect(tpl.object.name).toBe('spawnpoint')
+    expect(tpl.object.point).toBe(true)
   })
 })

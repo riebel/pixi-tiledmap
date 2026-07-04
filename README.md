@@ -200,6 +200,16 @@ map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 | `parseTx(xml)`        | Parse TX XML string → `TiledObjectTemplate` data                 |
 | `decodeGid(raw)`      | Decode a raw GID into tile ID + flip flags                       |
 
+#### XML parsing outside the browser
+
+`parseTmx`, `parseTsx`, and `parseTx` parse XML through PixiJS' `DOMAdapter`, so they work in browsers, web workers, and Node. In the browser the default adapter is used automatically. In a web worker or in Node there is no global `DOMParser`, so configure a DOM-capable adapter once at startup before parsing:
+
+```ts
+import { DOMAdapter, WebWorkerAdapter } from 'pixi.js'
+
+DOMAdapter.set(WebWorkerAdapter) // uses @xmldom/xmldom under the hood
+```
+
 ### Low-Level Packing
 
 `PackedTileLayerRenderer.addTextureRect()` is available for renderer-level integrations that need to pack an already-resolved texture rectangle without going through Tiled tile placement. It uses the same batch sizing, texture-source/alpha grouping, cached quad indices, and final `MeshGeometry` path as normal tile layers.
