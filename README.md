@@ -20,7 +20,7 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **Parallax scrolling** - per-layer `parallaxx` / `parallaxy` and map-level `parallaxorigin`, composed multiplicatively through group layers, applied via `TiledMap.applyParallax(cameraX, cameraY)`
 - **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
 - **External tilesets** - automatic resolution via the asset loader (`.tsj` and `.tsx`)
-- **Runtime editing and generation** - edit loaded maps in place or create resolved maps procedurally
+- **Runtime editing and generation** - edit loaded maps in place or create resolved maps procedurally, with tile objects taking the same friendly tile input as tile layer cells
 - **Map introspection** - `findLayer`, `getProperty`, and `tileAt` (point to tile cell, every orientation) work on the resolved map without a renderer, free of PixiJS and the DOM
 - **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
 - **Tree-shakable** - ESM + CJS dual build, side-effect-free
@@ -222,6 +222,21 @@ const map = new TiledMap(generated, { tilesetTextures });
 map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 ```
 
+Tile objects accept the same tile input as tile layer cells, so the library derives the GID and tileset index rather than making you restate them:
+
+```ts
+layers: [
+  {
+    type: 'objectgroup',
+    name: 'actors',
+    objects: [
+      // The tileset is named, so this keeps working if the tilesets are reordered.
+      { id: 1, name: 'koopa', x: 32, y: 48, tile: { tileset: 'enemies', tileId: 12 } },
+    ],
+  },
+],
+```
+
 ## Inspecting a Map Without Rendering It
 
 `findLayer`, `getProperty`, and `tileAt` work on the resolved map itself, so tools that transform a map before rendering do not need a `TiledMap` container. They are pure - no PixiJS, no DOM.
@@ -259,7 +274,7 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `createTileset(options)` | Create a resolved tileset                                     |
 | `createTileLayer(options, tilesets?)` | Create a resolved tile layer                    |
 | `createImageLayer(options)` | Create a resolved image layer                              |
-| `createObjectLayer(options)` | Create a resolved object layer                          |
+| `createObjectLayer(options, tilesets?)` | Create a resolved object layer               |
 | `createGroupLayer(options, tilesets?)` | Create a resolved group layer                  |
 | `parseMap(data)`      | Synchronous Tiled JSON → resolved IR                             |
 | `parseMapAsync(data)` | Async variant (required for gzip/zlib compressed data)           |

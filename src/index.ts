@@ -19,6 +19,7 @@ export type {
   CreateLayerOptions,
   CreateMapOptions,
   CreateObjectLayerOptions,
+  CreateObjectOptions,
   CreateTileLayerOptions,
   CreateTilesetOptions
 } from './procedural'

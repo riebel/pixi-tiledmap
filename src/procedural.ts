@@ -1,6 +1,8 @@
 import {
+  type ResolvedObjectDefaultInput,
   resolvedLayerDefaults,
   resolvedMapDefaults,
+  resolvedObjectDefaults,
   resolvedTilesetDefaults
 } from './resolvedDefaults.js'
 import { resolveTileInput } from './resolvedTile.js'
@@ -12,6 +14,7 @@ import type {
   ResolvedMap,
   ResolvedObject,
   ResolvedObjectLayer,
+  ResolvedTile,
   ResolvedTileLayer,
   ResolvedTileset,
   TiledDrawOrder,
@@ -109,10 +112,20 @@ export interface CreateImageLayerOptions extends CreateLayerBaseOptions {
   transparentcolor?: string
 }
 
+/**
+ * A tile object's `tile` accepts the same input a tile layer's cells do, so a
+ * caller can write `{ tile: { tileset: 'objects', tileId: 3 } }` and let the
+ * library derive the GID and tileset index. A fully built `ResolvedTile` is
+ * still accepted.
+ */
+export interface CreateObjectOptions extends ResolvedObjectDefaultInput {
+  tile?: TiledTileInput
+}
+
 export interface CreateObjectLayerOptions extends CreateLayerBaseOptions {
   type: 'objectgroup'
   draworder?: TiledDrawOrder
-  objects?: ResolvedObject[]
+  objects?: CreateObjectOptions[]
 }
 
 export interface CreateGroupLayerOptions extends CreateLayerBaseOptions {
@@ -218,13 +231,42 @@ export function createImageLayer(options: CreateImageLayerOptions): ResolvedImag
   }
 }
 
-export function createObjectLayer(options: CreateObjectLayerOptions): ResolvedObjectLayer {
+export function createObjectLayer(
+  options: CreateObjectLayerOptions,
+  tilesets: ResolvedTileset[] = []
+): ResolvedObjectLayer {
   return {
     type: 'objectgroup',
     ...layerDefaults(options, options.id ?? 1),
     draworder: options.draworder ?? 'topdown',
-    objects: options.objects ?? []
+    objects: (options.objects ?? []).map((object) => createObject(object, tilesets))
   }
+}
+
+function createObject(options: CreateObjectOptions, tilesets: ResolvedTileset[]): ResolvedObject {
+  const object = resolvedObjectDefaults(options)
+  const tile = resolveObjectTile(options.tile, tilesets)
+  if (tile) object.tile = tile
+  return object
+}
+
+/**
+ * An already-resolved tile is taken as authoritative rather than re-resolved.
+ * Re-resolving would be a no-op when it was built against these same tilesets,
+ * and would throw when the caller passed none - which is what every caller did
+ * before this function accepted tilesets at all.
+ */
+function resolveObjectTile(
+  input: TiledTileInput | undefined,
+  tilesets: ResolvedTileset[]
+): ResolvedTile | null {
+  if (input === undefined || input === null) return null
+  if (isResolvedTile(input)) return input
+  return resolveTileInput(input, tilesets)
+}
+
+function isResolvedTile(input: TiledTileInput): input is ResolvedTile {
+  return typeof input === 'object' && input !== null && 'tilesetIndex' in input
 }
 
 export function createGroupLayer(
@@ -279,7 +321,7 @@ function createLayer(
     case 'imagelayer':
       return createImageLayer(withId)
     case 'objectgroup':
-      return createObjectLayer(withId)
+      return createObjectLayer(withId, context.tilesets)
     case 'group':
       return {
         type: 'group',
