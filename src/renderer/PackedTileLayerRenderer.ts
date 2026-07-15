@@ -1,21 +1,52 @@
 import { Container, Mesh, MeshGeometry, Texture, type TextureSource } from 'pixi.js'
 import type { MapContext, ResolvedTile } from '../types'
+import {
+  createPackedTileStats,
+  type PackedTileStats,
+  packedTileStatsSymbol
+} from './packedTileStats.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
 import { createTileSprite } from './tileSpriteFactory.js'
 
 const DEFAULT_TILES_PER_MESH = 16_000
 const MAX_TILES_PER_MESH = 16_383
 
+// Caps how much slack a single growth step may add. Doubling alone would let a
+// large batch jump by thousands of unused quads, and every quad in `positions`
+// is copied by PixiJS' mesh batcher (BatchableMesh.attributeSize is
+// positions.length / 2), so unused capacity is not free.
+const MAX_CAPACITY_GROWTH_STEP = 1024
+
+/**
+ * Corner orders for the eight flip combinations, indexed by
+ * `horizontal | vertical << 1 | diagonal << 2`. Precomputed so packing a tile
+ * never allocates a per-tile order array.
+ */
+const UV_ORDERS: readonly (readonly [number, number, number, number])[] = [
+  [0, 1, 2, 3], // none
+  [1, 0, 3, 2], // horizontal
+  [3, 2, 1, 0], // vertical
+  [2, 3, 0, 1], // horizontal + vertical
+  [0, 3, 2, 1], // diagonal
+  [3, 0, 1, 2], // diagonal + horizontal
+  [1, 2, 3, 0], // diagonal + vertical
+  [2, 1, 0, 3] // diagonal + horizontal + vertical
+]
+
 interface PackedTileBatch {
   texture: Texture
   alpha: number
   positions: Float32Array
   uvs: Float32Array
-  handles: PackedTileRenderHandle[]
-  positionCursor: number
-  uvCursor: number
-  vertexCount: number
+  indices: Uint32Array
+  /** Slot -> live handle. `null` marks a released (degenerate) slot. */
+  handles: (InternalTileRenderHandle | null)[]
+  /** Released slots available for reuse, LIFO. */
+  freeSlots: number[]
+  /** High-water mark of slots ever used; slots >= tileCount do not exist. */
+  tileCount: number
   tileCapacity: number
+  mesh: Mesh | null
 }
 
 const quadIndexCache = new Map<number, Uint32Array>()
@@ -33,6 +64,18 @@ export interface PackedTileRenderHandle {
   uvOffset: number
 }
 
+/**
+ * Internal handle shape. The extra fields are intentionally absent from the
+ * public `PackedTileRenderHandle` type: they are renderer-owned bookkeeping and
+ * every consumer re-validates them through `asInternalHandle` before use, so a
+ * hand-built public handle still works through the pre-2.8.6 code paths.
+ */
+interface InternalTileRenderHandle extends PackedTileRenderHandle {
+  batch: PackedTileBatch
+  slot: number
+  released: boolean
+}
+
 export interface PackedTextureRect {
   texture: Texture
   x: number
@@ -45,9 +88,25 @@ export interface PackedTextureRect {
 }
 
 export class PackedTileLayerRenderer extends Container {
+  /** @internal Test/benchmark instrumentation; not part of the public API. */
+  readonly [packedTileStatsSymbol]: PackedTileStats = createPackedTileStats()
+
   private readonly _batches = new Map<TextureSource, Map<number, PackedTileBatch[]>>()
   private readonly _initialTileCapacity: number
   private readonly _maxTilesPerMesh: number
+  private _finalized = false
+
+  /**
+   * True while every packed quad is provably confined to its own grid cell.
+   *
+   * Quads are drawn in slot order within a mesh, but an incremental insert can
+   * only ever append or recycle a slot - it cannot reproduce the render-order
+   * traversal a full rebuild performs. Slot order is therefore only guaranteed
+   * to be visually irrelevant when no two quads overlap, which is what this
+   * flag tracks. When it is false, structural edits fall back to a rebuild so
+   * layering stays byte-identical to 2.8.5.
+   */
+  private _quadsConfined = true
 
   constructor(initialTileCapacity = 256, maxTilesPerMesh = DEFAULT_TILES_PER_MESH) {
     super()
@@ -68,50 +127,48 @@ export class PackedTileLayerRenderer extends Container {
       return null
     }
 
-    const texture = tsRenderer.getTexture(tile.localId)
-    if (!texture) return null
+    const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
+    if (!rect) return null
 
-    const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
-    const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
-    const padding = getTileMeshPadding(renderW, renderH, ctx)
-    const tileOffset = tsRenderer.tileset.tileoffset
+    this._trackConfinement(rect, x, y, ctx)
+    return this._addRect(rect)
+  }
 
-    return this.addTextureRect({
-      texture,
-      x: x + tileOffset.x,
-      y: y + tileOffset.y + ctx.tileheight - renderH,
-      width: renderW + padding,
-      height: renderH + padding,
-      alpha: tile.alpha,
-      uvOrder: getTileUvOrder(tile),
-      uvKey: getTileUvKey(tile)
-    })
+  /**
+   * Incrementally packs a static tile into a previously empty cell.
+   *
+   * Returns `null` when the tile cannot be represented safely without a full
+   * rebuild, in which case the caller must fall back to one.
+   *
+   * Deliberately protected: 2.8.6 is a patch release, so this stays an internal
+   * seam for `TileLayerRenderer` rather than new public API surface.
+   */
+  protected insertPackedTile(
+    tile: ResolvedTile,
+    tsRenderer: TileSetRenderer,
+    x: number,
+    y: number,
+    ctx: MapContext
+  ): PackedTileRenderHandle | null {
+    if (!this._quadsConfined) return null
+    if (this._needsSpriteTile(tile, tsRenderer)) return null
+
+    const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
+    if (!rect) return null
+    if (!isRectConfinedToCell(rect, x, y, ctx)) return null
+
+    return this._addRect(rect)
   }
 
   finalize(): void {
     for (const batchesByAlpha of this._batches.values()) {
       for (const batches of batchesByAlpha.values()) {
         for (const batch of batches) {
-          if (batch.vertexCount === 0) continue
-
-          const geometry = new MeshGeometry({
-            positions: batch.positions.slice(0, batch.positionCursor),
-            uvs: batch.uvs.slice(0, batch.uvCursor),
-            indices: getQuadIndices(batch.vertexCount / 4)
-          })
-          geometry.batchMode = 'batch'
-
-          const mesh = new Mesh({ geometry, texture: batch.texture })
-          mesh.alpha = batch.alpha
-          for (const handle of batch.handles) {
-            handle.mesh = mesh
-          }
-          this.addChild(mesh)
+          this._materializeBatch(batch)
         }
       }
     }
-
-    this._batches.clear()
+    this._finalized = true
   }
 
   updatePackedTile(
@@ -124,49 +181,121 @@ export class PackedTileLayerRenderer extends Container {
   ): boolean {
     if (!handle.mesh || this._needsSpriteTile(tile, tsRenderer)) return false
 
-    const texture = tsRenderer.getTexture(tile.localId)
-    if (!texture || texture.source !== handle.textureSource) return false
-    if ((tile.alpha ?? 1) !== handle.alpha) return false
+    const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
+    if (!rect || rect.texture.source !== handle.textureSource) return false
+    if ((rect.alpha ?? 1) !== handle.alpha) return false
 
-    const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
-    const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
-    const padding = getTileMeshPadding(renderW, renderH, ctx)
-    const tileOffset = tsRenderer.tileset.tileoffset
-    const rectX = x + tileOffset.x
-    const rectY = y + tileOffset.y + ctx.tileheight - renderH
-    const rectW = renderW + padding
-    const rectH = renderH + padding
-    const uvKey = getTileUvKey(tile)
+    this._trackConfinement(rect, x, y, ctx)
+
     const geometry = handle.mesh.geometry
+    const stats = this[packedTileStatsSymbol]
+    let changed = false
 
     if (
-      rectX !== handle.x ||
-      rectY !== handle.y ||
-      rectW !== handle.width ||
-      rectH !== handle.height
+      rect.x !== handle.x ||
+      rect.y !== handle.y ||
+      rect.width !== handle.width ||
+      rect.height !== handle.height
     ) {
-      writeRectPositions(geometry.positions, handle.positionOffset, rectX, rectY, rectW, rectH)
+      writeRectPositions(
+        geometry.positions,
+        handle.positionOffset,
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height
+      )
       geometry.getBuffer('aPosition').update()
-      handle.x = rectX
-      handle.y = rectY
-      handle.width = rectW
-      handle.height = rectH
+      stats.bufferUploads++
+      handle.x = rect.x
+      handle.y = rect.y
+      handle.width = rect.width
+      handle.height = rect.height
+      changed = true
     }
 
-    if (uvKey !== handle.uvKey) {
-      writeTileUvs(geometry.uvs, handle.uvOffset, texture, tile)
+    if (rect.uvKey !== handle.uvKey) {
+      writeTextureUvs(geometry.uvs, handle.uvOffset, rect.texture, rect.uvOrder)
       geometry.getBuffer('aUV').update()
-      handle.uvKey = uvKey
+      stats.bufferUploads++
+      handle.uvKey = rect.uvKey
+      changed = true
     }
+
+    if (changed) stats.partialUpdates++
     return true
   }
 
   addTextureRect(rect: PackedTextureRect): PackedTileRenderHandle {
+    // Raw rectangles carry no grid-cell contract, so they can overlap freely.
+    this._quadsConfined = false
+    return this._addRect(rect)
+  }
+
+  clearPackedTile(handle: PackedTileRenderHandle): boolean {
+    if (!handle.mesh) return false
+
+    const internal = this._asInternalHandle(handle)
+    if (!internal) {
+      // Foreign handle: degenerate in place without recycling the slot.
+      const geometry = handle.mesh.geometry
+      geometry.positions.fill(0, handle.positionOffset, handle.positionOffset + 8)
+      geometry.uvs.fill(0, handle.uvOffset, handle.uvOffset + 8)
+      geometry.getBuffer('aPosition').update()
+      geometry.getBuffer('aUV').update()
+      this[packedTileStatsSymbol].bufferUploads += 2
+      return true
+    }
+
+    const batch = internal.batch
+    const offset = internal.slot * 8
+    batch.positions.fill(0, offset, offset + 8)
+    batch.uvs.fill(0, offset, offset + 8)
+
+    internal.released = true
+    internal.mesh = null
+    batch.handles[internal.slot] = null
+    batch.freeSlots.push(internal.slot)
+
+    this._syncBatch(batch)
+    return true
+  }
+
+  /**
+   * Destroys all render children and drops packed batch state. Callers must
+   * rebuild afterwards; the renderer is left in its pre-build shape.
+   */
+  protected resetPackedTiles(): void {
+    for (const child of this.removeChildren()) {
+      if (child instanceof Mesh) this[packedTileStatsSymbol].meshesDestroyed++
+      child.destroy()
+    }
+    this._releaseBatches(true)
+    this._finalized = false
+    this._quadsConfined = true
+  }
+
+  override destroy(options?: Parameters<Container['destroy']>[0]): void {
+    // Container.destroy only destroys children when `options.children` is set;
+    // otherwise it detaches them and the caller may keep them alive. Those
+    // meshes still reference the batch texture, so it is only ours to destroy
+    // when they go down with us.
+    const destroyChildren = typeof options === 'boolean' ? options : (options?.children ?? false)
+    super.destroy(options)
+    this._releaseBatches(destroyChildren)
+  }
+
+  private _addRect(rect: PackedTextureRect): InternalTileRenderHandle {
     const alpha = rect.alpha ?? 1
     const batch = this._getBatch(rect.texture, alpha)
-    ensureBatchCapacity(batch, batch.vertexCount / 4 + 1)
-    const handle: PackedTileRenderHandle = {
-      mesh: null,
+    const slot = this._allocSlot(batch)
+    const offset = slot * 8
+
+    writeRectPositions(batch.positions, offset, rect.x, rect.y, rect.width, rect.height)
+    writeTextureUvs(batch.uvs, offset, rect.texture, rect.uvOrder)
+
+    const handle: InternalTileRenderHandle = {
+      mesh: batch.mesh,
       textureSource: rect.texture.source,
       alpha,
       x: rect.x,
@@ -174,36 +303,128 @@ export class PackedTileLayerRenderer extends Container {
       width: rect.width,
       height: rect.height,
       uvKey: rect.uvKey,
-      positionOffset: batch.positionCursor,
-      uvOffset: batch.uvCursor
+      positionOffset: offset,
+      uvOffset: offset,
+      batch,
+      slot,
+      released: false
     }
+    batch.handles[slot] = handle
 
-    writeRectPositions(
-      batch.positions,
-      batch.positionCursor,
-      rect.x,
-      rect.y,
-      rect.width,
-      rect.height
-    )
-    batch.positionCursor += 8
-    writeTextureUvs(batch.uvs, batch.uvCursor, rect.texture, rect.uvOrder)
-    batch.uvCursor += 8
-    batch.handles.push(handle)
-    batch.vertexCount += 4
-
+    if (this._finalized) {
+      this._syncBatch(batch)
+      handle.mesh = batch.mesh
+    }
     return handle
   }
 
-  clearPackedTile(handle: PackedTileRenderHandle): boolean {
-    if (!handle.mesh) return false
+  private _allocSlot(batch: PackedTileBatch): number {
+    const stats = this[packedTileStatsSymbol]
 
-    const geometry = handle.mesh.geometry
-    geometry.positions.fill(0, handle.positionOffset, handle.positionOffset + 8)
-    geometry.uvs.fill(0, handle.uvOffset, handle.uvOffset + 8)
+    // The initial build never releases slots, so only live edits can recycle.
+    if (this._finalized) {
+      const recycled = batch.freeSlots.pop()
+      if (recycled !== undefined) {
+        stats.insertsIntoFreeSlot++
+        return recycled
+      }
+    }
+
+    if (batch.tileCount >= batch.tileCapacity) {
+      this._growBatch(batch, batch.tileCount + 1)
+    }
+    if (this._finalized) stats.insertsIntoNewSlot++
+    return batch.tileCount++
+  }
+
+  /**
+   * Grows a batch to hold at least `needed` quads. `_getBatch` guarantees the
+   * batch still has room below `_maxTilesPerMesh` before this is called.
+   */
+  private _growBatch(batch: PackedTileBatch, needed: number): void {
+    if (needed <= batch.tileCapacity) return
+
+    const target = Math.min(
+      this._maxTilesPerMesh,
+      Math.max(
+        needed,
+        Math.min(batch.tileCapacity * 2, batch.tileCapacity + MAX_CAPACITY_GROWTH_STEP)
+      )
+    )
+
+    const positions = new Float32Array(target * 8)
+    positions.set(batch.positions)
+    batch.positions = positions
+
+    const uvs = new Float32Array(target * 8)
+    uvs.set(batch.uvs)
+    batch.uvs = uvs
+
+    // Owned from here on: shared cached index arrays must never be mutated.
+    batch.indices = buildQuadIndices(target)
+    batch.tileCapacity = target
+    this[packedTileStatsSymbol].capacityGrowths++
+  }
+
+  /** Pushes CPU-side batch data to the mesh, rebinding buffers after a growth. */
+  private _syncBatch(batch: PackedTileBatch): void {
+    const mesh = batch.mesh
+    if (!mesh) {
+      this._materializeBatch(batch)
+      return
+    }
+
+    const geometry = mesh.geometry
+    const stats = this[packedTileStatsSymbol]
+
+    if (geometry.positions !== batch.positions) {
+      geometry.positions = batch.positions
+      geometry.uvs = batch.uvs
+      geometry.indices = batch.indices
+      stats.bufferUploads += 3
+      return
+    }
+
     geometry.getBuffer('aPosition').update()
     geometry.getBuffer('aUV').update()
-    return true
+    stats.bufferUploads += 2
+  }
+
+  private _materializeBatch(batch: PackedTileBatch): void {
+    if (batch.mesh || batch.tileCount === 0) return
+
+    this._trimBatch(batch)
+
+    const geometry = new MeshGeometry({
+      positions: batch.positions,
+      uvs: batch.uvs,
+      indices: batch.indices
+    })
+    geometry.batchMode = 'batch'
+
+    const mesh = new Mesh({ geometry, texture: batch.texture })
+    mesh.alpha = batch.alpha
+    batch.mesh = mesh
+
+    for (const handle of batch.handles) {
+      if (handle) handle.mesh = mesh
+    }
+
+    this[packedTileStatsSymbol].meshesCreated++
+    this.addChild(mesh)
+  }
+
+  /**
+   * Right-sizes a freshly built batch so a static layer keeps exactly the
+   * geometry footprint it had before incremental editing existed.
+   */
+  private _trimBatch(batch: PackedTileBatch): void {
+    if (batch.tileCapacity === batch.tileCount) return
+
+    batch.positions = batch.positions.slice(0, batch.tileCount * 8)
+    batch.uvs = batch.uvs.slice(0, batch.tileCount * 8)
+    batch.indices = getQuadIndices(batch.tileCount)
+    batch.tileCapacity = batch.tileCount
   }
 
   private _getBatch(texture: Texture, alpha: number): PackedTileBatch {
@@ -215,32 +436,70 @@ export class PackedTileLayerRenderer extends Container {
     }
 
     let batches = batchesByAlpha.get(alpha)
-    let batch = batches?.[batches.length - 1]
-
-    if (batch && batch.vertexCount / 4 >= this._maxTilesPerMesh) {
-      batch = undefined
+    if (!batches) {
+      batches = []
+      batchesByAlpha.set(alpha, batches)
     }
 
-    if (!batch) {
-      if (!batches) {
-        batches = []
-        batchesByAlpha.set(alpha, batches)
+    if (this._finalized) {
+      for (const candidate of batches) {
+        if (candidate.freeSlots.length > 0) return candidate
       }
-      batch = {
-        texture: new Texture({ source }),
-        alpha,
-        positions: new Float32Array(this._initialTileCapacity * 8),
-        uvs: new Float32Array(this._initialTileCapacity * 8),
-        handles: [],
-        positionCursor: 0,
-        uvCursor: 0,
-        vertexCount: 0,
-        tileCapacity: this._initialTileCapacity
-      }
-      batches.push(batch)
     }
 
+    const last = batches[batches.length - 1]
+    if (last && (last.tileCount < last.tileCapacity || last.tileCapacity < this._maxTilesPerMesh)) {
+      return last
+    }
+
+    const batch: PackedTileBatch = {
+      texture: new Texture({ source }),
+      alpha,
+      positions: new Float32Array(this._initialTileCapacity * 8),
+      uvs: new Float32Array(this._initialTileCapacity * 8),
+      indices: getQuadIndices(this._initialTileCapacity),
+      handles: [],
+      freeSlots: [],
+      tileCount: 0,
+      tileCapacity: this._initialTileCapacity,
+      mesh: null
+    }
+    batches.push(batch)
+    this[packedTileStatsSymbol].batchesCreated++
     return batch
+  }
+
+  private _releaseBatches(destroyTextures: boolean): void {
+    for (const batchesByAlpha of this._batches.values()) {
+      for (const batches of batchesByAlpha.values()) {
+        for (const batch of batches) {
+          // Batch-owned wrapper around a TileSetRenderer-owned source; the
+          // default `destroy()` leaves the shared source untouched.
+          if (destroyTextures) batch.texture.destroy()
+          batch.mesh = null
+          batch.handles.length = 0
+          batch.freeSlots.length = 0
+        }
+      }
+    }
+    this._batches.clear()
+  }
+
+  private _asInternalHandle(handle: PackedTileRenderHandle): InternalTileRenderHandle | null {
+    const candidate = handle as Partial<InternalTileRenderHandle>
+    const batch = candidate.batch
+    if (!batch || candidate.released !== false || typeof candidate.slot !== 'number') return null
+    return batch.handles[candidate.slot] === handle ? (handle as InternalTileRenderHandle) : null
+  }
+
+  private _trackConfinement(
+    rect: PackedTextureRect,
+    cellX: number,
+    cellY: number,
+    ctx: MapContext
+  ): void {
+    if (!this._quadsConfined) return
+    if (!isRectConfinedToCell(rect, cellX, cellY, ctx)) this._quadsConfined = false
   }
 
   private _needsSpriteTile(tile: ResolvedTile, tsRenderer: TileSetRenderer): boolean {
@@ -248,6 +507,93 @@ export class PackedTileLayerRenderer extends Container {
     if (animation && animation.length > 1) return true
     return !!tsRenderer.getGifSource(tile.localId)
   }
+}
+
+// Reusable output rect - avoids allocating one per packed tile. Safe because
+// every caller reads the fields before the next buildTileRect call, mirroring
+// the reusable TilePosition in mapGeometry.ts.
+const _tileRect: PackedTextureRect = {
+  texture: Texture.EMPTY,
+  x: 0,
+  y: 0,
+  width: 0,
+  height: 0,
+  alpha: 1,
+  uvOrder: UV_ORDERS[0],
+  uvKey: 0
+}
+
+function buildTileRect(
+  tile: ResolvedTile,
+  tsRenderer: TileSetRenderer,
+  x: number,
+  y: number,
+  ctx: MapContext
+): PackedTextureRect | null {
+  const texture = tsRenderer.getTexture(tile.localId)
+  if (!texture) return null
+
+  const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
+  const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
+  const padding = getTileMeshPadding(renderW, renderH, ctx)
+  const tileOffset = tsRenderer.tileset.tileoffset
+  const flip = getTileFlipIndex(tile)
+
+  _tileRect.texture = texture
+  _tileRect.x = x + tileOffset.x
+  _tileRect.y = y + tileOffset.y + ctx.tileheight - renderH
+  _tileRect.width = renderW + padding
+  _tileRect.height = renderH + padding
+  _tileRect.alpha = tile.alpha
+  _tileRect.uvOrder = UV_ORDERS[flip]
+  _tileRect.uvKey = tile.localId * 8 + flip
+  return _tileRect
+}
+
+/**
+ * Slack for the confinement comparison. The rect edge is computed as
+ * `x + (size + padding)` while the cell edge is `x + size + padding`, and those
+ * two groupings do not always round to the same double (e.g. 32 + 16.01 vs
+ * 48 + 0.01). A 1e-6px window is orders of magnitude below anything visible and
+ * far above the ~1e-11 ulp of realistic map coordinates.
+ */
+const CONFINEMENT_EPSILON = 1e-6
+
+/**
+ * Largest seam overhang that may still count as confined.
+ *
+ * `tileSpritePadding` widens a grid-sized quad past its cell, so padded
+ * neighbours genuinely overlap and their draw order is genuinely significant.
+ * That is only unobservable while the overlap stays far below one pixel: no
+ * rasterisation sample falls inside such a strip. `tileSpritePadding` is a
+ * public option with no upper bound, so a large value must not be waved through
+ * as "confined" - at 4px the overlap is plainly visible and an appended quad
+ * would cover a neighbour the render-order rebuild draws on top. Anything above
+ * this bound falls back to a rebuild.
+ */
+const MAX_CONFINED_OVERHANG = 0.125
+
+/**
+ * Whether a tile quad stays inside its own grid cell, so that its draw order
+ * relative to other quads cannot matter. Orthogonal cells tile the plane
+ * exactly; a sub-pixel seam overhang is the only tolerated excursion.
+ */
+function isRectConfinedToCell(
+  rect: PackedTextureRect,
+  cellX: number,
+  cellY: number,
+  ctx: MapContext
+): boolean {
+  if (ctx.orientation !== 'orthogonal') return false
+
+  const overhang = Math.min(ctx.tileSpritePadding ?? 0, MAX_CONFINED_OVERHANG)
+  const tolerance = overhang + CONFINEMENT_EPSILON
+  return (
+    rect.x >= cellX - CONFINEMENT_EPSILON &&
+    rect.y >= cellY - CONFINEMENT_EPSILON &&
+    rect.x + rect.width <= cellX + ctx.tilewidth + tolerance &&
+    rect.y + rect.height <= cellY + ctx.tileheight + tolerance
+  )
 }
 
 function writeRectPositions(
@@ -271,28 +617,8 @@ function writeRectPositions(
   positions[offset + 7] = bottom
 }
 
-function ensureBatchCapacity(batch: PackedTileBatch, tileCount: number): void {
-  if (tileCount <= batch.tileCapacity) return
-
-  let nextCapacity = batch.tileCapacity
-  while (nextCapacity < tileCount) nextCapacity *= 2
-
-  const positions = new Float32Array(nextCapacity * 8)
-  positions.set(batch.positions)
-  batch.positions = positions
-
-  const uvs = new Float32Array(nextCapacity * 8)
-  uvs.set(batch.uvs)
-  batch.uvs = uvs
-
-  batch.tileCapacity = nextCapacity
-}
-
-function getQuadIndices(tileCount: number): Uint32Array {
-  let indices = quadIndexCache.get(tileCount)
-  if (indices) return indices
-
-  indices = new Uint32Array(tileCount * 6)
+function buildQuadIndices(tileCount: number): Uint32Array {
+  const indices = new Uint32Array(tileCount * 6)
   for (let index = 0, vertex = 0; index < indices.length; index += 6, vertex += 4) {
     indices[index] = vertex
     indices[index + 1] = vertex + 1
@@ -301,6 +627,18 @@ function getQuadIndices(tileCount: number): Uint32Array {
     indices[index + 4] = vertex + 2
     indices[index + 5] = vertex + 3
   }
+  return indices
+}
+
+/**
+ * Shared, immutable index arrays for fully packed batches. Only ever handed to
+ * batches that will not mutate them; growth allocates an owned copy instead.
+ */
+function getQuadIndices(tileCount: number): Uint32Array {
+  let indices = quadIndexCache.get(tileCount)
+  if (indices) return indices
+
+  indices = buildQuadIndices(tileCount)
   quadIndexCache.set(tileCount, indices)
   return indices
 }
@@ -309,15 +647,6 @@ function getTileMeshPadding(renderW: number, renderH: number, ctx: MapContext): 
   if (ctx.orientation !== 'orthogonal') return 0
   if (renderW !== ctx.tilewidth || renderH !== ctx.tileheight) return 0
   return ctx.tileSpritePadding ?? 0
-}
-
-function writeTileUvs(
-  uvs: Float32Array,
-  offset: number,
-  texture: Texture,
-  tile: ResolvedTile
-): void {
-  writeTextureUvs(uvs, offset, texture, getTileUvOrder(tile))
 }
 
 function writeTextureUvs(
@@ -341,29 +670,6 @@ function writeTextureUvs(
   }
 }
 
-function getTileUvOrder(tile: ResolvedTile): [number, number, number, number] {
-  const h = tile.horizontalFlip
-  const v = tile.verticalFlip
-  const d = tile.diagonalFlip
-
-  if (d) {
-    if (h && v) return [2, 1, 0, 3]
-    if (h) return [3, 0, 1, 2]
-    if (v) return [1, 2, 3, 0]
-    return [0, 3, 2, 1]
-  }
-
-  if (h && v) return [2, 3, 0, 1]
-  if (h) return [1, 0, 3, 2]
-  if (v) return [3, 2, 1, 0]
-  return [0, 1, 2, 3]
-}
-
-function getTileUvKey(tile: ResolvedTile): number {
-  return (
-    tile.localId * 8 +
-    (tile.horizontalFlip ? 1 : 0) +
-    (tile.verticalFlip ? 2 : 0) +
-    (tile.diagonalFlip ? 4 : 0)
-  )
+function getTileFlipIndex(tile: ResolvedTile): number {
+  return (tile.horizontalFlip ? 1 : 0) + (tile.verticalFlip ? 2 : 0) + (tile.diagonalFlip ? 4 : 0)
 }

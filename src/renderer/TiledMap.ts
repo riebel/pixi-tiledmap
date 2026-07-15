@@ -9,7 +9,13 @@ import type {
   TiledTileInput,
   TiledTileLayerSelector
 } from '../types'
-import { findLayerByName, findTileLayerRenderer } from './layerTreeLookup.js'
+import {
+  buildTileLayerIndex,
+  findLayerByName,
+  findTileLayerInIndex,
+  findTileLayerRenderer,
+  type TileLayerIndex
+} from './layerTreeLookup.js'
 import { applyParallaxToLayerTree, renderLayerTree } from './layerTreeRenderer.js'
 import { computeMapPixelSize } from './mapSize.js'
 import { parseTintColor } from './parseColor.js'
@@ -21,6 +27,7 @@ export class TiledMap extends Container {
   readonly tileSetRenderers: TileSetRenderer[]
 
   private _background: Graphics | null = null
+  private _tileLayerIndex: TileLayerIndex | null = null
 
   constructor(mapData: ResolvedMap, options?: TiledMapOptions) {
     super()
@@ -91,6 +98,8 @@ export class TiledMap extends Container {
     }
     const renderedLayers = renderLayerTree(mapData.layers, layerContext)
     if (renderedLayers.length > 0) this.addChild(...renderedLayers)
+
+    this._tileLayerIndex = buildTileLayerIndex(this.children)
   }
 
   get orientation() {
@@ -154,6 +163,12 @@ export class TiledMap extends Container {
   }
 
   private _getTileLayerRenderer(selector: TiledTileLayerSelector): TileLayerRenderer {
+    const indexed =
+      this._tileLayerIndex && findTileLayerInIndex(this._tileLayerIndex, selector, this)
+    if (indexed) return indexed
+
+    // Index miss: an ambiguous selector, or a tree mutated after construction.
+    // Fall back to the live walk this lookup has always used.
     const layer = findTileLayerRenderer(this.children, selector)
     if (!layer) {
       throw new Error(`Tile layer "${selector}" is not rendered in this TiledMap.`)
@@ -165,6 +180,7 @@ export class TiledMap extends Container {
     for (const ts of this.tileSetRenderers) {
       ts.destroy()
     }
+    this._tileLayerIndex = null
     super.destroy(options)
   }
 }

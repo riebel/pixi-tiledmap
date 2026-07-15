@@ -13,7 +13,7 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **Render order** - right-down, right-up, left-down, left-up
 - **Infinite maps** - chunk-based tile layer rendering
 - **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source and alpha, with large source-inspired batches and no external tilemap dependency
-- **Partial tile updates** - same-atlas runtime tile edits update packed mesh buffers in place; structural changes safely rebuild the affected tile layer
+- **Incremental tile edits** - same-atlas runtime tile edits update packed mesh buffers in place, painting into empty cells reuses freed quad slots or grows batch capacity instead of rebuilding, and the remaining structural changes safely rebuild the affected tile layer
 - **Tile features** - animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, runtime tile alpha, `tilerendersize` / `fillmode`
 - **Object rendering** - rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects
 - **Object templates** - automatic `.tx` / `.tj` resolution with gid remapping between template and map tileset spaces
@@ -135,7 +135,18 @@ Use `setTile`, `getTile`, and `clearTile` to update rendered tile layers by laye
 map.setTile('chests', 12, 8, { tileset: 'dungeon', tileId: save.chestOpen ? 5 : 4 });
 ```
 
-For static packed tiles, edits that stay on the same texture source and alpha group update the existing packed mesh geometry buffers in place. Unchanged rect/UV edits skip buffer uploads. Clearing a packed tile degenerates its quad without replacing the mesh. Edits that add a previously empty tile, switch texture sources or alpha groups, or change between packed tiles and sprite-backed tiles such as animations or GIFs rebuild the affected tile layer automatically.
+For static packed tiles, edits that stay on the same texture source and alpha group update the existing packed mesh geometry buffers in place. Unchanged rect/UV edits skip buffer uploads.
+
+Painting a static tile into a previously empty cell is also incremental: clearing a tile degenerates its quad and returns that slot to the layer, and a later insert reuses a freed slot before it grows batch capacity geometrically. Repeated clear/set cycles therefore reuse existing capacity and leave mesh count and buffer size unchanged. This applies to orthogonal maps whose tile quads stay inside their own grid cell, which is the common case; the renderer verifies that per tile. The default sub-pixel `tileSpritePadding` seam is allowed; a padding large enough to overlap neighbours visibly is not.
+
+The following edits still rebuild the affected tile layer, because their result cannot be reproduced by writing a single quad in place:
+
+- inserting into a cell of an isometric, staggered, or hexagonal map, or of any layer whose tiles overhang their grid cell (via `tileoffset`, a tile larger than the grid, or a `tileSpritePadding` above `0.125`px), where the draw order of overlapping quads is significant
+- switching an existing tile to a different texture source or alpha group
+- changing between packed tiles and sprite-backed tiles such as animated tiles or GIFs
+- inserting a tile whose tileset texture is not available
+
+See `docs/BENCHMARKS.md` for measured before/after figures.
 
 Use `createMap` for generated maps. It returns the same resolved map shape as `parseMap`, so the rendered result supports the same editing API:
 

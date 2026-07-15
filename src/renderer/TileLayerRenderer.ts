@@ -1,6 +1,7 @@
 import type { MapContext, ResolvedChunk, ResolvedTile, ResolvedTileLayer } from '../types'
 import { getTileIterationPlan, tileToPixel } from './mapGeometry.js'
 import { PackedTileLayerRenderer, type PackedTileRenderHandle } from './PackedTileLayerRenderer.js'
+import { packedTileStatsSymbol } from './packedTileStats.js'
 import { applyLayerState } from './renderableLayer.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
 
@@ -56,10 +57,22 @@ export class TileLayerRenderer extends PackedTileLayerRenderer {
     }
 
     const tsRenderer = this._tilesets[nextTile.tilesetIndex]
-    if (handle && tsRenderer) {
+    if (tsRenderer) {
       const pos = tileToPixel(col, row, this._ctx)
-      if (this.updatePackedTile(handle, nextTile, tsRenderer, pos.x, pos.y, this._ctx)) {
-        return
+
+      if (handle) {
+        if (this.updatePackedTile(handle, nextTile, tsRenderer, pos.x, pos.y, this._ctx)) {
+          return
+        }
+      } else if (!previousTile) {
+        // Empty cell: no handle exists because nothing was ever packed here.
+        // A previous tile without a handle means a sprite-backed visual is
+        // still attached to this cell, which only a rebuild can remove.
+        const inserted = this.insertPackedTile(nextTile, tsRenderer, pos.x, pos.y, this._ctx)
+        if (inserted) {
+          this._cellRenderHandles.set(key, inserted)
+          return
+        }
       }
     }
 
@@ -91,9 +104,8 @@ export class TileLayerRenderer extends PackedTileLayerRenderer {
   }
 
   private _rebuildLayer(): void {
-    for (const child of this.removeChildren()) {
-      child.destroy()
-    }
+    this[packedTileStatsSymbol].fullRebuilds++
+    this.resetPackedTiles()
     this._buildLayer()
   }
 
@@ -167,12 +179,25 @@ function getCellKey(col: number, row: number): string {
   return `${col},${row}`
 }
 
+/**
+ * Counts the tiles that will actually be packed rather than the number of
+ * cells, so a sparsely populated layer does not allocate staging buffers for
+ * every empty cell of a large or infinite map.
+ */
 function estimateTileCapacity(layerData: ResolvedTileLayer): number {
   if (layerData.infinite && layerData.chunks) {
     let count = 0
-    for (const chunk of layerData.chunks) count += chunk.tiles.length
+    for (const chunk of layerData.chunks) count += countTiles(chunk.tiles)
     return count
   }
 
-  return layerData.tiles.length
+  return countTiles(layerData.tiles)
+}
+
+function countTiles(tiles: (ResolvedTile | null)[]): number {
+  let count = 0
+  for (const tile of tiles) {
+    if (tile) count++
+  }
+  return count
 }
