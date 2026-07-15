@@ -1,6 +1,7 @@
 export { createLayerRenderer } from './createLayerRenderer.js'
 export { GroupLayerRenderer } from './GroupLayerRenderer.js'
 export { ImageLayerRenderer } from './ImageLayerRenderer.js'
+export { pixelToTile, tileAt } from './mapGeometry.js'
 export { ObjectLayerRenderer } from './ObjectLayerRenderer.js'
 export type { PackedTextureRect, PackedTileRenderHandle } from './PackedTileLayerRenderer.js'
 export { PackedTileLayerRenderer } from './PackedTileLayerRenderer.js'

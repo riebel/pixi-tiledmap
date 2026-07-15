@@ -59,11 +59,13 @@ export type TiledVAlign = 'center' | 'bottom' | 'top'
 
 // ─── Property ────────────────────────────────────────────────────────────────
 
+export type TiledPropertyValue = string | number | boolean
+
 export interface TiledProperty {
   name: string
   type: TiledPropertyType
   propertytype?: string
-  value: string | number | boolean
+  value: TiledPropertyValue
 }
 
 // ─── Point ───────────────────────────────────────────────────────────────────
@@ -568,4 +570,10 @@ export interface MapContext {
 export interface TilePosition {
   x: number
   y: number
+}
+
+/** A tile grid cell, as returned by `tileAt`. */
+export interface TileCell {
+  column: number
+  row: number
 }

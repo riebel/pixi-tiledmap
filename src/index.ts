@@ -1,5 +1,7 @@
 // Parser
 
+export type { LayerHolder, PropertyHolder } from './mapLookup'
+export { findLayer, findLayerById, getProperty, walkLayers } from './mapLookup'
 export {
   decodeGid,
   decodeLayerData,
@@ -39,11 +41,13 @@ export {
   type PackedTextureRect,
   PackedTileLayerRenderer,
   type PackedTileRenderHandle,
+  pixelToTile,
   type TiledAssetPipelineOptions,
   TiledMap,
   type TiledMapAsset,
   TileLayerRenderer,
   TileSetRenderer,
+  tileAt,
   tiledMapLoader,
   tileToPixel
 } from './renderer'
@@ -60,6 +64,7 @@ export type {
   ResolvedTile,
   ResolvedTileLayer,
   ResolvedTileset,
+  TileCell,
   TiledChunk,
   TiledCompression,
   TiledDrawOrder,
@@ -81,6 +86,7 @@ export type {
   TiledPoint,
   TiledProperty,
   TiledPropertyType,
+  TiledPropertyValue,
   TiledRenderOrder,
   TiledStaggerAxis,
   TiledStaggerIndex,

@@ -21,6 +21,7 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
 - **External tilesets** - automatic resolution via the asset loader (`.tsj` and `.tsx`)
 - **Runtime editing and generation** - edit loaded maps in place or create resolved maps procedurally
+- **Map introspection** - `findLayer`, `getProperty`, and `tileAt` (point to tile cell, every orientation) work on the resolved map without a renderer, free of PixiJS and the DOM
 - **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
 - **Tree-shakable** - ESM + CJS dual build, side-effect-free
 - **Typed** - comprehensive TypeScript types for the full Tiled spec
@@ -221,6 +222,23 @@ const map = new TiledMap(generated, { tilesetTextures });
 map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 ```
 
+## Inspecting a Map Without Rendering It
+
+`findLayer`, `getProperty`, and `tileAt` work on the resolved map itself, so tools that transform a map before rendering do not need a `TiledMap` container. They are pure - no PixiJS, no DOM.
+
+```ts
+import { findLayer, getProperty, tileAt } from 'pixi-tiledmap';
+
+const spawns = findLayer(mapData, 'spawns'); // searches nested group layers too
+const theme = getProperty(mapData, 'theme');
+
+// Camera maths stays with you: convert to the map container's local space first.
+const local = map.toLocal({ x: event.clientX, y: event.clientY });
+const cell = tileAt(mapData, local.x, local.y); // null outside the map, never clamped
+```
+
+`tileAt` supports all four orientations. Note that isometric maps extend to the left of the origin, so valid points there have negative x.
+
 ## API Reference
 
 ### Exports
@@ -249,6 +267,12 @@ map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 | `parseTsx(xml)`       | Parse TSX XML string → `TiledTileset` data                       |
 | `parseTx(xml)`        | Parse TX XML string → `TiledObjectTemplate` data                 |
 | `decodeGid(raw)`      | Decode a raw GID into tile ID + flip flags                       |
+| `findLayer(map, name)` | Find a resolved layer by name, including inside group layers    |
+| `findLayerById(map, id)` | Find a resolved layer by its Tiled id                         |
+| `walkLayers(map)`     | Iterate the layer tree depth-first, group layers included        |
+| `getProperty(holder, name)` | Read a Tiled custom property value off a map, layer, object, or tileset |
+| `tileAt(map, x, y)`   | Map-space point → tile cell, or `null` outside the map           |
+| `pixelToTile(x, y, ctx)` | Unbounded map-space point → tile cell - the inverse of `tileToPixel` |
 
 #### XML parsing outside the browser
 
