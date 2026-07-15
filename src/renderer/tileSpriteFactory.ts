@@ -16,7 +16,7 @@ export interface TileObjectPlacement extends TileSpritePlacement {
   visible: boolean
 }
 
-export type TileVisualRequest =
+type TileVisualRequest =
   | {
       kind: 'map'
       tile: ResolvedTile
@@ -41,16 +41,7 @@ export function createTileSprite(
   return createMapTileVisualAt(tile, tsRenderer, px, py, ctx)
 }
 
-export function createMapTileSprite(
-  tile: ResolvedTile,
-  tsRenderer: TileSetRenderer,
-  placement: TileSpritePlacement,
-  ctx: MapContext
-): Sprite | null {
-  return createMapTileVisualAt(tile, tsRenderer, placement.x, placement.y, ctx)
-}
-
-export function createTileVisual(request: TileVisualRequest): Sprite | null {
+function createTileVisual(request: TileVisualRequest): Sprite | null {
   return request.kind === 'map' ? createMapTileVisual(request) : createObjectTileVisual(request)
 }
 
@@ -130,7 +121,7 @@ function createObjectTileVisual(
   return sprite
 }
 
-export function fitObjectTileSize(
+function fitObjectTileSize(
   tsRenderer: TileSetRenderer,
   localId: number,
   objWidth: number,
@@ -150,7 +141,7 @@ export function fitObjectTileSize(
   return { width: intrinsic.width * scale, height: intrinsic.height * scale }
 }
 
-export function applyFlip(sprite: Sprite, tile: ResolvedTile): void {
+function applyFlip(sprite: Sprite, tile: ResolvedTile): void {
   if (tile.diagonalFlip) {
     // Tiled encodes rotations via the diagonal (anti-diagonal) flip bit combined
     // with H/V bits. For all diagonal cases rotation is PI/2 (CW); the anchor and

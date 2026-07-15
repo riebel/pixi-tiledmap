@@ -9,7 +9,10 @@ import {
   type FetchFn,
   fetchMapDependencies,
   loadTextureManifest,
-  loadTiledMapAsset
+  loadTiledMapAsset,
+  rebaseTilesetImages,
+  resolveAssetUrl,
+  tiledMapLoader
 } from '../../src/renderer/tiledAssetLoader.js'
 import type { TiledMap as TiledMapData, TiledTileset } from '../../src/types/index.js'
 
@@ -62,7 +65,13 @@ function makeMap(overrides: Partial<TiledMapData> = {}): TiledMapData {
   }
 }
 
-type FakeResponse = { text(): Promise<string>; json(): Promise<unknown> }
+type FakeResponse = {
+  ok: boolean
+  status: number
+  statusText: string
+  text(): Promise<string>
+  json(): Promise<unknown>
+}
 
 function makeFetcher(responses: Record<string, FakeResponse>) {
   return vi.fn<FetchFn>((resource) => {
@@ -74,11 +83,33 @@ function makeFetcher(responses: Record<string, FakeResponse>) {
 }
 
 function jsonResponse(data: unknown): FakeResponse {
-  return { text: () => Promise.resolve(''), json: () => Promise.resolve(data) }
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    text: () => Promise.resolve(''),
+    json: () => Promise.resolve(data)
+  }
 }
 
 function textResponse(content: string): FakeResponse {
-  return { text: () => Promise.resolve(content), json: () => Promise.resolve({}) }
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    text: () => Promise.resolve(content),
+    json: () => Promise.resolve({})
+  }
+}
+
+function errorResponse(status: number, statusText: string): FakeResponse {
+  return {
+    ok: false,
+    status,
+    statusText,
+    text: () => Promise.resolve(''),
+    json: () => Promise.resolve({})
+  }
 }
 
 function makeTexture(width: number, height: number): Texture {
@@ -124,6 +155,39 @@ describe('fetchMapDependencies', () => {
       })
       await fetchMapDependencies(map, 'assets/maps', fetcher)
       expect(fetcher).toHaveBeenCalledWith('assets/maps/tilesets/world.tsj')
+    })
+
+    it('rebases nested TSJ atlas and image-collection paths without mutating the response', async () => {
+      const map = makeMap({ tilesets: [{ firstgid: 1, source: 'tilesets/world.tsj' }] })
+      const source = {
+        ...MINIMAL_TILESET,
+        image: '../images/ground.png',
+        tiles: [{ id: 0, image: '../objects/coin.png', imagewidth: 16, imageheight: 16 }]
+      }
+      const fetcher = makeFetcher({
+        'maps/tilesets/world.tsj': jsonResponse(source)
+      })
+
+      const { externalTilesets } = await fetchMapDependencies(map, 'maps', fetcher)
+      const resolved = externalTilesets.get('tilesets/world.tsj')
+
+      expect(resolved?.image).toBe('images/ground.png')
+      expect(resolved?.tiles?.[0]?.image).toBe('objects/coin.png')
+      expect(source.image).toBe('../images/ground.png')
+      expect(source.tiles[0]?.image).toBe('../objects/coin.png')
+    })
+
+    it('rebases nested TSX atlas paths', async () => {
+      const map = makeMap({ tilesets: [{ firstgid: 1, source: 'tilesets/world.tsx' }] })
+      const fetcher = makeFetcher({
+        'maps/tilesets/world.tsx': textResponse(
+          MINIMAL_TSX.replace('tiles.png', '../images/tiles.png')
+        )
+      })
+
+      const { externalTilesets } = await fetchMapDependencies(map, 'maps', fetcher)
+
+      expect(externalTilesets.get('tilesets/world.tsx')?.image).toBe('images/tiles.png')
     })
   })
 
@@ -238,6 +302,63 @@ describe('fetchMapDependencies', () => {
       const fetcher = makeFetcher({ 'maps/enemy.tx': textResponse(MINIMAL_TX) })
       const { templates } = await fetchMapDependencies(map, 'maps', fetcher)
       expect(templates.get('enemy.tx')?.object.name).toBe('enemy')
+    })
+
+    it('rebases an external tileset source relative to the template directory', async () => {
+      const template = {
+        type: 'template' as const,
+        tileset: { firstgid: 1, source: '../tilesets/world.tsj' },
+        object: {
+          id: 0,
+          name: 'enemy',
+          type: '',
+          x: 0,
+          y: 0,
+          width: 16,
+          height: 16,
+          rotation: 0,
+          visible: true,
+          gid: 2
+        }
+      }
+      const map = makeMap({
+        layers: [
+          {
+            type: 'objectgroup',
+            id: 1,
+            name: 'objects',
+            opacity: 1,
+            visible: true,
+            x: 0,
+            y: 0,
+            objects: [
+              {
+                id: 1,
+                name: '',
+                type: '',
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0,
+                rotation: 0,
+                visible: true,
+                template: 'templates/enemy.tj'
+              }
+            ]
+          }
+        ]
+      })
+      const fetcher = makeFetcher({
+        'maps/templates/enemy.tj': jsonResponse(template)
+      })
+
+      const { templates } = await fetchMapDependencies(map, 'maps', fetcher)
+
+      expect(templates.get('templates/enemy.tj')?.tileset).toEqual({
+        firstgid: 1,
+        source: 'tilesets/world.tsj'
+      })
+      expect(template.tileset.source).toBe('../tilesets/world.tsj')
     })
 
     it('discovers template references inside nested group layers', async () => {
@@ -362,6 +483,34 @@ describe('fetchMapDependencies', () => {
   })
 })
 
+describe('Tiled asset path resolution', () => {
+  it('normalizes relative paths and preserves absolute asset sources', () => {
+    expect(resolveAssetUrl('maps/tilesets', '../images/tiles.png')).toBe('maps/images/tiles.png')
+    expect(resolveAssetUrl('maps', 'https://cdn.example.com/tiles.png')).toBe(
+      'https://cdn.example.com/tiles.png'
+    )
+    expect(resolveAssetUrl('maps', '/assets/tiles.png')).toBe('/assets/tiles.png')
+    expect(resolveAssetUrl('maps', 'data:image/png;base64,abc')).toBe('data:image/png;base64,abc')
+  })
+
+  it('returns a rebased clone and leaves pathless tile definitions reusable', () => {
+    const pathlessTile = { id: 1, type: 'solid' }
+    const tileset = {
+      ...MINIMAL_TILESET,
+      image: '../atlas.png',
+      tiles: [{ id: 0, image: '../coin.png', imagewidth: 16, imageheight: 16 }, pathlessTile]
+    }
+
+    const rebased = rebaseTilesetImages(tileset, 'tilesets')
+
+    expect(rebased).not.toBe(tileset)
+    expect(rebased.image).toBe('atlas.png')
+    expect(rebased.tiles?.[0]?.image).toBe('coin.png')
+    expect(rebased.tiles?.[1]).toBe(pathlessTile)
+    expect(tileset.image).toBe('../atlas.png')
+  })
+})
+
 describe('loadTextureManifest', () => {
   it('calls the default Pixi asset loader with Assets as this', async () => {
     const loadSpy = vi.spyOn(Assets, 'load').mockImplementation(function (
@@ -385,14 +534,14 @@ describe('loadTextureManifest', () => {
     }
   })
 
-  it('routes GIF tile images into texture and gif source maps', async () => {
+  it('routes GIF tile images with URL suffixes into texture and gif source maps', async () => {
     const gifSource = { textures: [Texture.EMPTY] }
     const loadAsset = vi.fn(() => Promise.resolve(gifSource))
 
     const textures = await loadTextureManifest(
       {
         tilesetImages: [],
-        tileImages: [{ source: 'coin.gif', url: 'maps/coin.gif' }],
+        tileImages: [{ source: 'coin.gif', url: 'maps/coin.gif?v=2' }],
         imageLayerImages: []
       },
       loadAsset
@@ -402,7 +551,7 @@ describe('loadTextureManifest', () => {
     expect(textures.tileImageGifSources.get('coin.gif')).toBe(gifSource)
   })
 
-  it('routes GIF image layers into texture and gif source maps', async () => {
+  it('routes GIF image layers with URL fragments into texture and gif source maps', async () => {
     const gifSource = { textures: [Texture.EMPTY] }
     const loadAsset = vi.fn(() => Promise.resolve(gifSource))
 
@@ -410,13 +559,28 @@ describe('loadTextureManifest', () => {
       {
         tilesetImages: [],
         tileImages: [],
-        imageLayerImages: [{ source: 'waterfall.gif', url: 'maps/waterfall.gif' }]
+        imageLayerImages: [{ source: 'waterfall.gif', url: 'maps/waterfall.gif#loop' }]
       },
       loadAsset
     )
 
     expect(textures.imageLayerTextures.get('waterfall.gif')).toBe(Texture.EMPTY)
     expect(textures.imageLayerGifSources.get('waterfall.gif')).toBe(gifSource)
+  })
+
+  it('extracts the first GIF texture from a tileset atlas URL with a query', async () => {
+    const gifSource = { textures: [Texture.EMPTY] }
+
+    const textures = await loadTextureManifest(
+      {
+        tilesetImages: [{ source: 'tiles.gif', url: 'maps/tiles.gif?cache=1' }],
+        tileImages: [],
+        imageLayerImages: []
+      },
+      () => Promise.resolve(gifSource)
+    )
+
+    expect(textures.tilesetTextures.get('tiles.gif')).toBe(Texture.EMPTY)
   })
 })
 
@@ -469,6 +633,28 @@ describe('loadTiledMapAsset', () => {
     expect(asset.mapData.layers[0]?.name).toBe('ground')
     expect(asset.container.label).toBe('TiledMap')
     expect(loadAsset).toHaveBeenCalledWith('maps/tiles.png')
+  })
+
+  it('reports the URL and status when the map request fails', async () => {
+    const fetcher = makeFetcher({
+      'maps/missing.tmj': errorResponse(404, 'Not Found')
+    })
+
+    await expect(loadTiledMapAsset('maps/missing.tmj', { fetchFn: fetcher })).rejects.toThrow(
+      'Failed to fetch Tiled asset "maps/missing.tmj": 404 Not Found'
+    )
+  })
+
+  it('reports the URL and status when a dependency request fails', async () => {
+    const map = makeMap({ tilesets: [{ firstgid: 1, source: 'broken.tsj' }] })
+    const fetcher = makeFetcher({
+      'maps/level.tmj': jsonResponse(map),
+      'maps/broken.tsj': errorResponse(500, 'Server Error')
+    })
+
+    await expect(loadTiledMapAsset('maps/level.tmj', { fetchFn: fetcher })).rejects.toThrow(
+      'Failed to fetch Tiled asset "maps/broken.tsj": 500 Server Error'
+    )
   })
 
   it('loads a TMX map through the full asset pipeline', async () => {
@@ -556,11 +742,11 @@ describe('loadTiledMapAsset', () => {
     expect(loadAsset).toHaveBeenCalledWith('maps/tiles.png')
   })
 
-  it('loads external TSX tilesets through the full asset pipeline', async () => {
+  it('loads nested external TSX tilesets through the full asset pipeline', async () => {
     const map = makeMap({
       width: 1,
       height: 1,
-      tilesets: [{ firstgid: 1, source: 'tiles.tsx' }],
+      tilesets: [{ firstgid: 1, source: 'tilesets/world.tsx' }],
       layers: [
         {
           type: 'tilelayer',
@@ -578,15 +764,218 @@ describe('loadTiledMapAsset', () => {
     })
     const fetcher = makeFetcher({
       'maps/level.tmj': jsonResponse(map),
-      'maps/tiles.tsx': textResponse(MINIMAL_TSX)
+      'maps/tilesets/world.tsx': textResponse(
+        MINIMAL_TSX.replace('tiles.png', '../images/tiles.png')
+      )
     })
     const loadAsset = vi.fn(() => Promise.resolve(Texture.EMPTY))
 
     const asset = await loadTiledMapAsset('maps/level.tmj', { fetchFn: fetcher, loadAsset })
 
-    expect(asset.mapData.tilesets[0]?.source).toBe('tiles.tsx')
+    expect(asset.mapData.tilesets[0]?.source).toBe('tilesets/world.tsx')
     expect(asset.mapData.tilesets[0]?.name).toBe('tiles')
-    expect(loadAsset).toHaveBeenCalledWith('maps/tiles.png')
+    expect(asset.mapData.tilesets[0]?.image).toBe('images/tiles.png')
+    expect(loadAsset).toHaveBeenCalledWith('maps/images/tiles.png')
+  })
+
+  it('loads nested external tileset images relative to their TSJ directory', async () => {
+    const map = makeMap({
+      width: 1,
+      height: 1,
+      tilesets: [{ firstgid: 1, source: 'tilesets/world.tsj' }],
+      layers: [
+        {
+          type: 'tilelayer',
+          id: 1,
+          name: 'ground',
+          opacity: 1,
+          visible: true,
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+          data: [1]
+        }
+      ]
+    })
+    const fetcher = makeFetcher({
+      'maps/level.tmj': jsonResponse(map),
+      'maps/tilesets/world.tsj': jsonResponse({
+        ...MINIMAL_TILESET,
+        image: '../images/tiles.png',
+        imagewidth: 64,
+        imageheight: 64,
+        tiles: [{ id: 0, image: '../objects/coin.png', imagewidth: 16, imageheight: 16 }]
+      })
+    })
+    const loadAsset = vi.fn(() => Promise.resolve(Texture.EMPTY))
+
+    const asset = await loadTiledMapAsset('maps/level.tmj', { fetchFn: fetcher, loadAsset })
+
+    expect(asset.mapData.tilesets[0]?.image).toBe('images/tiles.png')
+    expect(asset.mapData.tilesets[0]?.tiles.get(0)?.image).toBe('objects/coin.png')
+    expect(loadAsset).toHaveBeenCalledWith('maps/images/tiles.png')
+    expect(loadAsset).toHaveBeenCalledWith('maps/objects/coin.png')
+  })
+
+  it('remaps a template tile GID when map and template use different relative paths', async () => {
+    const map = makeMap({
+      tilesets: [{ firstgid: 100, source: 'tilesets/world.tsj' }],
+      layers: [
+        {
+          type: 'objectgroup',
+          id: 1,
+          name: 'objects',
+          opacity: 1,
+          visible: true,
+          x: 0,
+          y: 0,
+          objects: [
+            {
+              id: 1,
+              name: '',
+              type: '',
+              x: 0,
+              y: 0,
+              width: 0,
+              height: 0,
+              rotation: 0,
+              visible: true,
+              template: 'templates/enemy.tj'
+            }
+          ]
+        }
+      ]
+    })
+    const fetcher = makeFetcher({
+      'maps/level.tmj': jsonResponse(map),
+      'maps/tilesets/world.tsj': jsonResponse(MINIMAL_TILESET),
+      'maps/templates/enemy.tj': jsonResponse({
+        type: 'template',
+        tileset: { firstgid: 1, source: '../tilesets/world.tsj' },
+        object: {
+          id: 0,
+          name: 'enemy',
+          type: '',
+          x: 0,
+          y: 0,
+          width: 16,
+          height: 16,
+          rotation: 0,
+          visible: true,
+          gid: 3
+        }
+      })
+    })
+
+    const asset = await loadTiledMapAsset('maps/level.tmj', { fetchFn: fetcher })
+    const objectLayer = asset.mapData.layers[0]
+
+    expect(objectLayer?.type).toBe('objectgroup')
+    if (objectLayer?.type !== 'objectgroup') throw new Error('Expected object layer')
+    expect(objectLayer.objects[0]?.tile).toMatchObject({ gid: 102, localId: 2, tilesetIndex: 0 })
+  })
+
+  it('forwards non-texture map options to the constructed TiledMap', async () => {
+    const map = makeMap({
+      width: 2,
+      height: 1,
+      tilesets: [
+        {
+          ...MINIMAL_TILESET,
+          columns: 2,
+          tilecount: 2,
+          image: 'tiles.png',
+          imagewidth: 32,
+          imageheight: 16
+        }
+      ],
+      layers: [
+        {
+          type: 'tilelayer',
+          id: 1,
+          name: 'ground',
+          opacity: 1,
+          visible: true,
+          x: 0,
+          y: 0,
+          width: 2,
+          height: 1,
+          data: [1, 2]
+        },
+        {
+          type: 'tilelayer',
+          id: 2,
+          name: 'filtered-out',
+          opacity: 1,
+          visible: true,
+          x: 0,
+          y: 0,
+          width: 2,
+          height: 1,
+          data: [1, 2]
+        }
+      ]
+    })
+    const fetcher = makeFetcher({ 'maps/level.tmj': jsonResponse(map) })
+    const loadAsset = vi.fn(() => Promise.resolve(makeTexture(32, 16)))
+
+    const asset = await loadTiledMapAsset('maps/level.tmj', {
+      fetchFn: fetcher,
+      loadAsset,
+      mapOptions: {
+        layerFilter: (layer) => layer.name === 'ground',
+        tileSpritePadding: 0.5,
+        tileMeshBatchSize: 1
+      }
+    })
+    const ground = asset.container.getLayer('ground')!
+
+    expect(asset.container.getLayer('filtered-out')).toBeUndefined()
+    expect(ground.children).toHaveLength(2)
+    expect(Array.from((ground.children[0] as Mesh).geometry.positions)).toContain(16.5)
+  })
+
+  it('forwards map options supplied through Pixi Assets metadata', async () => {
+    const map = makeMap({
+      layers: [
+        {
+          type: 'objectgroup',
+          id: 1,
+          name: 'kept',
+          opacity: 1,
+          visible: true,
+          x: 0,
+          y: 0,
+          objects: []
+        },
+        {
+          type: 'objectgroup',
+          id: 2,
+          name: 'filtered-out',
+          opacity: 1,
+          visible: true,
+          x: 0,
+          y: 0,
+          objects: []
+        }
+      ]
+    })
+    const previousAdapter = DOMAdapter.get()
+    const adapterFetch = vi.fn(() => Promise.resolve(jsonResponse(map) as Response))
+    DOMAdapter.set({ ...previousAdapter, fetch: adapterFetch })
+
+    try {
+      const asset = await tiledMapLoader.load?.('maps/level.tmj', {
+        src: 'maps/level.tmj',
+        data: { mapOptions: { layerFilter: (layer) => layer.name === 'kept' } }
+      })
+
+      expect(asset?.container.getLayer('kept')).toBeDefined()
+      expect(asset?.container.getLayer('filtered-out')).toBeUndefined()
+    } finally {
+      DOMAdapter.set(previousAdapter)
+    }
   })
 
   it('fetches duplicate object templates once through the full asset pipeline', async () => {

@@ -98,6 +98,43 @@ app.stage.addChild(container);
 ```
 
 > The loader auto-detects the format by file extension: `.tmj` → JSON, `.tmx` → XML.
+> Image paths inside external TSJ/TSX tilesets are resolved relative to the
+> tileset file, matching Tiled's path semantics even when tilesets live in a
+> nested directory. External tileset paths inside object templates are likewise
+> resolved relative to the template file so template tile GIDs map correctly.
+
+Renderer options can be supplied through Pixi's asset metadata:
+
+```ts
+const { container } = await Assets.load({
+  src: 'assets/map.tmj',
+  data: {
+    mapOptions: {
+      tileMeshBatchSize: 16_000,
+      layerFilter: (layer) => layer.visible
+    }
+  }
+});
+```
+
+Or call the same asset pipeline directly when custom fetch or asset-loading
+adapters are needed. The returned `container` is typed as `TiledMap`, so its
+layer, parallax, and tile-editing APIs are available without a cast:
+
+```ts
+import { loadTiledMapAsset } from 'pixi-tiledmap';
+
+const { container } = await loadTiledMapAsset('assets/map.tmj', {
+  mapOptions: {
+    tileSpritePadding: 0.01,
+    tileMeshBatchSize: 16_000,
+    layerFilter: (layer) => layer.visible
+  }
+});
+
+container.applyParallax(cameraX, cameraY);
+container.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
+```
 
 ## Manual Construction
 
@@ -191,6 +228,8 @@ map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 | Export                | Description                                                      |
 | --------------------- | ---------------------------------------------------------------- |
 | `tiledMapLoader`      | PixiJS `LoadParser` extension - register with `extensions.add()` |
+| `loadTiledMapAsset(url, options?)` | Load, resolve, texture, and render a TMJ/TMX map with optional renderer settings |
+| `TiledMapAsset`       | Loaded `mapData` plus a strongly typed `TiledMap` container      |
 | `TiledMap`            | `Container` subclass that renders a resolved map                 |
 | `TileLayerRenderer`   | Packed mesh-backed `Container` for a single tile layer           |
 | `ImageLayerRenderer`  | `Container` for a single image layer                             |

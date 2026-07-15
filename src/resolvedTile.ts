@@ -73,7 +73,7 @@ export function decodeTileGid(rawGid: number): ResolvedTile | null {
   }
 }
 
-export function resolveLocalTile(
+function resolveLocalTile(
   input: Exclude<TiledTileInput, number | ResolvedTile | null>,
   tilesets: ResolvedTileset[]
 ): ResolvedTile {
@@ -99,7 +99,7 @@ export function resolveLocalTile(
   return tile
 }
 
-export function findTilesetIndex(
+function findTilesetIndex(
   selector: string | number | undefined,
   tilesets: ResolvedTileset[]
 ): number {
@@ -126,7 +126,7 @@ function normalizeAlpha(alpha: number | undefined): number | undefined {
   return Math.min(1, Math.max(0, alpha))
 }
 
-export function findTilesetIndexForGid(
+function findTilesetIndexForGid(
   gid: number,
   tilesets: Pick<ResolvedTileset, 'firstgid'>[]
 ): number {

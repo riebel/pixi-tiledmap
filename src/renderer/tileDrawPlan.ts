@@ -26,7 +26,7 @@ export function getMapTileDrawRect(
   )
 }
 
-export function writeMapTileDrawRect(
+function writeMapTileDrawRect(
   out: MapTileDrawRect,
   tile: ResolvedTile,
   tsRenderer: TileSetRenderer,

@@ -1,0 +1,66 @@
+{
+  "finding_counts": {
+    "src/parser/mergeTemplate.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/renderer/ImageLayerRenderer.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/renderer/ObjectLayerRenderer.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/renderer/PackedTileLayerRenderer.ts": {
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/renderer/TileLayerRenderer.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    },
+    "src/renderer/TiledMap.ts": {
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "src/renderer/layerTreeRenderer.ts": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "test/renderer/magiclandVisual.test.ts": {
+      "complexity_high": {
+        "count": 1
+      },
+      "crap_high": {
+        "count": 1
+      }
+    },
+    "test/renderer/tileEditingStress.test.ts": {
+      "complexity_moderate": {
+        "count": 1
+      },
+      "crap_moderate": {
+        "count": 1
+      }
+    }
+  },
+  "runtime_coverage_findings": [],
+  "target_keys": [
+    "src/resolvedTile.ts:high impact",
+    "src/parser/xmlHelpers.ts:high impact"
+  ]
+}

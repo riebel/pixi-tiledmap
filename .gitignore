@@ -2,6 +2,7 @@
 node_modules
 npm-debug.log
 dist/
+graphify-out/
 .claude
 CLAUDE.md
 CONTEXT.md

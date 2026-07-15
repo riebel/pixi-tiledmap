@@ -1,9 +1,9 @@
 import { Container } from 'pixi.js'
 import type { ResolvedGroupLayer } from '../types'
 import {
-  createLayerRendererFromContext,
+  createLayerRendererWithGroupFactory,
   type LayerTreeRendererContext
-} from './layerTreeRenderer.js'
+} from './layerRendererFactory.js'
 import { applyLayerState } from './renderableLayer.js'
 
 export class GroupLayerRenderer extends Container {
@@ -16,8 +16,15 @@ export class GroupLayerRenderer extends Container {
     applyLayerState(this, layerData)
 
     for (const child of layerData.layers) {
-      const renderer = createLayerRendererFromContext(child, context)
+      const renderer = createLayerRendererWithGroupFactory(child, context, createGroupLayerRenderer)
       if (renderer) this.addChild(renderer)
     }
   }
+}
+
+function createGroupLayerRenderer(
+  layer: ResolvedGroupLayer,
+  context: LayerTreeRendererContext
+): GroupLayerRenderer {
+  return new GroupLayerRenderer(layer, context)
 }

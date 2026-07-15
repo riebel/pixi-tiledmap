@@ -48,6 +48,11 @@
     "check": "biome check src/ test/",
     "check:fix": "biome check --write src/ test/",
     "bench": "vitest bench --run",
+    "fallow": "fallow --score",
+    "fallow:report": "fallow --score",
+    "fallow:baseline": "node scripts/updateFallowBaselines.mjs",
+    "fallow:gate": "node scripts/runFallowGate.mjs",
+    "quality:gate": "npm run check && npm run typecheck && npm test && npm run fallow:gate",
     "test": "tsdown && vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
@@ -62,6 +67,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.11",
     "@types/node": "^25.9.1",
+    "fallow": "3.5.1",
     "jsdom": "^29.0.2",
     "pixelmatch": "^7.2.0",
     "pixi.js": "^8.17.1",

@@ -2,7 +2,7 @@
 // Based on Tiled 1.11 JSON Map Format specification
 // https://doc.mapeditor.org/en/stable/reference/json-map-format/
 
-import type { Container, Texture } from 'pixi.js'
+import type { Texture } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
 
 // ─── Enums / String Unions ───────────────────────────────────────────────────
@@ -529,11 +529,6 @@ export interface TiledMapOptions {
 }
 
 export type TiledLayerFilter = (layer: ResolvedLayer) => boolean
-
-export interface TiledMapAsset {
-  mapData: ResolvedMap
-  container: Container
-}
 
 // ─── Runtime tile editing ───────────────────────────────────────────────────
 

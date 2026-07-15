@@ -1,0 +1,8 @@
+{
+  "clone_groups": [
+    "src/procedural.ts:48-63|src/types/index.ts:451-466",
+    "src/renderer/TileSetRenderer.ts:103-108|src/renderer/TileSetRenderer.ts:116-121",
+    "test/renderer/tileEditing.bench.ts:102-106|test/renderer/tileEditing.bench.ts:157-161",
+    "test/renderer/tileEditing.bench.ts:132-140|test/renderer/tileEditing.bench.ts:179-187"
+  ]
+}

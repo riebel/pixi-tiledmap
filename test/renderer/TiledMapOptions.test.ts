@@ -109,6 +109,26 @@ describe('TiledMap layerFilter', () => {
   })
 })
 
+describe('TiledMap metadata', () => {
+  it('exposes the resolved map dimensions and orientation', () => {
+    const map = new TiledMap(
+      makeResolvedMap({
+        orientation: 'isometric',
+        width: 12,
+        height: 7,
+        tilewidth: 48,
+        tileheight: 24
+      })
+    )
+
+    expect(map.orientation).toBe('isometric')
+    expect(map.mapWidth).toBe(12)
+    expect(map.mapHeight).toBe(7)
+    expect(map.tileWidth).toBe(48)
+    expect(map.tileHeight).toBe(24)
+  })
+})
+
 describe('tileSpritePadding', () => {
   it('adds a small default overlap to full-size orthogonal tile sprites', () => {
     const ctx: MapContext = {
