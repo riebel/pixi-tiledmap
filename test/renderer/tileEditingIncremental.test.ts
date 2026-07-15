@@ -7,7 +7,7 @@
  * they stay deterministic on CI.
  */
 import { type Mesh, Texture, TextureSource } from 'pixi.js'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { readPackedTileStats } from '../../src/renderer/packedTileStats.js'
 import { TiledMap } from '../../src/renderer/TiledMap.js'
 import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
@@ -634,6 +634,26 @@ describe('lifecycle', () => {
     const ownedTexture = meshes(owning)[0]!.texture
     owning.destroy({ children: true })
     expect(ownedTexture.destroyed).toBe(true)
+  })
+
+  it('destroys a batch texture exactly once when Pixi owns child textures', () => {
+    const source = new TextureSource({ width: 64, height: 64 })
+    const tileset = new TileSetRenderer(
+      makeResolvedTileset({ columns: 2, tilecount: 4 }),
+      new Texture({ source })
+    )
+    const renderer = new TileLayerRenderer(filledLayer(2, 1), [tileset], ctx)
+    const batchTexture = meshes(renderer)[0]!.texture
+    const destroySpy = vi.spyOn(batchTexture, 'destroy')
+
+    renderer.destroy({ children: true, texture: true })
+
+    expect(destroySpy).toHaveBeenCalledTimes(1)
+    expect(batchTexture.destroyed).toBe(true)
+    expect(source.destroyed).toBe(false)
+
+    destroySpy.mockRestore()
+    source.destroy()
   })
 
   it('destroys cleanly through TiledMap after edits', () => {

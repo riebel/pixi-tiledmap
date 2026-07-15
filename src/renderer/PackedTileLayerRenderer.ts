@@ -281,8 +281,11 @@ export class PackedTileLayerRenderer extends Container {
     // meshes still reference the batch texture, so it is only ours to destroy
     // when they go down with us.
     const destroyChildren = typeof options === 'boolean' ? options : (options?.children ?? false)
+    const destroyTextures = typeof options === 'boolean' ? options : (options?.texture ?? false)
     super.destroy(options)
-    this._releaseBatches(destroyChildren)
+    // Mesh.destroy() already destroys its texture when `texture` is requested.
+    // Only reclaim the wrapper ourselves when Pixi left it intact.
+    this._releaseBatches(destroyChildren && !destroyTextures)
   }
 
   private _addRect(rect: PackedTextureRect): InternalTileRenderHandle {

@@ -28,6 +28,10 @@ export class TiledMap extends Container {
 
   private _background: Graphics | null = null
   private _tileLayerIndex: TileLayerIndex | null = null
+  private _tileLayerIndexContainers: Container[] = []
+  private readonly _invalidateTileLayerIndex = (): void => {
+    this._tileLayerIndex = null
+  }
 
   constructor(mapData: ResolvedMap, options?: TiledMapOptions) {
     super()
@@ -99,7 +103,7 @@ export class TiledMap extends Container {
     const renderedLayers = renderLayerTree(mapData.layers, layerContext)
     if (renderedLayers.length > 0) this.addChild(...renderedLayers)
 
-    this._tileLayerIndex = buildTileLayerIndex(this.children)
+    this._rebuildTileLayerIndex()
   }
 
   get orientation() {
@@ -163,8 +167,8 @@ export class TiledMap extends Container {
   }
 
   private _getTileLayerRenderer(selector: TiledTileLayerSelector): TileLayerRenderer {
-    const indexed =
-      this._tileLayerIndex && findTileLayerInIndex(this._tileLayerIndex, selector, this)
+    const index = this._tileLayerIndex ?? this._rebuildTileLayerIndex()
+    const indexed = findTileLayerInIndex(index, selector, this)
     if (indexed) return indexed
 
     // Index miss: an ambiguous selector, or a tree mutated after construction.
@@ -176,7 +180,31 @@ export class TiledMap extends Container {
     return layer
   }
 
+  private _rebuildTileLayerIndex(): TileLayerIndex {
+    this._detachTileLayerIndexListeners()
+
+    const index = buildTileLayerIndex(this.children)
+    this._tileLayerIndex = index
+    this._tileLayerIndexContainers = [this, ...index.groupContainers]
+
+    for (const container of this._tileLayerIndexContainers) {
+      container.on('childAdded', this._invalidateTileLayerIndex)
+      container.on('childRemoved', this._invalidateTileLayerIndex)
+    }
+
+    return index
+  }
+
+  private _detachTileLayerIndexListeners(): void {
+    for (const container of this._tileLayerIndexContainers) {
+      container.off('childAdded', this._invalidateTileLayerIndex)
+      container.off('childRemoved', this._invalidateTileLayerIndex)
+    }
+    this._tileLayerIndexContainers.length = 0
+  }
+
   override destroy(options?: Parameters<Container['destroy']>[0]): void {
+    this._detachTileLayerIndexListeners()
     for (const ts of this.tileSetRenderers) {
       ts.destroy()
     }

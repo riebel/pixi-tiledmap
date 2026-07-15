@@ -167,6 +167,43 @@ describe('tile layer lookup semantics', () => {
     expect(map.getTile('added', 0, 0)).toMatchObject({ gid: 1 })
   })
 
+  it('uses a newly inserted duplicate name before a previously indexed layer', () => {
+    const original = makeResolvedTileLayer({ id: 1, name: 'ground', ...cell() })
+    const inserted = makeResolvedTileLayer({ id: 2, name: 'ground', ...cell() })
+    const map = mapWith([original])
+    const renderer = new TileLayerRenderer(inserted, map.tileSetRenderers, {
+      orientation: 'orthogonal',
+      renderorder: 'right-down',
+      tilewidth: 32,
+      tileheight: 32
+    })
+
+    map.addChildAt(renderer, 0)
+    map.setTile('ground', 0, 0, 1)
+
+    expect(inserted.tiles[0]).toMatchObject({ gid: 1 })
+    expect(original.tiles[0]).toBeNull()
+  })
+
+  it('invalidates indexed ids when a duplicate is inserted into a nested group', () => {
+    const original = makeResolvedTileLayer({ id: 7, name: 'original', ...cell() })
+    const inserted = makeResolvedTileLayer({ id: 7, name: 'inserted', ...cell() })
+    const map = mapWith([makeResolvedGroupLayer({ name: 'group', layers: [original] })])
+    const group = map.getLayer('group')!
+    const renderer = new TileLayerRenderer(inserted, map.tileSetRenderers, {
+      orientation: 'orthogonal',
+      renderorder: 'right-down',
+      tilewidth: 32,
+      tileheight: 32
+    })
+
+    group.addChildAt(renderer, 0)
+    map.setTile(7, 0, 0, 1)
+
+    expect(inserted.tiles[0]).toMatchObject({ gid: 1 })
+    expect(original.tiles[0]).toBeNull()
+  })
+
   it('stops resolving a layer that was reparented to another container', () => {
     // A reparented layer keeps a truthy `parent`, so the index must check that
     // the hit is still part of *this* map rather than merely attached.

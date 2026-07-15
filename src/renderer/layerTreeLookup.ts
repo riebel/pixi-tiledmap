@@ -8,6 +8,7 @@ export interface TileLayerIndex {
   byName: Map<string, TileLayerRenderer>
   ambiguousIds: Set<number>
   ambiguousNames: Set<string>
+  groupContainers: GroupLayerRenderer[]
 }
 
 /**
@@ -28,7 +29,8 @@ export function buildTileLayerIndex(children: Iterable<Container>): TileLayerInd
     byId: new Map(),
     byName: new Map(),
     ambiguousIds: new Set(),
-    ambiguousNames: new Set()
+    ambiguousNames: new Set(),
+    groupContainers: []
   }
   indexTileLayers(children, index)
   return index
@@ -67,7 +69,10 @@ function indexTileLayers(children: Iterable<Container>, index: TileLayerIndex): 
       continue
     }
 
-    if (child instanceof GroupLayerRenderer) indexTileLayers(child.children, index)
+    if (child instanceof GroupLayerRenderer) {
+      index.groupContainers.push(child)
+      indexTileLayers(child.children, index)
+    }
   }
 }
 
