@@ -18,7 +18,7 @@ import type {
   TiledMapOptions,
   TiledObject,
   TiledObjectTemplate,
-  TiledTileset
+  TiledTilesetFile
 } from '../types'
 import { TiledMap } from './TiledMap.js'
 
@@ -62,10 +62,10 @@ export async function fetchMapDependencies(
   basePath: string,
   fetchFn: FetchFn = DOMAdapter.get().fetch
 ): Promise<{
-  externalTilesets: Map<string, TiledTileset>
+  externalTilesets: Map<string, TiledTilesetFile>
   templates: Map<string, TiledObjectTemplate>
 }> {
-  const externalTilesets = new Map<string, TiledTileset>()
+  const externalTilesets = new Map<string, TiledTilesetFile>()
   for (const ts of data.tilesets) {
     if (!isTilesetRef(ts)) continue
     const tsUrl = resolveAssetUrl(basePath, ts.source)
@@ -75,7 +75,7 @@ export async function fetchMapDependencies(
     const tileset =
       tsExt === '.tsx'
         ? parseTsx(await tsResponse.text())
-        : ((await tsResponse.json()) as TiledTileset)
+        : ((await tsResponse.json()) as TiledTilesetFile)
     externalTilesets.set(ts.source, rebaseTilesetImages(tileset, pixiPath.dirname(ts.source)))
   }
 
@@ -199,7 +199,10 @@ export function resolveAssetUrl(basePath: string, source: string): string {
  * Normalize image paths owned by an external tileset into map-relative keys.
  * The resolved map, texture manifest, and renderer then share the exact same key.
  */
-export function rebaseTilesetImages(tileset: TiledTileset, tilesetBase: string): TiledTileset {
+export function rebaseTilesetImages(
+  tileset: TiledTilesetFile,
+  tilesetBase: string
+): TiledTilesetFile {
   return {
     ...tileset,
     ...(tileset.image ? { image: resolveAssetUrl(tilesetBase, tileset.image) } : {}),

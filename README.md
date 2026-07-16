@@ -21,7 +21,7 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
 - **External tilesets** - automatic resolution via the asset loader (`.tsj` and `.tsx`)
 - **Runtime editing and generation** - edit loaded maps in place or create resolved maps procedurally, with tile objects taking the same friendly tile input as tile layer cells
-- **Map export** - `exportMap` writes a resolved map back to Tiled JSON, so a generated map opens in Tiled; parsing an exported map reproduces the same map exactly
+- **Map export** - `exportMap` writes a resolved map back to Tiled JSON and `exportTileset` writes a standalone `.tsj`, so a generated map opens in Tiled; parsing an exported map reproduces the same map exactly
 - **Map introspection** - `findLayer`, `getProperty`, and `tileAt` (point to tile cell, every orientation) work on the resolved map without a renderer, free of PixiJS and the DOM
 - **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
 - **Tree-shakable** - ESM + CJS dual build, side-effect-free
@@ -258,6 +258,25 @@ const tmj = exportMap(generated, {
 });
 ```
 
+`exportTileset` writes a tileset the same way. By default it produces embedded map data; `{ standalone: true }` produces a `.tsj` file, which carries `type: 'tileset'` and no `firstgid` — the first global id belongs to the map that references the tileset, not to the file:
+
+```ts
+import { exportTileset } from 'pixi-tiledmap';
+
+const ground = generated.tilesets.find((tileset) => tileset.name === 'dungeon')!;
+await writeFile(
+  'tilesets/dungeon.tsj',
+  JSON.stringify(exportTileset(ground, { standalone: true, tiledversion: '1.11.2' }), null, 2)
+);
+```
+
+That file reads straight back through `ParseOptions.externalTilesets`, which is typed `TiledTilesetFile` — a tileset without a `firstgid` — so a `.tsj` read from disk needs no cast:
+
+```ts
+const dungeon: TiledTilesetFile = JSON.parse(await readFile('tilesets/dungeon.tsj', 'utf8'));
+const map = parseMap(tmj, { externalTilesets: new Map([['tilesets/dungeon.tsj', dungeon]]) });
+```
+
 Two caveats worth knowing, since both are silent:
 
 - `ResolvedTile.alpha` is a runtime render property with no place in the Tiled format, so it is not written. A GID carries no opacity.
@@ -305,12 +324,12 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `parseMap(data)`      | Synchronous Tiled JSON → resolved IR                             |
 | `parseMapAsync(data)` | Async variant (required for gzip/zlib compressed data)           |
 | `parseTmx(xml)`       | Parse TMX XML string → `TiledMap` data (same shape as JSON)      |
-| `parseTsx(xml)`       | Parse TSX XML string → `TiledTileset` data                       |
+| `parseTsx(xml)`       | Parse TSX XML string → `TiledTilesetFile` data                   |
 | `parseTx(xml)`        | Parse TX XML string → `TiledObjectTemplate` data                 |
 | `decodeGid(raw)`      | Decode a raw GID into tile ID + flip flags                       |
 | `encodeGid(tile)`     | Pack a resolved tile back into a raw GID - the inverse of `decodeGid` |
 | `exportMap(map, options?)` | Resolved IR → Tiled JSON - the inverse of `parseMap`        |
-| `exportTileset(tileset)` | Resolved tileset → embedded Tiled tileset data                |
+| `exportTileset(tileset, options?)` | Resolved tileset → embedded tileset data, or a standalone `.tsj` with `{ standalone: true }` |
 | `findLayer(map, name)` | Find a resolved layer by name, including inside group layers    |
 | `findLayerById(map, id)` | Find a resolved layer by its Tiled id                         |
 | `walkLayers(map)`     | Iterate the layer tree depth-first, group layers included        |

@@ -10,6 +10,7 @@ import type {
   TiledStaggerAxis,
   TiledStaggerIndex,
   TiledTileset,
+  TiledTilesetFile,
   TiledTilesetRef
 } from '../types'
 import { parseData } from './tmxData.js'
@@ -177,7 +178,7 @@ export function parseTmx(xml: string): TiledMap {
   }
 }
 
-export function parseTsx(xml: string): TiledTileset {
+export function parseTsx(xml: string): TiledTilesetFile {
   const doc = parseXmlDocument(xml, 'TSX')
 
   const tsEl = doc.documentElement
@@ -189,7 +190,11 @@ export function parseTsx(xml: string): TiledTileset {
   if ('source' in result) {
     throw new Error('TSX file should not contain a source reference')
   }
-  return result
+
+  // A TSX file has no firstgid attribute, so the shared tileset parser's
+  // numeric default would invent one. Drop it: the referencing map supplies it.
+  const { firstgid: _firstgid, ...file } = result
+  return file
 }
 
 // ─── Template (TX) ──────────────────────────────────────────────────────────

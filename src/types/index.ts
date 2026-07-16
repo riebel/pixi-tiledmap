@@ -289,6 +289,20 @@ export interface TiledTilesetRef {
   source: string
 }
 
+// ─── Standalone tileset file ─────────────────────────────────────────────────
+
+/**
+ * A tileset as it exists in a standalone `.tsj` / `.tsx` file.
+ *
+ * Such a file carries no `firstgid`: the first global id belongs to the map
+ * that references the tileset, not to the tileset itself, and the parser reads
+ * it from that reference. A standalone file instead carries `type: 'tileset'`.
+ *
+ * An embedded `TiledTileset` is still assignable here, so this type only widens
+ * what an API accepts.
+ */
+export type TiledTilesetFile = Omit<TiledTileset, 'firstgid'>
+
 // ─── Map ─────────────────────────────────────────────────────────────────────
 
 export interface TiledMap {
@@ -508,7 +522,13 @@ export interface ResolvedMap {
 // ─── Parser options ──────────────────────────────────────────────────────────
 
 export interface ParseOptions {
-  externalTilesets?: Map<string, TiledTileset>
+  /**
+   * External tilesets by their `source` path. Keyed exactly as the map
+   * references them.
+   *
+   * A tileset's own `firstgid` is never read: the map's reference supplies it.
+   */
+  externalTilesets?: Map<string, TiledTilesetFile>
   templates?: Map<string, TiledObjectTemplate>
 }
 

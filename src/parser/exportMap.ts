@@ -14,6 +14,7 @@ import type {
   TiledTileDefinition,
   TiledTileOffset,
   TiledTileset,
+  TiledTilesetFile,
   TiledTilesetRef
 } from '../types'
 import { encodeGid } from './encodeGid.js'
@@ -79,17 +80,55 @@ export function exportMap(map: ResolvedMap, options?: ExportMapOptions): TiledMa
   }
 }
 
+export interface ExportTilesetOptions {
+  /**
+   * Write the tileset as a standalone `.tsj` file rather than as embedded map
+   * data: adds `type: 'tileset'` and omits `firstgid`, which belongs to the
+   * referencing map rather than to the tileset file.
+   */
+  standalone?: boolean
+  /** Format version for a standalone file. Defaults to `'1.10'`. */
+  version?: string
+  /** Editor version for a standalone file. Omitted when not given. */
+  tiledversion?: string
+}
+
 /**
- * Writes a `ResolvedTileset` as embedded Tiled tileset data.
+ * Writes a `ResolvedTileset` as Tiled tileset data: embedded map data by
+ * default, or a standalone `.tsj` file with `{ standalone: true }`.
  *
- * The tileset's `source` is deliberately not written: a source path describes
- * the *reference* to a tileset, not the tileset itself. To author a standalone
- * TSJ, drop `firstgid` (which belongs to the referencing map) and add
- * `type: 'tileset'`.
+ * The tileset's `source` is deliberately never written: a source path describes
+ * the *reference* to a tileset, not the tileset itself.
+ *
+ * A `ResolvedTileset` carries no format version, so a standalone file takes one
+ * from the options.
  */
-export function exportTileset(tileset: ResolvedTileset): TiledTileset {
+export function exportTileset(tileset: ResolvedTileset): TiledTileset
+export function exportTileset(
+  tileset: ResolvedTileset,
+  options: ExportTilesetOptions & { standalone: true }
+): TiledTilesetFile
+export function exportTileset(
+  tileset: ResolvedTileset,
+  options?: ExportTilesetOptions
+): TiledTileset | TiledTilesetFile
+export function exportTileset(
+  tileset: ResolvedTileset,
+  options?: ExportTilesetOptions
+): TiledTileset | TiledTilesetFile {
+  if (!options?.standalone) return { firstgid: tileset.firstgid, ...exportTilesetBody(tileset) }
+
   return {
-    firstgid: tileset.firstgid,
+    type: 'tileset',
+    version: options.version ?? '1.10',
+    ...optional('tiledversion', options.tiledversion),
+    ...exportTilesetBody(tileset)
+  }
+}
+
+/** Everything both the embedded and the standalone form share. */
+function exportTilesetBody(tileset: ResolvedTileset): TiledTilesetFile {
+  return {
     name: tileset.name,
     tilewidth: tileset.tilewidth,
     tileheight: tileset.tileheight,

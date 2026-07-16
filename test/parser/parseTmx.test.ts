@@ -394,6 +394,17 @@ describe('parseTsx', () => {
     expect(ts.tiles![0]!.properties).toHaveLength(1)
   })
 
+  it('does not invent a firstgid, which belongs to the referencing map', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<tileset name="terrain" tilewidth="32" tileheight="32" tilecount="16" columns="4">
+  <image source="terrain.png" width="128" height="128"/>
+</tileset>`
+
+    // A TSX file has no firstgid attribute, so reporting one - even 0 - would be
+    // fabricated. The map's <tileset firstgid="..."> reference supplies it.
+    expect(parseTsx(xml)).not.toHaveProperty('firstgid')
+  })
+
   it('throws on non-tileset root', () => {
     expect(() => parseTsx('<map/>')).toThrow('Expected root <tileset>')
   })

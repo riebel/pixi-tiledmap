@@ -8,7 +8,13 @@ import { describe, expect, it } from 'vitest'
 import { exportMap, exportTileset } from '../../src/parser/exportMap.js'
 import { parseTmx } from '../../src/parser/parseTmx.js'
 import { parseMap, parseMapAsync } from '../../src/parser/resolveMap.js'
-import type { ParseOptions, ResolvedMap, TiledMap, TiledTileset } from '../../src/types/index.js'
+import type {
+  ParseOptions,
+  ResolvedMap,
+  TiledMap,
+  TiledTileset,
+  TiledTilesetFile
+} from '../../src/types/index.js'
 
 const fixtureDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'magicland')
 
@@ -390,6 +396,89 @@ describe('exportMap', () => {
     expect(exported.layers[0]!.encoding).toBe('base64')
     expect(typeof exported.layers[0]!.data).toBe('string')
     expect(parseMap(exported)).toEqual(map)
+  })
+})
+
+/**
+ * The shape a real `.tsj` on disk has: `type: 'tileset'` and no `firstgid`,
+ * which belongs to the map that references it. This literal needing a cast to
+ * compile would itself be the bug.
+ */
+const groundTilesetFile: TiledTilesetFile = {
+  type: 'tileset',
+  version: '1.10',
+  name: 'ground',
+  tilewidth: 16,
+  tileheight: 16,
+  columns: 4,
+  tilecount: 8,
+  margin: 0,
+  spacing: 0,
+  image: 'ground.png',
+  imagewidth: 64,
+  imageheight: 32
+}
+
+describe('externalTilesets', () => {
+  it('accepts a tileset file that has no firstgid', () => {
+    const map = parseMap(baseMap({ tilesets: [{ firstgid: 3, source: 'ground.tsj' }] }), {
+      externalTilesets: new Map([['ground.tsj', groundTilesetFile]])
+    })
+
+    // The reference supplies the first global id, not the file.
+    expect(map.tilesets[0]).toMatchObject({ name: 'ground', firstgid: 3, source: 'ground.tsj' })
+  })
+
+  it('still accepts an embedded tileset, which carries a firstgid', () => {
+    const map = parseMap(baseMap({ tilesets: [{ firstgid: 9, source: 'ground.tsj' }] }), {
+      externalTilesets: new Map([['ground.tsj', gridTileset]])
+    })
+
+    // The file's own firstgid of 3 is ignored in favour of the reference's.
+    expect(map.tilesets[0]).toMatchObject({ name: 'ground', firstgid: 9 })
+  })
+})
+
+describe('exportTileset standalone', () => {
+  it('writes a tileset file with no firstgid', () => {
+    const map = parseMap(baseMap())
+    const file = exportTileset(map.tilesets[1]!, { standalone: true, tiledversion: '1.11.2' })
+
+    expect(file).not.toHaveProperty('firstgid')
+    expect(file).toMatchObject({
+      type: 'tileset',
+      version: '1.10',
+      tiledversion: '1.11.2',
+      name: 'ground'
+    })
+  })
+
+  it('omits tiledversion when not given', () => {
+    const map = parseMap(baseMap())
+    expect(exportTileset(map.tilesets[1]!, { standalone: true })).not.toHaveProperty('tiledversion')
+  })
+
+  it('still writes the embedded form by default', () => {
+    const map = parseMap(baseMap())
+    const embedded = exportTileset(map.tilesets[1]!)
+
+    expect(embedded.firstgid).toBe(3)
+    expect(embedded).not.toHaveProperty('type')
+  })
+
+  it('round-trips a tileset back through externalTilesets', () => {
+    const map = parseMap(baseMap())
+    const file = exportTileset(map.tilesets[1]!, { standalone: true })
+
+    const viaFile = parseMap(
+      baseMap({ tilesets: [objectTileset, { firstgid: 3, source: 'g.tsj' }] }),
+      {
+        externalTilesets: new Map([['g.tsj', file]])
+      }
+    )
+
+    // Identical to the embedded tileset apart from the path it now came from.
+    expect(viaFile.tilesets[1]).toEqual({ ...map.tilesets[1]!, source: 'g.tsj' })
   })
 })
 
