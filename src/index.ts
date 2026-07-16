@@ -1,6 +1,6 @@
 // Parser
 
-export type { LayerHolder, PropertyHolder } from './mapLookup'
+export type { LayerHolder, PropertyHolder, TiledPropertyValueByType } from './mapLookup'
 export { findLayer, findLayerById, getProperty, walkLayers } from './mapLookup'
 export {
   decodeGid,

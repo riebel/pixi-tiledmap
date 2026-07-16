@@ -290,7 +290,7 @@ Two caveats worth knowing, since both are silent:
 import { findLayer, getProperty, tileAt } from 'pixi-tiledmap';
 
 const spawns = findLayer(mapData, 'spawns'); // searches nested group layers too
-const theme = getProperty(mapData, 'theme');
+const theme = getProperty(mapData, 'theme', 'string'); // string | undefined
 
 // Camera maths stays with you: convert to the map container's local space first.
 const local = map.toLocal({ x: event.clientX, y: event.clientY });
@@ -333,7 +333,7 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `findLayer(map, name)` | Find a resolved layer by name, including inside group layers    |
 | `findLayerById(map, id)` | Find a resolved layer by its Tiled id                         |
 | `walkLayers(map)`     | Iterate the layer tree depth-first, group layers included        |
-| `getProperty(holder, name)` | Read a Tiled custom property value off a map, layer, object, or tileset |
+| `getProperty(holder, name, type?)` | Read a Tiled custom property off a map, layer, object, or tileset; pass the Tiled type to narrow the result |
 | `tileAt(map, x, y)`   | Map-space point → tile cell, or `null` outside the map           |
 | `pixelToTile(x, y, ctx)` | Unbounded map-space point → tile cell - the inverse of `tileToPixel` |
 
