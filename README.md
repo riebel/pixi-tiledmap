@@ -21,6 +21,7 @@ Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS 
 - **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
 - **External tilesets** - automatic resolution via the asset loader (`.tsj` and `.tsx`)
 - **Runtime editing and generation** - edit loaded maps in place or create resolved maps procedurally, with tile objects taking the same friendly tile input as tile layer cells
+- **Map export** - `exportMap` writes a resolved map back to Tiled JSON, so a generated map opens in Tiled; parsing an exported map reproduces the same map exactly
 - **Map introspection** - `findLayer`, `getProperty`, and `tileAt` (point to tile cell, every orientation) work on the resolved map without a renderer, free of PixiJS and the DOM
 - **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
 - **Tree-shakable** - ESM + CJS dual build, side-effect-free
@@ -237,6 +238,31 @@ layers: [
 ],
 ```
 
+## Writing Maps Back Out
+
+`exportMap` is the inverse of `parseMap`: it turns a resolved map back into Tiled JSON, so a generated map can be saved as a `.tmj` and opened in Tiled. Parsing an exported map returns a map deep-equal to the one you exported.
+
+```ts
+import { exportMap, parseMap } from 'pixi-tiledmap';
+
+const tmj = exportMap(generated);
+await writeFile('level.tmj', JSON.stringify(tmj, null, 2));
+```
+
+A tileset is written as an external `{ firstgid, source }` reference when it has a `source` - as every externally-resolved tileset does - and embedded otherwise. Pass `tilesetSources` to externalise embedded tilesets by name:
+
+```ts
+const tmj = exportMap(generated, {
+  tilesetSources: { dungeon: 'tilesets/dungeon.tsj' },
+  encoding: 'base64', // default 'csv' writes a plain GID array
+});
+```
+
+Two caveats worth knowing, since both are silent:
+
+- `ResolvedTile.alpha` is a runtime render property with no place in the Tiled format, so it is not written. A GID carries no opacity.
+- Compressed output is not supported. The Compression Streams API has no synchronous form, so it would make `exportMap` async; both parsers read the uncompressed output either way.
+
 ## Inspecting a Map Without Rendering It
 
 `findLayer`, `getProperty`, and `tileAt` work on the resolved map itself, so tools that transform a map before rendering do not need a `TiledMap` container. They are pure - no PixiJS, no DOM.
@@ -282,6 +308,9 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `parseTsx(xml)`       | Parse TSX XML string → `TiledTileset` data                       |
 | `parseTx(xml)`        | Parse TX XML string → `TiledObjectTemplate` data                 |
 | `decodeGid(raw)`      | Decode a raw GID into tile ID + flip flags                       |
+| `encodeGid(tile)`     | Pack a resolved tile back into a raw GID - the inverse of `decodeGid` |
+| `exportMap(map, options?)` | Resolved IR → Tiled JSON - the inverse of `parseMap`        |
+| `exportTileset(tileset)` | Resolved tileset → embedded Tiled tileset data                |
 | `findLayer(map, name)` | Find a resolved layer by name, including inside group layers    |
 | `findLayerById(map, id)` | Find a resolved layer by its Tiled id                         |
 | `walkLayers(map)`     | Iterate the layer tree depth-first, group layers included        |

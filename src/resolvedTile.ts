@@ -3,7 +3,8 @@ import {
   FLIPPED_DIAGONALLY_FLAG,
   FLIPPED_HORIZONTALLY_FLAG,
   FLIPPED_VERTICALLY_FLAG,
-  GID_MASK
+  GID_MASK,
+  ROTATED_HEXAGONAL_120_FLAG
 } from './types/index.js'
 
 export function resolveTileInput(
@@ -24,6 +25,7 @@ export function resolveTileGid(
     horizontalFlip?: boolean
     verticalFlip?: boolean
     diagonalFlip?: boolean
+    rotatedHex120?: boolean
     alpha?: number
     missingTileset?: 'throw' | 'null' | 'decoded'
   }
@@ -54,7 +56,25 @@ export function resolveTileGid(
     verticalFlip: options?.verticalFlip ?? decoded.verticalFlip,
     diagonalFlip: options?.diagonalFlip ?? decoded.diagonalFlip
   }
-  const alpha = normalizeAlpha(options?.alpha)
+  return applyTileExtras(tile, {
+    rotatedHex120: options?.rotatedHex120 ?? decoded.rotatedHex120,
+    alpha: options?.alpha
+  })
+}
+
+/**
+ * Applies the tile fields that are only present when set, shared by both
+ * resolution paths: the hexagonal rotation bit and the runtime alpha.
+ *
+ * They stay absent rather than defaulted so a tile without them compares equal
+ * to a plain three-flag tile literal.
+ */
+function applyTileExtras(
+  tile: ResolvedTile,
+  extras: { rotatedHex120?: boolean; alpha?: number }
+): ResolvedTile {
+  if (extras.rotatedHex120) tile.rotatedHex120 = true
+  const alpha = normalizeAlpha(extras.alpha)
   if (alpha !== undefined) tile.alpha = alpha
   return tile
 }
@@ -63,7 +83,7 @@ export function decodeTileGid(rawGid: number): ResolvedTile | null {
   const gid = rawGid & GID_MASK
   if (gid === 0) return null
 
-  return {
+  const tile: ResolvedTile = {
     gid,
     localId: 0,
     tilesetIndex: 0,
@@ -71,6 +91,10 @@ export function decodeTileGid(rawGid: number): ResolvedTile | null {
     verticalFlip: (rawGid & FLIPPED_VERTICALLY_FLAG) !== 0,
     diagonalFlip: (rawGid & FLIPPED_DIAGONALLY_FLAG) !== 0
   }
+  // Set only when present, so tiles without it keep comparing equal to plain
+  // three-flag tile literals.
+  if ((rawGid & ROTATED_HEXAGONAL_120_FLAG) !== 0) tile.rotatedHex120 = true
+  return tile
 }
 
 function resolveLocalTile(
@@ -79,6 +103,25 @@ function resolveLocalTile(
 ): ResolvedTile {
   const tilesetIndex = findTilesetIndex(input.tileset, tilesets)
   const tileset = tilesets[tilesetIndex]!
+  const localId = resolveLocalId(input, tileset)
+
+  return applyTileExtras(
+    {
+      gid: tileset.firstgid + localId,
+      localId,
+      tilesetIndex,
+      horizontalFlip: input.horizontalFlip ?? false,
+      verticalFlip: input.verticalFlip ?? false,
+      diagonalFlip: input.diagonalFlip ?? false
+    },
+    input
+  )
+}
+
+function resolveLocalId(
+  input: Exclude<TiledTileInput, number | ResolvedTile | null>,
+  tileset: ResolvedTileset
+): number {
   const localId = input.localId ?? input.tileId
   if (localId === undefined) throw new Error('Tile input must include localId, tileId, or gid.')
   if (localId < 0 || localId >= tileset.tilecount) {
@@ -86,17 +129,7 @@ function resolveLocalTile(
       `Local tile ID ${localId} is outside tileset "${tileset.name}" (${tileset.tilecount} tiles).`
     )
   }
-  const tile: ResolvedTile = {
-    gid: tileset.firstgid + localId,
-    localId,
-    tilesetIndex,
-    horizontalFlip: input.horizontalFlip ?? false,
-    verticalFlip: input.verticalFlip ?? false,
-    diagonalFlip: input.diagonalFlip ?? false
-  }
-  const alpha = normalizeAlpha(input.alpha)
-  if (alpha !== undefined) tile.alpha = alpha
-  return tile
+  return localId
 }
 
 function findTilesetIndex(

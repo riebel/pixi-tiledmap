@@ -263,7 +263,9 @@ function resolveTilesets(
 }
 
 function resolveTileLayerSync(layer: TiledLayer, tilesets: ResolvedTileset[]): ResolvedTileLayer {
-  if (layer.chunks && layer.chunks.length > 0) {
+  // Presence of `chunks`, not its length: Tiled writes `"chunks": []` for an
+  // empty layer of an infinite map, and that layer is still infinite.
+  if (layer.chunks) {
     return resolveInfiniteTileLayer(
       layer,
       resolveChunksSync(layer.chunks, layer.encoding, layer.compression, tilesets)
@@ -281,7 +283,7 @@ async function resolveTileLayerAsync(
   layer: TiledLayer,
   tilesets: ResolvedTileset[]
 ): Promise<ResolvedTileLayer> {
-  if (layer.chunks && layer.chunks.length > 0) {
+  if (layer.chunks) {
     return resolveInfiniteTileLayer(
       layer,
       await resolveChunksAsync(layer.chunks, layer.encoding, layer.compression, tilesets)

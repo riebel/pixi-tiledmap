@@ -342,6 +342,17 @@ export interface ResolvedTile {
   horizontalFlip: boolean
   verticalFlip: boolean
   diagonalFlip: boolean
+  /**
+   * Tiled's 120° hexagonal rotation bit, preserved so a decoded tile can be
+   * encoded back to its exact GID. Set only when the bit is present.
+   *
+   * The renderer does not apply this rotation yet.
+   */
+  rotatedHex120?: boolean
+  /**
+   * Runtime-only render opacity. Not part of the Tiled format, so `exportMap`
+   * cannot represent it; a GID carries no alpha.
+   */
   alpha?: number
 }
 
@@ -544,6 +555,7 @@ export interface TiledTileRef {
   horizontalFlip?: boolean
   verticalFlip?: boolean
   diagonalFlip?: boolean
+  rotatedHex120?: boolean
   alpha?: number
 }
 
