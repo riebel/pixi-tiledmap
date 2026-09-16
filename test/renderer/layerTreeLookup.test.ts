@@ -7,6 +7,7 @@
  */
 import { Container, Texture } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
+import { ImageLayerRenderer } from '../../src/renderer/ImageLayerRenderer.js'
 import { TiledMap } from '../../src/renderer/TiledMap.js'
 import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
 import {
@@ -145,7 +146,7 @@ describe('tile layer lookup semantics', () => {
     ])
 
     expect(() => map.setTile('backdrop', 0, 0, 1)).toThrow(/not rendered/)
-    expect(map.getLayer('backdrop')).toBeDefined()
+    expect(map.getLayer('backdrop')).toBeInstanceOf(ImageLayerRenderer)
   })
 
   it('still finds a layer after the tree is mutated post-construction', () => {

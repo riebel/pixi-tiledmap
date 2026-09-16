@@ -15,6 +15,8 @@ import {
 } from 'pixi.js'
 import { GifSource, GifSprite } from 'pixi.js/gif'
 import { describe, expect, it, vi } from 'vitest'
+import { ObjectLayerRenderer } from '../../src/renderer/ObjectLayerRenderer.js'
+import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
 import {
   type FetchFn,
   fetchMapDependencies,
@@ -1001,7 +1003,7 @@ describe('loadTiledMapAsset', () => {
         data: { mapOptions: { layerFilter: (layer) => layer.name === 'kept' } }
       })
 
-      expect(asset?.container.getLayer('kept')).toBeDefined()
+      expect(asset?.container.getLayer('kept')).toBeInstanceOf(ObjectLayerRenderer)
       expect(asset?.container.getLayer('filtered-out')).toBeUndefined()
     } finally {
       DOMAdapter.set(previousAdapter)
@@ -1094,7 +1096,7 @@ describe('cached map assets', () => {
 
     expect(second).not.toBe(first)
     expect(second.destroyed).toBe(false)
-    expect(second.getLayer('ground')).toBeDefined()
+    expect(second.getLayer('ground')).toBeInstanceOf(TileLayerRenderer)
     expect(second.getTile('ground', 0, 0)?.gid).toBe(1)
   })
 
@@ -1115,7 +1117,7 @@ describe('cached map assets', () => {
 
       expect(second).toBe(first)
       expect(fetchFn).toHaveBeenCalledOnce()
-      expect(second.container.getLayer('ground')).toBeDefined()
+      expect(second.container.getLayer('ground')).toBeInstanceOf(TileLayerRenderer)
     } finally {
       await Assets.unload(src)
       extensions.remove(tiledMapLoader)

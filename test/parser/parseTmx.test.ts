@@ -157,7 +157,6 @@ describe('parseTmx', () => {
 
     const map = parseTmx(xml)
     const obj = map.layers[0]!.objects![0]!
-    expect(obj.text).toBeDefined()
     expect(obj.text!.text).toBe('Hello World')
     expect(obj.text!.fontfamily).toBe('Arial')
     expect(obj.text!.pixelsize).toBe(16)
@@ -272,13 +271,10 @@ describe('parseTmx', () => {
 
     const map = parseTmx(xml)
     const ts = map.tilesets[0]!
-    if ('tiles' in ts && ts.tiles) {
-      const tile0 = ts.tiles.find((t) => t.id === 0)
-      expect(tile0).toBeDefined()
-      expect(tile0!.animation).toHaveLength(3)
-      expect(tile0!.animation![0]).toEqual({ tileid: 0, duration: 100 })
-      expect(tile0!.animation![2]).toEqual({ tileid: 2, duration: 200 })
-    }
+    const tile0 = 'tiles' in ts ? ts.tiles?.find((t) => t.id === 0) : undefined
+    expect(tile0?.animation).toHaveLength(3)
+    expect(tile0?.animation?.[0]).toEqual({ tileid: 0, duration: 100 })
+    expect(tile0?.animation?.[2]).toEqual({ tileid: 2, duration: 200 })
   })
 
   it('parses infinite map with chunks', () => {
@@ -425,12 +421,7 @@ describe('parseTx', () => {
 
     const tpl = parseTx(xml)
     expect(tpl.type).toBe('template')
-    expect(tpl.tileset).toBeDefined()
-    expect('source' in (tpl.tileset ?? {})).toBe(true)
-    if (tpl.tileset && 'source' in tpl.tileset) {
-      expect(tpl.tileset.source).toBe('terrain.tsx')
-      expect(tpl.tileset.firstgid).toBe(1)
-    }
+    expect(tpl.tileset).toEqual({ firstgid: 1, source: 'terrain.tsx' })
     expect(tpl.object.name).toBe('sign')
     expect(tpl.object.type).toBe('decor')
     expect(tpl.object.gid).toBe(5)

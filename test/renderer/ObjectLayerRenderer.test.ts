@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { type Container, type Graphics, type Sprite, Text, Texture } from 'pixi.js'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ObjectLayerRenderer } from '../../src/renderer/ObjectLayerRenderer.js'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
 import type { ResolvedObject, ResolvedTileset, TiledText } from '../../src/types/index.js'
@@ -69,10 +69,6 @@ function renderObject(obj: ResolvedObject): Container {
 }
 
 describe('ObjectLayerRenderer text objects', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   /** jsdom cannot measure text, so decorated text gets a fixed size. */
   function stubTextSize(): void {
     vi.spyOn(Text.prototype, 'getSize').mockReturnValue({ width: 40, height: 20 })

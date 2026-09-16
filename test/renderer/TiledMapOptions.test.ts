@@ -30,7 +30,7 @@ describe('TiledMap layerFilter', () => {
     })
 
     expect(map.getLayer('ground')).toBeUndefined()
-    expect(map.getLayer('canopy')).toBeDefined()
+    expect(map.getLayer('canopy')).toBeInstanceOf(TileLayerRenderer)
   })
 
   it('keeps a group when a descendant layer matches the filter', () => {
@@ -59,7 +59,6 @@ describe('TiledMap layerFilter', () => {
 
     const group = map.getLayer('decor')
 
-    expect(group).toBeDefined()
     expect(group?.children.map((child) => child.label)).toEqual(['above'])
   })
 
@@ -88,7 +87,6 @@ describe('TiledMap layerFilter', () => {
 
     const group = map.getLayer('decor')
 
-    expect(group).toBeDefined()
     expect(group?.children.map((child) => child.label)).toEqual(['below'])
   })
 

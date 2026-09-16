@@ -478,7 +478,7 @@ describe('Issue #20 runtime map editing use cases', () => {
     map.setTile('details', 1, 1, { tileset: 'dungeon', tileId: 7 })
 
     expect(map).toBeInstanceOf(TiledMap)
-    expect(map.getLayer('floor')).toBeDefined()
+    expect(map.getLayer('floor')).toBeInstanceOf(TileLayerRenderer)
     expect(map.getTile('floor', 1, 1)).toMatchObject({ gid: 1, localId: 0 })
     expect(map.getTile('details', 1, 1)).toMatchObject({ gid: 8, localId: 7 })
     expect(details.tiles[4]?.gid).toBe(8)
