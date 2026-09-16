@@ -25,7 +25,7 @@ The library ships its own Tiled JSON and TMX XML parser with no runtime dependen
 - **Map export** - `exportMap` writes a resolved map back to Tiled JSON and `exportTileset` writes a standalone `.tsj`, so a generated map opens in Tiled; parsing an exported map reproduces the same map exactly
 - **Map introspection** - `findLayer`, `getProperty`, and `tileAt` (point to tile cell, every orientation) work on the resolved map without a renderer, free of PixiJS and the DOM
 - **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
-- **Tree-shakable** - ESM + CJS builds with one module per source file and bundled type definitions; the parser, map export, procedural maps, lookups, and map geometry bundle without PixiJS
+- **Tree-shakable** - ESM + CJS builds with one module per source file and included type definitions; the parser, map export, procedural maps, lookups, and map geometry bundle without PixiJS
 - **Typed** - comprehensive TypeScript types for the full Tiled spec
 
 > **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported - the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour.

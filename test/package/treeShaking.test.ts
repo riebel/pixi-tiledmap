@@ -4,11 +4,14 @@
  * data-side APIs must bundle without PixiJS, and the XML parsers without the
  * GIF plugin.
  */
-import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { rolldown } from 'rolldown'
 import { describe, expect, it } from 'vitest'
 
-const packageEntry = resolve(import.meta.dirname, '../../dist/index.mjs').replaceAll('\\', '/')
+const packageEntry = fileURLToPath(new URL('../../dist/index.mjs', import.meta.url)).replaceAll(
+  '\\',
+  '/'
+)
 const ENTRY_ID = 'virtual:tree-shaking-entry'
 
 async function bundleImport(names: string[]): Promise<string> {
@@ -30,8 +33,10 @@ async function bundleImport(names: string[]): Promise<string> {
   return output[0].code
 }
 
+/** Every PixiJS module the bundle loads, including bare side-effect imports. */
 function pixiImports(code: string): string[] {
-  return [...code.matchAll(/from ["'](pixi\.js[^"']*)["']/g)].map((match) => match[1]!)
+  const specifiers = code.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*["'](pixi\.js[^"']*)["']/g)
+  return [...new Set([...specifiers].map((match) => match[1]!))].sort()
 }
 
 describe('tree shaking of the built package', () => {
@@ -58,7 +63,8 @@ describe('tree shaking of the built package', () => {
   it('keeps the GIF loader registration with the asset loader', async () => {
     const code = await bundleImport(['tiledMapLoader'])
 
-    expect(pixiImports(code)).toEqual(expect.arrayContaining(['pixi.js', 'pixi.js/gif']))
-    expect(code).toMatch(/extensions\.add\(GifAsset\)/)
+    expect(pixiImports(code)).toEqual(['pixi.js', 'pixi.js/gif'])
+    // Match the call shape rather than exact local names, which a bundler may rename.
+    expect(code).toMatch(/\.add\(\s*[\w$]*GifAsset[\w$]*\s*\)/)
   })
 })
