@@ -1,0 +1,42 @@
+name: Publish
+
+# Publishes to npm through Trusted Publishing (OIDC): no npm token is stored,
+# and npm attaches provenance. The trusted publisher on npmjs.com must name
+# this repository, this workflow file, and the `npm` environment.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          # Trusted Publishing needs npm 11.5.1 or later, which Node 24 ships.
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - name: Check that the release tag matches package.json
+        run: |
+          version="v$(node -p 'require("./package.json").version')"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Release tag $GITHUB_REF_NAME does not match package.json $version"
+            exit 1
+          fi
+      - run: npm run quality:gate
+      - run: npm publish

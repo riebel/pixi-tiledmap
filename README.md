@@ -470,7 +470,7 @@ npm run quality:gate # check + typecheck + test, then the Fallow regression gate
 `npm test` includes a headless MagicLand visual regression that renders a real TMX + GIF tileset fixture and pixel-compares it against a checked-in reference image.
 
 - [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) - benchmark usage, the current smoke baseline, and how packed tile editing works
-- [`docs/QUALITY.md`](docs/QUALITY.md) - the release quality gate and the Fallow baselines
+- [`docs/QUALITY.md`](docs/QUALITY.md) - the quality gate, CI and npm releases, and the Fallow baselines
 
 [npm-url]: https://www.npmjs.com/package/pixi-tiledmap
 [npm-image]: https://img.shields.io/npm/v/pixi-tiledmap.svg?style=flat

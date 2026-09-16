@@ -6,6 +6,19 @@ Run the complete local gate before a release or pull request:
 npm run quality:gate
 ```
 
+CI (`.github/workflows/ci.yml`) runs the same gate on Node 22 and 24 for every
+push to `master` and every pull request.
+
+## Releases
+
+Publishing a GitHub release starts `.github/workflows/publish.yml`. It checks
+that the release tag matches `v` plus the `package.json` version, runs the gate,
+and publishes to npm through Trusted Publishing: npm authenticates the workflow
+over OIDC, so no npm token is stored, and adds provenance. The trusted publisher
+on npmjs.com names this repository, `publish.yml`, and the `npm` environment;
+renaming the workflow file or the environment breaks publishing until the npm
+settings are updated too.
+
 It runs Biome, TypeScript, the complete build-backed Vitest suite, and the
 Fallow regression gate. `npm test` performs the build once before Vitest, so
 the tests that use `dist/` always see the current output without a redundant
