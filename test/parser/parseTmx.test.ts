@@ -4,6 +4,7 @@
 import { DOMAdapter, WebWorkerAdapter } from 'pixi.js'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseTmx, parseTsx, parseTx } from '../../src/parser/parseTmx.js'
+import { parseMap } from '../../src/parser/resolveMap.js'
 
 describe('parseTmx', () => {
   it('parses a minimal orthogonal map', () => {
@@ -394,15 +395,15 @@ describe('parseTsx', () => {
     expect(ts.tiles![0]!.properties).toHaveLength(1)
   })
 
-  it('does not invent a firstgid, which belongs to the referencing map', () => {
+  it('reports firstgid 0 for a TSX file, leaving the real value to the referencing map', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <tileset name="terrain" tilewidth="32" tileheight="32" tilecount="16" columns="4">
   <image source="terrain.png" width="128" height="128"/>
 </tileset>`
 
-    // A TSX file has no firstgid attribute, so reporting one - even 0 - would be
-    // fabricated. The map's <tileset firstgid="..."> reference supplies it.
-    expect(parseTsx(xml)).not.toHaveProperty('firstgid')
+    // A TSX file has no firstgid attribute. parseTsx keeps the TiledTileset
+    // shape with a 0 placeholder; resolution always takes the map's value.
+    expect(parseTsx(xml).firstgid).toBe(0)
   })
 
   it('throws on non-tileset root', () => {
@@ -526,5 +527,27 @@ describe('XML parsing under WebWorkerAdapter (xmldom)', () => {
     expect(tpl.type).toBe('template')
     expect(tpl.object.name).toBe('spawnpoint')
     expect(tpl.object.point).toBe(true)
+  })
+
+  it('keeps an empty tile layer of an infinite map infinite', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" orientation="orthogonal" renderorder="right-down" width="10" height="10"
+     tilewidth="16" tileheight="16" infinite="1" nextlayerid="2" nextobjectid="1">
+  <group id="3" name="group">
+    <layer id="1" name="empty" width="10" height="10">
+      <data encoding="csv"/>
+    </layer>
+  </group>
+</map>`
+
+    const raw = parseTmx(xml)
+    const group = raw.layers[0]
+    const layer = group?.layers?.[0]
+    expect(layer?.chunks).toEqual([])
+    expect(layer?.data).toBeUndefined()
+
+    const resolved = parseMap(raw).layers[0]
+    const tileLayer = resolved?.type === 'group' ? resolved.layers[0] : undefined
+    expect(tileLayer).toMatchObject({ type: 'tilelayer', infinite: true, chunks: [] })
   })
 })

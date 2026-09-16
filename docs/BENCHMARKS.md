@@ -64,7 +64,7 @@ Each editing benchmark includes building its layer, so results drop with layer s
   3. new capacity, grown geometrically and capped at `+1024` quads per step;
   4. an additional batch, bounded by `tileMeshBatchSize`.
 
-A freshly built layer has right-sized batch geometry, so editing support adds no memory until a layer is actually edited.
+A freshly built layer has right-sized batch geometry; before the first edit, editing support only costs one render handle per packed tile.
 
 Inside a mesh, slot order decides draw order. An incremental insert can only append or recycle a slot, so it is used only while every tile quad stays inside its own grid cell, where quads cannot overlap. `tileSpritePadding` widens grid-sized quads to close seams; that overlap is tolerated up to `0.125`px (default `0.01`), where no rasterisation sample falls inside it. Larger padding is visible overlap and makes inserts rebuild.
 

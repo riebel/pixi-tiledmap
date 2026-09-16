@@ -97,8 +97,11 @@ app.stage.addChild(container);
 > and above the player), construct separate `TiledMap`s with `layerFilter`, as
 > shown in the [`TiledMap` container](#tiledmap-container) section. Once the
 > container has been destroyed, the next `Assets.load` returns a freshly built
-> one from the cached map data and textures. `Assets.unload(url)` destroys the
-> current container and leaves the textures to the `Assets` cache.
+> one from the cached map data and textures; the rebuild happens synchronously
+> the first time `container` is read. That rebuild reuses the loaded textures,
+> so do not destroy the container with `{ textureSource: true }` if you load the
+> map again. `Assets.unload(url)` destroys the current container and its
+> children, and leaves the textures to the `Assets` cache.
 
 Renderer options can be supplied through Pixi's asset metadata:
 
@@ -294,6 +297,8 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 
 `tileAt` supports all four orientations. Note that isometric maps extend to the left of the origin, so valid points there have negative x.
 
+`tileAt` only returns cells inside the map's `width` x `height` grid. Infinite maps can have chunks outside that range, including negative coordinates; use `pixelToTile`, which is unbounded, for those.
+
 ## API Reference
 
 ### Exports
@@ -319,7 +324,7 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `parseMap(data, options?)` | Synchronous Tiled JSON → resolved IR; `options` supplies external tilesets and templates |
 | `parseMapAsync(data, options?)` | Async variant (required for gzip/zlib compressed data)   |
 | `parseTmx(xml)`       | Parse TMX XML string → `TiledMap` data (same shape as JSON)      |
-| `parseTsx(xml)`       | Parse TSX XML string → `TiledTilesetFile` data                   |
+| `parseTsx(xml)`       | Parse TSX XML string → `TiledTileset` data (`firstgid` is `0`; the map's reference supplies the real value) |
 | `parseTx(xml)`        | Parse TX XML string → `TiledObjectTemplate` data                 |
 | `decodeGid(raw)`      | Decode a raw GID into tile ID + flip flags                       |
 | `encodeGid(tile)`     | Pack a resolved tile back into a raw GID - the inverse of `decodeGid` |

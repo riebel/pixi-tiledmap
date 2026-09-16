@@ -10,7 +10,6 @@ import type {
   TiledStaggerAxis,
   TiledStaggerIndex,
   TiledTileset,
-  TiledTilesetFile,
   TiledTilesetRef
 } from '../types'
 import { parseData } from './tmxData.js'
@@ -51,9 +50,15 @@ function parseLayerCommon(el: Element): Partial<TiledLayer> {
   }
 }
 
-function parseTileLayer(el: Element): TiledLayer {
+function parseTileLayer(el: Element, infinite: boolean): TiledLayer {
   const dataEl = child(el, 'data')
   const dataInfo = dataEl ? parseData(dataEl) : {}
+  // Tiled writes an empty infinite layer as a <data> element without chunks;
+  // TMJ marks the same layer with `"chunks": []`.
+  if (infinite && !dataInfo.chunks) {
+    dataInfo.chunks = []
+    delete dataInfo.data
+  }
 
   return {
     ...parseLayerCommon(el),
@@ -89,22 +94,22 @@ function parseImageLayer(el: Element): TiledLayer {
   } as TiledLayer
 }
 
-function parseGroupLayer(el: Element): TiledLayer {
+function parseGroupLayer(el: Element, infinite: boolean): TiledLayer {
   return {
     ...parseLayerCommon(el),
     type: 'group' as TiledLayerType,
-    layers: parseLayers(el)
+    layers: parseLayers(el, infinite)
   } as TiledLayer
 }
 
-function parseLayers(parentEl: Element): TiledLayer[] {
+function parseLayers(parentEl: Element, infinite: boolean): TiledLayer[] {
   const layers: TiledLayer[] = []
   const childEls = elementChildren(parentEl)
   for (let i = 0; i < childEls.length; i++) {
     const el = childEls[i]!
     switch (el.tagName) {
       case 'layer':
-        layers.push(parseTileLayer(el))
+        layers.push(parseTileLayer(el, infinite))
         break
       case 'objectgroup':
         layers.push(parseObjectGroup(el))
@@ -113,7 +118,7 @@ function parseLayers(parentEl: Element): TiledLayer[] {
         layers.push(parseImageLayer(el))
         break
       case 'group':
-        layers.push(parseGroupLayer(el))
+        layers.push(parseGroupLayer(el, infinite))
         break
     }
   }
@@ -149,7 +154,8 @@ export function parseTmx(xml: string): TiledMap {
     parseTileset(el, parseObjectGroup)
   )
 
-  const layers = parseLayers(mapEl)
+  const infinite = bool(mapEl, 'infinite')
+  const layers = parseLayers(mapEl, infinite)
 
   return {
     backgroundcolor: optStr(mapEl, 'backgroundcolor'),
@@ -157,7 +163,7 @@ export function parseTmx(xml: string): TiledMap {
     compressionlevel: optInt(mapEl, 'compressionlevel'),
     height: int(mapEl, 'height'),
     hexsidelength: optInt(mapEl, 'hexsidelength'),
-    infinite: bool(mapEl, 'infinite'),
+    infinite,
     layers,
     nextlayerid: int(mapEl, 'nextlayerid'),
     nextobjectid: int(mapEl, 'nextobjectid'),
@@ -178,7 +184,11 @@ export function parseTmx(xml: string): TiledMap {
   }
 }
 
-export function parseTsx(xml: string): TiledTilesetFile {
+/**
+ * Parses a standalone TSX tileset. A TSX file has no `firstgid`, so the result
+ * carries `0` there; resolution always takes the value from the map's reference.
+ */
+export function parseTsx(xml: string): TiledTileset {
   const doc = parseXmlDocument(xml, 'TSX')
 
   const tsEl = doc.documentElement
@@ -190,11 +200,7 @@ export function parseTsx(xml: string): TiledTilesetFile {
   if ('source' in result) {
     throw new Error('TSX file should not contain a source reference')
   }
-
-  // A TSX file has no firstgid attribute, so the shared tileset parser's
-  // numeric default would invent one. Drop it: the referencing map supplies it.
-  const { firstgid: _firstgid, ...file } = result
-  return file
+  return result
 }
 
 // ─── Template (TX) ──────────────────────────────────────────────────────────

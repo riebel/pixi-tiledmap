@@ -128,8 +128,9 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset, TiledAssetPipelineOptio
   },
 
   unload(asset): void {
+    // Children go down with the map so animated tiles leave the shared ticker.
     // Textures stay: they are separate Assets cache entries other maps may share.
-    currentContainers.get(asset)?.().destroy()
+    currentContainers.get(asset)?.().destroy({ children: true })
   }
 }
 
@@ -207,16 +208,37 @@ function collectTextureManifest(mapData: ResolvedMap, basePath: string): Texture
 
 /** Resolve a Tiled asset reference without corrupting absolute or protocol URLs. */
 export function resolveAssetUrl(basePath: string, source: string): string {
-  if (
-    pixiPath.isAbsolute(source) ||
-    pixiPath.isUrl(source) ||
-    pixiPath.isDataUrl(source) ||
-    pixiPath.isBlobUrl(source) ||
-    pixiPath.hasProtocol(source)
-  ) {
-    return source
+  if (isRootedPath(source)) return source
+  if (isRootedPath(basePath)) return pixiPath.join(basePath, source)
+  return joinRelativePath(basePath, source)
+}
+
+function isRootedPath(path: string): boolean {
+  return (
+    pixiPath.isAbsolute(path) ||
+    pixiPath.isUrl(path) ||
+    pixiPath.isDataUrl(path) ||
+    pixiPath.isBlobUrl(path) ||
+    pixiPath.hasProtocol(path)
+  )
+}
+
+/**
+ * Joins two relative paths. Unlike `pixiPath.join`, a `..` that climbs above
+ * `basePath` is kept, so a tileset in a sibling directory of the map stays
+ * `../tilesets/...` instead of silently moving into the map directory.
+ */
+function joinRelativePath(basePath: string, source: string): string {
+  const segments: string[] = []
+  for (const segment of pixiPath.toPosix(`${basePath}/${source}`).split('/')) {
+    if (segment === '' || segment === '.') continue
+    if (segment === '..' && segments.length > 0 && segments[segments.length - 1] !== '..') {
+      segments.pop()
+    } else {
+      segments.push(segment)
+    }
   }
-  return pixiPath.join(basePath, source)
+  return segments.join('/')
 }
 
 /**
@@ -257,7 +279,9 @@ function rebaseTemplateTilesetSource(
 }
 
 function assertSuccessfulResponse(response: Response, url: string): void {
-  if (response.ok) return
+  // Only an explicit HTTP failure is an error. Custom fetch adapters may omit
+  // `ok`, and `file://` responses report status 0 while carrying the body.
+  if (response.ok !== false || response.status === 0) return
 
   const status = response.statusText ? `${response.status} ${response.statusText}` : response.status
   throw new Error(`Failed to fetch Tiled asset "${url}": ${status}`)
