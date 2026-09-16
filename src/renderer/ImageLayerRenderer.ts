@@ -1,7 +1,8 @@
 import { Container, Sprite, type Texture, TilingSprite } from 'pixi.js'
-import { type GifSource, GifSprite } from 'pixi.js/gif'
+import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedImageLayer } from '../types'
 import { applyLayerState } from './renderableLayer.js'
+import { createGifSprite } from './tileSpriteFactory.js'
 
 export class ImageLayerRenderer extends Container {
   readonly layerData: ResolvedImageLayer
@@ -27,7 +28,7 @@ export class ImageLayerRenderer extends Container {
     const { repeatx, repeaty } = this.layerData
 
     if (!repeatx && !repeaty) {
-      this.addChild(gifSource ? new GifSprite({ source: gifSource }) : new Sprite(texture))
+      this.addChild(gifSource ? createGifSprite(gifSource) : new Sprite(texture))
       return
     }
 

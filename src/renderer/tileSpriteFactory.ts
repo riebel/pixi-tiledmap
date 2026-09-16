@@ -1,8 +1,24 @@
 import { AnimatedSprite, Sprite, type Texture } from 'pixi.js'
-import { GifSprite } from 'pixi.js/gif'
+import { type GifSource, GifSprite } from 'pixi.js/gif'
 import type { MapContext, ResolvedTile } from '../types'
 import type { TileSetRenderer } from './TileSetRenderer.js'
 import { getMapTileDrawRect } from './tileDrawPlan.js'
+
+/**
+ * A `GifSprite` that never destroys its source. The source belongs to the
+ * `Assets` cache or to the caller that supplied it, and other maps may share it.
+ * `GifSprite.destroy` would otherwise destroy it for any truthy argument,
+ * including the options object `Container.destroy({ children: true })` passes on.
+ */
+class SharedSourceGifSprite extends GifSprite {
+  override destroy(): void {
+    super.destroy(false)
+  }
+}
+
+export function createGifSprite(source: GifSource): GifSprite {
+  return new SharedSourceGifSprite({ source })
+}
 
 export interface TileSpritePlacement {
   x: number
@@ -82,7 +98,7 @@ function createMapTileVisualAt(
 
   const gifSource = tsRenderer.getGifSource(tile.localId)
   const rect = getMapTileDrawRect(tile, tsRenderer, x, y, ctx)
-  const sprite = gifSource ? new GifSprite({ source: gifSource }) : new Sprite(texture)
+  const sprite = gifSource ? createGifSprite(gifSource) : new Sprite(texture)
   sprite.width = rect.width
   sprite.height = rect.height
   sprite.position.set(rect.x, rect.y)
@@ -107,7 +123,7 @@ function createObjectTileVisual(
   if (!texture) return null
 
   const gifSource = tsRenderer.getGifSource(tile.localId)
-  const sprite = gifSource ? new GifSprite({ source: gifSource }) : new Sprite(texture)
+  const sprite = gifSource ? createGifSprite(gifSource) : new Sprite(texture)
   const offset = tsRenderer.tileset.tileoffset
   const sized = fitObjectTileSize(tsRenderer, tile.localId, placement.width, placement.height)
   sprite.width = sized.width

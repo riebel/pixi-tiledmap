@@ -13,6 +13,7 @@ import {
   Sprite,
   Texture
 } from 'pixi.js'
+import { GifSource, GifSprite } from 'pixi.js/gif'
 import { describe, expect, it, vi } from 'vitest'
 import {
   type FetchFn,
@@ -21,6 +22,7 @@ import {
   loadTiledMapAsset,
   rebaseTilesetImages,
   resolveAssetUrl,
+  type TiledMapAsset,
   tiledMapLoader
 } from '../../src/renderer/tiledAssetLoader.js'
 import type { TiledMap as TiledMapData, TiledTileset } from '../../src/types/index.js'
@@ -1277,5 +1279,125 @@ describe('map responses without a success flag', () => {
       })
       expect(asset.mapData.width).toBe(3)
     }
+  })
+})
+
+describe('GIF sources shared through the Assets cache', () => {
+  const tileset = {
+    ...MINIMAL_TILESET,
+    columns: 0,
+    tilecount: 1,
+    tiles: [{ id: 0, image: 'coin.gif', imagewidth: 16, imageheight: 16 }]
+  }
+  const map = makeMap({
+    width: 1,
+    height: 1,
+    tilesets: [tileset],
+    layers: [
+      {
+        type: 'imagelayer',
+        id: 1,
+        name: 'water',
+        opacity: 1,
+        visible: true,
+        x: 0,
+        y: 0,
+        image: 'water.gif'
+      },
+      {
+        type: 'tilelayer',
+        id: 2,
+        name: 'coins',
+        opacity: 1,
+        visible: true,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        data: [1]
+      },
+      {
+        type: 'objectgroup',
+        id: 3,
+        name: 'pickups',
+        opacity: 1,
+        visible: true,
+        x: 0,
+        y: 0,
+        objects: [
+          {
+            id: 1,
+            name: 'coin',
+            type: '',
+            x: 0,
+            y: 16,
+            width: 16,
+            height: 16,
+            rotation: 0,
+            visible: true,
+            gid: 1
+          }
+        ]
+      }
+    ]
+  })
+
+  function makeGifSource(): GifSource {
+    return new GifSource([
+      { texture: makeTexture(16, 16), start: 0, end: 100 },
+      { texture: makeTexture(16, 16), start: 100, end: 200 }
+    ])
+  }
+
+  async function load(sources: Map<string, GifSource>) {
+    return loadTiledMapAsset('maps/gifs.tmj', {
+      fetchFn: makeFetcher({ 'maps/gifs.tmj': jsonResponse(map) }),
+      loadAsset: <T>(url: string) => Promise.resolve(sources.get(url) as T)
+    })
+  }
+
+  function gifSprites(asset: TiledMapAsset): GifSprite[] {
+    return ['water', 'coins', 'pickups'].map(
+      (name) => asset.container.getLayer(name)?.children[0] as GifSprite
+    )
+  }
+
+  it('renders every GIF use as an animated GIF sprite', async () => {
+    const sources = new Map([
+      ['maps/water.gif', makeGifSource()],
+      ['maps/coin.gif', makeGifSource()]
+    ])
+    const asset = await load(sources)
+
+    for (const sprite of gifSprites(asset)) expect(sprite).toBeInstanceOf(GifSprite)
+  })
+
+  it('keeps the cached GIF sources alive through unload, so the map loads again', async () => {
+    const sources = new Map([
+      ['maps/water.gif', makeGifSource()],
+      ['maps/coin.gif', makeGifSource()]
+    ])
+    const first = await load(sources)
+    const sprites = gifSprites(first)
+
+    await tiledMapLoader.unload?.(first)
+
+    for (const sprite of sprites) expect(sprite.destroyed).toBe(true)
+    for (const source of sources.values()) expect(source.frames).not.toBeNull()
+    const second = await load(sources)
+    expect(gifSprites(second).every((sprite) => sprite instanceof GifSprite)).toBe(true)
+  })
+
+  it('rebuilds a GIF map destroyed with its children', async () => {
+    const sources = new Map([
+      ['maps/water.gif', makeGifSource()],
+      ['maps/coin.gif', makeGifSource()]
+    ])
+    const asset = await load(sources)
+
+    asset.container.destroy({ children: true })
+
+    for (const source of sources.values()) expect(source.frames).not.toBeNull()
+    expect(gifSprites(asset).every((sprite) => sprite instanceof GifSprite)).toBe(true)
   })
 })

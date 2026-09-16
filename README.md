@@ -60,7 +60,7 @@ If you want the best runtime behavior in your game/application:
 - Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
 - Keep the default `tileMeshBatchSize` unless you are profiling a GPU/driver that prefers smaller meshes; the default keeps packed meshes below 16-bit index limits while reducing render object count.
 - Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are packed into `Mesh` children, not one `Sprite` per tile.
-- Display objects you add to a `TileLayerRenderer` (for example a player walking on that layer) survive tile edits and layer rebuilds and keep their position relative to the tiles. Tiles sit below children you add, unless you insert yours below them with `addChildAt`.
+- Display objects you add to a `TileLayerRenderer` (for example a player walking on that layer) survive tile edits and layer rebuilds and keep their position relative to the tiles. Tiles sit below children you add, unless you insert yours below them with `addChildAt`. Destroying the map with its children, or unloading it, destroys them too.
 
 ## Installation
 
@@ -101,7 +101,9 @@ app.stage.addChild(container);
 > the first time `container` is read. That rebuild reuses the loaded textures,
 > so do not destroy the container with `{ textureSource: true }` if you load the
 > map again. `Assets.unload(url)` destroys the current container and its
-> children, and leaves the textures to the `Assets` cache.
+> children, including display objects you added to its layers; remove those
+> first if you still need them. Textures and GIF sources stay in the `Assets`
+> cache.
 
 Renderer options can be supplied through Pixi's asset metadata:
 
