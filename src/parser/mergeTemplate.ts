@@ -21,43 +21,55 @@ export function mergeTemplate(
     visible: obj.visible
   }
 
-  // Non-optional string fields: prefer instance only when non-empty (Tiled
-  // stores empty string when the instance didn't set the field).
-  if (obj.name) base.name = obj.name
-  if (obj.type) base.type = obj.type
-  if (obj.width) base.width = obj.width
-  if (obj.height) base.height = obj.height
-  if (obj.properties) base.properties = obj.properties
-  if (obj.text) base.text = obj.text
-  const gidComesFromInstance = obj.gid !== undefined
-  if (gidComesFromInstance) base.gid = obj.gid
-  if (obj.polygon) base.polygon = obj.polygon
-  if (obj.polyline) base.polyline = obj.polyline
-  if (obj.ellipse) base.ellipse = obj.ellipse
-  if (obj.point) base.point = obj.point
+  // Tiled writes empty or zero values for fields the instance did not set, so
+  // only a truthy instance value overrides the template.
+  for (const key of INSTANCE_OVERRIDES) copyIfSet(base, obj, key)
 
-  // GID remapping: the template's gid is relative to the template's own
-  // embedded tileset firstgid. If the template carried an external tileset
-  // ref (with a source path) and the map contains the same tileset (matched
-  // by source), translate the gid into the map's firstgid space.
-  if (
-    base.gid !== undefined &&
-    !gidComesFromInstance &&
-    template.tileset &&
-    'source' in template.tileset &&
-    template.tileset.source
-  ) {
-    const src = template.tileset.source
-    const mapTs = tilesets.find((t) => t.source === src)
-    if (mapTs) {
-      const templateFirstGid = template.tileset.firstgid ?? 1
-      const flipBits = base.gid & ~GID_MASK
-      const localId = (base.gid & GID_MASK) - templateFirstGid
-      if (localId >= 0) {
-        base.gid = (mapTs.firstgid + localId) | flipBits
-      }
-    }
-  }
+  // An instance gid is already in map space; only a template gid needs remapping.
+  if (obj.gid !== undefined) base.gid = obj.gid
+  else if (base.gid !== undefined) base.gid = remapTemplateGid(base.gid, template, tilesets)
 
   return base
+}
+
+const INSTANCE_OVERRIDES = [
+  'name',
+  'type',
+  'width',
+  'height',
+  'properties',
+  'text',
+  'polygon',
+  'polyline',
+  'ellipse',
+  'point'
+] as const satisfies readonly (keyof TiledObject)[]
+
+function copyIfSet<K extends keyof TiledObject>(
+  target: TiledObject,
+  source: TiledObject,
+  key: K
+): void {
+  if (source[key]) target[key] = source[key]
+}
+
+/**
+ * The template's gid is relative to the template's own tileset firstgid. When
+ * that tileset is an external ref the map also uses (matched by source), the
+ * gid is translated into the map's firstgid space; otherwise it is kept as is.
+ */
+function remapTemplateGid(
+  gid: number,
+  template: TiledObjectTemplate,
+  tilesets: ResolvedTileset[]
+): number {
+  const source = template.tileset?.source
+  if (!source) return gid
+
+  const mapTileset = tilesets.find((t) => t.source === source)
+  if (!mapTileset) return gid
+
+  const localId = (gid & GID_MASK) - (template.tileset?.firstgid ?? 1)
+  if (localId < 0) return gid
+  return (mapTileset.firstgid + localId) | (gid & ~GID_MASK)
 }

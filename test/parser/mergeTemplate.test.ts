@@ -115,6 +115,42 @@ describe('mergeTemplate', () => {
       )
       expect(result.polygon).toBe(pts)
     })
+
+    it('every optional instance field overrides the template', () => {
+      const instance = makeInstance({
+        properties: [{ name: 'hp', type: 'int', value: 5 }],
+        text: { text: 'hi' },
+        polyline: [{ x: 1, y: 1 }],
+        ellipse: true,
+        point: true
+      })
+      const result = mergeTemplate(
+        instance,
+        makeTemplate({
+          properties: [{ name: 'hp', type: 'int', value: 1 }],
+          text: { text: 'template' },
+          polyline: [{ x: 9, y: 9 }]
+        }),
+        []
+      )
+      expect(result.properties).toBe(instance.properties)
+      expect(result.text).toBe(instance.text)
+      expect(result.polyline).toBe(instance.polyline)
+      expect(result.ellipse).toBe(true)
+      expect(result.point).toBe(true)
+    })
+
+    it('template shape and extras apply when the instance leaves them unset', () => {
+      const template = makeTemplate({
+        properties: [{ name: 'hp', type: 'int', value: 1 }],
+        text: { text: 'template' },
+        ellipse: true
+      })
+      const result = mergeTemplate(makeInstance(), template, [])
+      expect(result.properties).toBe(template.object.properties)
+      expect(result.text).toBe(template.object.text)
+      expect(result.ellipse).toBe(true)
+    })
   })
 
   describe('GID remapping', () => {

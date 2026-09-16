@@ -1,5 +1,4 @@
 import { Container, Graphics, Rectangle } from 'pixi.js'
-import type { GifSource } from 'pixi.js/gif'
 import { resolveTileInput } from '../resolvedTile.js'
 import type {
   MapContext,
@@ -49,58 +48,19 @@ export class TiledMap extends Container {
     // tiles extend beyond the grid.
     this.boundsArea = new Rectangle(0, 0, pixelSize.width, pixelSize.height)
 
-    // Build tileset renderers
-    const tilesetTextures = options?.tilesetTextures ?? new Map()
-    const imageLayerTextures = options?.imageLayerTextures ?? new Map()
-    const tileImageTextures = options?.tileImageTextures ?? new Map()
-    const tileImageGifSources = options?.tileImageGifSources ?? new Map<string, GifSource>()
-    const imageLayerGifSources = options?.imageLayerGifSources ?? new Map<string, GifSource>()
+    this.tileSetRenderers = createTileSetRenderers(mapData, options)
 
-    this.tileSetRenderers = mapData.tilesets.map((ts) => {
-      const baseTex = ts.image ? (tilesetTextures.get(ts.image) ?? null) : null
-      const renderer = new TileSetRenderer(ts, baseTex)
-
-      // Supply individual tile images for image-collection tilesets
-      for (const [localId, tileDef] of ts.tiles) {
-        if (tileDef.image) {
-          const tex = tileImageTextures.get(tileDef.image)
-          if (tex) renderer.setTileTexture(localId, tex)
-          const gifSource = tileImageGifSources.get(tileDef.image)
-          if (gifSource) renderer.setGifSource(localId, gifSource)
-        }
-      }
-
-      return renderer
-    })
-
-    // Build map context for orientation-aware tile placement
-    const ctx: MapContext = {
-      orientation: mapData.orientation,
-      renderorder: mapData.renderorder,
-      tilewidth: mapData.tilewidth,
-      tileheight: mapData.tileheight,
-      hexsidelength: mapData.hexsidelength,
-      staggeraxis: mapData.staggeraxis,
-      staggerindex: mapData.staggerindex,
-      mapPixelWidth: pixelSize.width,
-      mapPixelHeight: pixelSize.height,
-      tileSpritePadding: options?.tileSpritePadding ?? 0.01,
-      tileMeshBatchSize: options?.tileMeshBatchSize
-    }
-    // Render background
     if (mapData.backgroundcolor) {
       this._buildBackground(pixelSize.width, pixelSize.height, mapData.backgroundcolor)
     }
 
-    // Render layers
-    const layerContext = {
+    const renderedLayers = renderLayerTree(mapData.layers, {
       tilesets: this.tileSetRenderers,
-      mapContext: ctx,
-      imageTextures: imageLayerTextures,
-      imageGifSources: imageLayerGifSources,
+      mapContext: createMapContext(mapData, pixelSize, options),
+      imageTextures: options?.imageLayerTextures ?? new Map(),
+      imageGifSources: options?.imageLayerGifSources ?? new Map(),
       layerFilter: options?.layerFilter
-    }
-    const renderedLayers = renderLayerTree(mapData.layers, layerContext)
+    })
     if (renderedLayers.length > 0) this.addChild(...renderedLayers)
 
     this._rebuildTileLayerIndex()
@@ -210,5 +170,51 @@ export class TiledMap extends Container {
     }
     this._tileLayerIndex = null
     super.destroy(options)
+  }
+}
+
+function createTileSetRenderers(
+  mapData: ResolvedMap,
+  options: TiledMapOptions | undefined
+): TileSetRenderer[] {
+  const tilesetTextures = options?.tilesetTextures
+  const tileImageTextures = options?.tileImageTextures
+  const tileImageGifSources = options?.tileImageGifSources
+
+  return mapData.tilesets.map((ts) => {
+    const baseTex = ts.image ? (tilesetTextures?.get(ts.image) ?? null) : null
+    const renderer = new TileSetRenderer(ts, baseTex)
+
+    // Supply individual tile images for image-collection tilesets
+    for (const [localId, tileDef] of ts.tiles) {
+      if (!tileDef.image) continue
+      const tex = tileImageTextures?.get(tileDef.image)
+      if (tex) renderer.setTileTexture(localId, tex)
+      const gifSource = tileImageGifSources?.get(tileDef.image)
+      if (gifSource) renderer.setGifSource(localId, gifSource)
+    }
+
+    return renderer
+  })
+}
+
+/** Orientation-aware placement context shared by every layer renderer. */
+function createMapContext(
+  mapData: ResolvedMap,
+  pixelSize: { width: number; height: number },
+  options: TiledMapOptions | undefined
+): MapContext {
+  return {
+    orientation: mapData.orientation,
+    renderorder: mapData.renderorder,
+    tilewidth: mapData.tilewidth,
+    tileheight: mapData.tileheight,
+    hexsidelength: mapData.hexsidelength,
+    staggeraxis: mapData.staggeraxis,
+    staggerindex: mapData.staggerindex,
+    mapPixelWidth: pixelSize.width,
+    mapPixelHeight: pixelSize.height,
+    tileSpritePadding: options?.tileSpritePadding ?? 0.01,
+    tileMeshBatchSize: options?.tileMeshBatchSize
   }
 }
