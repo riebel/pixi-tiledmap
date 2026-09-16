@@ -8,8 +8,11 @@ npm run quality:gate
 
 It runs Biome, TypeScript, the complete build-backed Vitest suite, and the
 Fallow regression gate. `npm test` performs the build once before Vitest, so
-the visual tests always consume the current `dist/` output without a redundant
-second build.
+the tests that use `dist/` always see the current output without a redundant
+second build: the MagicLand visual regression, and
+`test/package/treeShaking.test.ts`, which bundles single imports from the built
+package and fails if the parser, export, procedural, lookup, or geometry APIs
+pull in PixiJS.
 
 ## Fallow
 

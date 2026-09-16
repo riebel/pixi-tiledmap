@@ -72,6 +72,7 @@
     "pixelmatch": "^7.2.0",
     "pixi.js": "^8.17.1",
     "pngjs": "^7.0.0",
+    "rolldown": "1.1.5",
     "tsdown": "^0.22.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"

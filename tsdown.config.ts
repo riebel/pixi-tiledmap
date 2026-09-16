@@ -7,5 +7,6 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   treeshake: true,
+  unbundle: true,
   deps: { neverBundle: ['pixi.js'] }
 })
