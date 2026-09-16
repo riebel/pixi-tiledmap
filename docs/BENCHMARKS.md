@@ -11,6 +11,8 @@ The benchmarks are intentionally not part of `npm test`: local CPU, background l
 - `test/renderer/TileLayerRenderer.bench.ts` covers initial layer construction.
 - `test/renderer/tileEditing.bench.ts` covers runtime editing across map sizes, occupancy, and operation mixes.
 
+`npm run bench` runs `vitest bench --run --reporter=verbose`; the result tables are only printed by the verbose reporter. Benchmarks use the Vitest 5 API through `benchGroup` from `test/helpers/bench.ts`: each group registers its benchmarks and runs them as one comparison inside a single test, with a generous timeout because a group can take over a minute.
+
 ## Comparing Results
 
 Absolute numbers depend heavily on the machine and its current load. Compare a change against a baseline measured on the same machine in the same session: run the benchmarks, stash the change, run them again. A single run is not enough to separate a real regression from noise; repeat runs that look suspicious.
@@ -19,30 +21,30 @@ Investigate changes that consistently move a benchmark by more than about 15-20%
 
 ## Current Smoke Baseline
 
-Recorded on September 16, 2026 for `2.9.0`, jsdom, on the local development machine. Higher is better.
+Recorded on September 16, 2026 for `2.9.0` with PixiJS `8.20.1` and Vitest `5.0.1`, jsdom, on the local development machine. Higher is better.
 
 ### Layer construction
 
 | Benchmark | Result |
 | --- | ---: |
-| finite `64x64` tile layer | `727 hz` |
-| finite `64x64` tile layer, `tileMeshBatchSize: 2000` | `645 hz` |
-| infinite `16` chunks of `16x16` tiles | `697 hz` |
-| animated finite `64x64` tile layer | `15 hz` |
+| finite `64x64` tile layer | `663 hz` |
+| finite `64x64` tile layer, `tileMeshBatchSize: 2000` | `630 hz` |
+| infinite `16` chunks of `16x16` tiles | `658 hz` |
+| animated finite `64x64` tile layer | `16 hz` |
 
 ### Runtime editing
 
 | Benchmark | Result |
 | --- | ---: |
-| `1` insert into a `256x256` empty layer | `2,261 hz` |
-| `100` inserts into a `256x256` empty layer | `2,014 hz` |
-| `10000` inserts into a `256x256` empty layer | `121 hz` |
-| `10000` clear/set cycles in a `64x64` dense layer | `101 hz` |
-| `1000` inserts into a `16`-chunk infinite layer | `1,799 hz` |
-| `10000` compatible updates in a `256x256` dense layer | `22 hz` |
-| `1000` alpha updates in a `64x64` dense layer (rebuild) | `1.7 hz` |
+| `1` insert into a `256x256` empty layer | `2,597 hz` |
+| `100` inserts into a `256x256` empty layer | `2,162 hz` |
+| `10000` inserts into a `256x256` empty layer | `120 hz` |
+| `10000` clear/set cycles in a `64x64` dense layer | `91 hz` |
+| `1000` inserts into a `16`-chunk infinite layer | `1,654 hz` |
+| `10000` compatible updates in a `256x256` dense layer | `21 hz` |
+| `1000` alpha updates in a `64x64` dense layer (rebuild) | `1.3 hz` |
 
-Each editing benchmark includes building its layer, so results drop with layer size even for a single insert (`102,440 hz` at `32x32`, `575 hz` at `512x512`). Compare editing cases of the same layer size.
+Each editing benchmark includes building its layer, so results drop with layer size even for a single insert (`108,670 hz` at `32x32`, `637 hz` at `512x512`). Compare editing cases of the same layer size.
 
 ## Packed Tile Layers
 

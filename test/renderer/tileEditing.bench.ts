@@ -10,10 +10,10 @@
  */
 
 import { Texture } from 'pixi.js'
-import { bench, describe } from 'vitest'
 import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
 import type { MapContext, ResolvedChunk, ResolvedTile } from '../../src/types/index.js'
+import { benchGroup } from '../helpers/bench.js'
 import {
   makeResolvedChunk,
   makeResolvedTile,
@@ -83,7 +83,7 @@ function alternatingAlphaWrites(size: number, empty: boolean): void {
   renderer.destroy({ children: true })
 }
 
-describe('single insert into an empty cell', () => {
+benchGroup('single insert into an empty cell', (bench) => {
   for (const size of [32, 256, 512]) {
     bench(`${size}x${size} empty layer, 1 insert`, () => {
       const renderer = newRenderer(size, true)
@@ -93,7 +93,7 @@ describe('single insert into an empty cell', () => {
   }
 })
 
-describe('bulk inserts into empty cells', () => {
+benchGroup('bulk inserts into empty cells', (bench) => {
   for (const count of [100, 10_000]) {
     bench(`${count} inserts into a 256x256 empty layer`, () => {
       const renderer = newRenderer(256, true)
@@ -119,7 +119,7 @@ describe('bulk inserts into empty cells', () => {
   })
 })
 
-describe('updates of existing tiles', () => {
+benchGroup('updates of existing tiles', (bench) => {
   bench('10000 compatible updates in a 256x256 dense layer', () => {
     const renderer = new TileLayerRenderer(fullLayer(256), [atlasTileset()], ctx)
     for (let i = 0; i < 10_000; i++) {
@@ -146,7 +146,7 @@ describe('updates of existing tiles', () => {
   })
 })
 
-describe('clear/set cycles', () => {
+benchGroup('clear/set cycles', (bench) => {
   bench('10000 clear/set cycles in a 64x64 dense layer', () => {
     const renderer = newRenderer(64, false)
     for (let i = 0; i < 10_000; i++) {
@@ -159,7 +159,7 @@ describe('clear/set cycles', () => {
   })
 })
 
-describe('occupancy variants', () => {
+benchGroup('occupancy variants', (bench) => {
   bench('1000 inserts into a sparse 512x512 layer', () => {
     randomInserts(1000, 512, 0x5a2e)
   })
@@ -184,7 +184,7 @@ describe('occupancy variants', () => {
   })
 })
 
-describe('infinite layers', () => {
+benchGroup('infinite layers', (bench) => {
   function infiniteLayer() {
     const chunks: ResolvedChunk[] = []
     for (let y = 0; y < 4; y++) {

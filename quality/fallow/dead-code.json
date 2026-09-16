@@ -1,4 +1,12 @@
 {
+  "analysis_identity": {
+    "mode": "syntactic",
+    "semantic_schema_version": 1,
+    "capabilities": [],
+    "project_config_hash": "",
+    "backend_family": "",
+    "completeness": "complete"
+  },
   "unused_files": [],
   "unused_exports": [],
   "unused_types": [],

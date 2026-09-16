@@ -2,9 +2,9 @@
  * @vitest-environment jsdom
  */
 
-import { bench, describe } from 'vitest'
 import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
 import type { MapContext, ResolvedChunk } from '../../src/types/index.js'
+import { benchGroup } from '../helpers/bench.js'
 import {
   makeResolvedChunk,
   makeResolvedTile,
@@ -31,7 +31,7 @@ function makeTiles(count: number) {
   return Array.from({ length: count }, () => makeResolvedTile())
 }
 
-describe('TileLayerRenderer hot path', () => {
+benchGroup('TileLayerRenderer hot path', (bench) => {
   bench('finite 64x64 tile layer legacy 2k batches', () => {
     const renderer = new TileLayerRenderer(
       makeResolvedTileLayer({

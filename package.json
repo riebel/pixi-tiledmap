@@ -47,7 +47,7 @@
     "lint:fix": "biome lint --write src/ test/",
     "check": "biome check src/ test/",
     "check:fix": "biome check --write src/ test/",
-    "bench": "vitest bench --run",
+    "bench": "vitest bench --run --reporter=verbose",
     "fallow": "fallow --score",
     "fallow:report": "fallow --score",
     "fallow:baseline": "node scripts/updateFallowBaselines.mjs",
@@ -65,16 +65,16 @@
     "pixi.js": ">=8.7.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.11",
-    "@types/node": "^25.9.1",
-    "fallow": "3.5.1",
-    "jsdom": "^29.0.2",
+    "@biomejs/biome": "^2.5.14",
+    "@types/node": "^25.9.7",
+    "fallow": "3.26.0",
+    "jsdom": "^30.0.1",
     "pixelmatch": "^7.2.0",
-    "pixi.js": "^8.17.1",
+    "pixi.js": "^8.20.1",
     "pngjs": "^7.0.0",
-    "rolldown": "1.1.5",
-    "tsdown": "^0.22.0",
-    "typescript": "^6.0.2",
-    "vitest": "^4.1.4"
+    "rolldown": "1.2.9",
+    "tsdown": "^0.23.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }

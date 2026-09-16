@@ -18,7 +18,7 @@ pull in PixiJS.
 
 `npm run fallow:report` prints the current dead-code, dependency-cycle,
 duplication, complexity, maintainability, and hotspot report. The package pins
-Fallow 3.5.1 so local and CI results use the same analyzer and baseline format.
+Fallow 3.26.0 so local and CI results use the same analyzer and baseline format.
 
 The tracked files in `quality/fallow/` are fingerprint baselines. They accept
 only findings reviewed when the baseline was created; new dead code, a new
