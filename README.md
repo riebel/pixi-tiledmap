@@ -25,7 +25,7 @@ The library ships its own Tiled JSON and TMX XML parser with no runtime dependen
 - **Map export** - `exportMap` writes a resolved map back to Tiled JSON and `exportTileset` writes a standalone `.tsj`, so a generated map opens in Tiled; parsing an exported map reproduces the same map exactly
 - **Map introspection** - `findLayer`, `getProperty`, and `tileAt` (point to tile cell, every orientation) work on the resolved map without a renderer, free of PixiJS and the DOM
 - **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
-- **Tree-shakable** - ESM + CJS dual build with bundled types, marked side-effect-free
+- **Packaging** - ESM + CJS dual build with bundled type definitions
 - **Typed** - comprehensive TypeScript types for the full Tiled spec
 
 > **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported - the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour.
@@ -150,8 +150,8 @@ If you prefer to parse and build the display tree yourself:
 
 ```ts
 import { parseMap, TiledMap } from 'pixi-tiledmap';
-import { Assets, Texture } from 'pixi.js';
-import type { TiledMap as TiledMapData } from 'pixi-tiledmap';
+import type { TiledMapData } from 'pixi-tiledmap';
+import { Assets, type Texture } from 'pixi.js';
 
 const response = await fetch('assets/map.tmj');
 const data: TiledMapData = await response.json();
@@ -161,7 +161,8 @@ const mapData = parseMap(data);
 const tilesetTextures = new Map<string, Texture>();
 for (const ts of mapData.tilesets) {
   if (ts.image) {
-    tilesetTextures.set(ts.image, await Assets.load(ts.image));
+    // Image paths are relative to the map file; the map key stays unchanged.
+    tilesetTextures.set(ts.image, await Assets.load(`assets/${ts.image}`));
   }
 }
 
@@ -279,6 +280,8 @@ await writeFile(
 That file reads straight back through `ParseOptions.externalTilesets`, which is typed `TiledTilesetFile` — a tileset without a `firstgid` — so a `.tsj` read from disk needs no cast:
 
 ```ts
+import type { TiledTilesetFile } from 'pixi-tiledmap';
+
 const dungeon: TiledTilesetFile = JSON.parse(await readFile('tilesets/dungeon.tsj', 'utf8'));
 const map = parseMap(tmj, { externalTilesets: new Map([['tilesets/dungeon.tsj', dungeon]]) });
 ```
@@ -298,8 +301,8 @@ import { findLayer, getProperty, tileAt } from 'pixi-tiledmap';
 const spawns = findLayer(mapData, 'spawns'); // searches nested group layers too
 const theme = getProperty(mapData, 'theme', 'string'); // string | undefined
 
-// Camera maths stays with you: convert to the map container's local space first.
-const local = map.toLocal({ x: event.clientX, y: event.clientY });
+// Camera maths stays with you: convert a pointer event to the map container's local space first.
+const local = map.toLocal(event.global);
 const cell = tileAt(mapData, local.x, local.y); // null outside the map, never clamped
 ```
 
