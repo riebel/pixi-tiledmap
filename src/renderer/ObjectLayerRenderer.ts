@@ -75,81 +75,31 @@ export class ObjectLayerRenderer extends Container {
 
   private _createTextObject(obj: ResolvedObject): Container {
     const td = obj.text as TiledText
-    const color = td.color ?? '#000000'
-    const text = new Text({
-      text: td.text,
-      style: {
-        fontFamily: td.fontfamily ?? 'sans-serif',
-        fontSize: td.pixelsize ?? 16,
-        fill: color,
-        fontWeight: td.bold ? 'bold' : 'normal',
-        fontStyle: td.italic ? 'italic' : 'normal',
-        wordWrap: td.wrap ?? false,
-        wordWrapWidth: obj.width,
-        align: td.halign ?? 'left'
-      }
-    })
+    const text = createText(td, obj.width)
 
     // PixiJS Text has no built-in underline/strikeout - draw them manually.
     // Wrap in a Container only when decorations are present so simple text
     // stays a single Text node.
-    if (!td.underline && !td.strikeout) {
-      text.position.set(obj.x, obj.y)
-      text.angle = obj.rotation
-      text.visible = obj.visible
-      return text
-    }
-
-    const container = new Container()
-    container.addChild(text)
-
-    const metrics = text.getSize()
-    const lineThickness = Math.max(1, (td.pixelsize ?? 16) / 16)
-    if (td.underline) {
-      const ul = new Graphics()
-        .moveTo(0, metrics.height - lineThickness)
-        .lineTo(metrics.width, metrics.height - lineThickness)
-        .stroke({ color, width: lineThickness })
-      container.addChild(ul)
-    }
-    if (td.strikeout) {
-      const y = metrics.height / 2
-      const so = new Graphics()
-        .moveTo(0, y)
-        .lineTo(metrics.width, y)
-        .stroke({ color, width: lineThickness })
-      container.addChild(so)
-    }
-
-    container.position.set(obj.x, obj.y)
-    container.angle = obj.rotation
-    container.visible = obj.visible
-    return container
+    const node = td.underline || td.strikeout ? decorateText(text, td) : text
+    return placeObject(node, obj)
   }
 
   private _createRectangle(obj: ResolvedObject): Container {
     const g = new Graphics().rect(0, 0, obj.width, obj.height).stroke({ color: 0xffffff, width: 1 })
-    g.position.set(obj.x, obj.y)
-    g.angle = obj.rotation
-    g.visible = obj.visible
-    return g
+    return placeObject(g, obj)
   }
 
   private _createEllipse(obj: ResolvedObject): Container {
     const rx = obj.width / 2
     const ry = obj.height / 2
     const g = new Graphics().ellipse(rx, ry, rx, ry).stroke({ color: 0xffffff, width: 1 })
-    g.position.set(obj.x, obj.y)
-    g.angle = obj.rotation
-    g.visible = obj.visible
-    return g
+    return placeObject(g, obj)
   }
 
   private _createPoint(obj: ResolvedObject): Container {
     const g = new Graphics().circle(0, 0, 3).fill(0xffffff)
-    g.position.set(obj.x, obj.y)
-    g.visible = obj.visible
-    return g
+    // A point marker has no orientation, so it ignores the object rotation.
+    return placeObject(g, obj, false)
   }
 
   private _createPolygon(obj: ResolvedObject, points: TiledPoint[], closed: boolean): Container {
@@ -168,9 +118,53 @@ export class ObjectLayerRenderer extends Container {
       g.stroke({ color: 0xffffff, width: 1 })
     }
 
-    g.position.set(obj.x, obj.y)
-    g.angle = obj.rotation
-    g.visible = obj.visible
-    return g
+    return placeObject(g, obj)
   }
+}
+
+const DEFAULT_TEXT_COLOR = '#000000'
+const DEFAULT_PIXEL_SIZE = 16
+
+function createText(td: TiledText, wrapWidth: number): Text {
+  return new Text({
+    text: td.text,
+    style: {
+      fontFamily: td.fontfamily ?? 'sans-serif',
+      fontSize: td.pixelsize ?? DEFAULT_PIXEL_SIZE,
+      fill: td.color ?? DEFAULT_TEXT_COLOR,
+      fontWeight: td.bold ? 'bold' : 'normal',
+      fontStyle: td.italic ? 'italic' : 'normal',
+      wordWrap: td.wrap ?? false,
+      wordWrapWidth: wrapWidth,
+      align: td.halign ?? 'left'
+    }
+  })
+}
+
+/** Groups `text` with its underline and strikeout lines, sized to the rendered text. */
+function decorateText(text: Text, td: TiledText): Container {
+  const container = new Container()
+  container.addChild(text)
+
+  const { width, height } = text.getSize()
+  const stroke = {
+    color: td.color ?? DEFAULT_TEXT_COLOR,
+    width: Math.max(1, (td.pixelsize ?? DEFAULT_PIXEL_SIZE) / DEFAULT_PIXEL_SIZE)
+  }
+  if (td.underline) {
+    const y = height - stroke.width
+    container.addChild(new Graphics().moveTo(0, y).lineTo(width, y).stroke(stroke))
+  }
+  if (td.strikeout) {
+    const y = height / 2
+    container.addChild(new Graphics().moveTo(0, y).lineTo(width, y).stroke(stroke))
+  }
+  return container
+}
+
+function placeObject<T extends Container>(node: T, obj: ResolvedObject, rotate = true): T {
+  node.position.set(obj.x, obj.y)
+  if (rotate) node.angle = obj.rotation
+  node.visible = obj.visible
+  return node
 }

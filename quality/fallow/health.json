@@ -1,15 +1,5 @@
 {
   "finding_counts": {
-    "src/renderer/ImageLayerRenderer.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/renderer/ObjectLayerRenderer.ts": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
     "src/renderer/PackedTileLayerRenderer.ts": {
       "crap_moderate": {
         "count": 1

@@ -27,24 +27,16 @@ export class ImageLayerRenderer extends Container {
     const { repeatx, repeaty } = this.layerData
 
     if (!repeatx && !repeaty) {
-      if (gifSource) {
-        this.addChild(new GifSprite({ source: gifSource }))
-      } else {
-        this.addChild(new Sprite(texture))
-      }
+      this.addChild(gifSource ? new GifSprite({ source: gifSource }) : new Sprite(texture))
       return
     }
 
     // Repeating layers use TilingSprite which requires a static texture.
     // Animated GIFs fall back to the first frame for tiling.
-    const spanW = ctx?.mapPixelWidth && ctx.mapPixelWidth > 0 ? ctx.mapPixelWidth : texture.width
-    const spanH =
-      ctx?.mapPixelHeight && ctx.mapPixelHeight > 0 ? ctx.mapPixelHeight : texture.height
-
     this._tiledImage = new TilingSprite({
       texture,
-      width: repeatx ? spanW : texture.width,
-      height: repeaty ? spanH : texture.height
+      width: repeatx ? positiveOr(ctx?.mapPixelWidth, texture.width) : texture.width,
+      height: repeaty ? positiveOr(ctx?.mapPixelHeight, texture.height) : texture.height
     })
     this.addChild(this._tiledImage)
   }
@@ -79,4 +71,9 @@ export class ImageLayerRenderer extends Container {
       )
     }
   }
+}
+
+/** `value` when it is a usable span; an unknown or empty map size falls back. */
+function positiveOr(value: number | undefined, fallback: number): number {
+  return value !== undefined && value > 0 ? value : fallback
 }
