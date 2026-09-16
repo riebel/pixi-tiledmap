@@ -15,7 +15,7 @@ const mapContext: MapContext = {
 }
 
 describe('GroupLayerRenderer public constructor', () => {
-  it('accepts the 2.8.5 context shape and recursively renders matching descendants', () => {
+  it('accepts a context without group factory or GIF sources and renders matching descendants', () => {
     const layer = makeResolvedGroupLayer({
       name: 'root',
       layers: [

@@ -81,7 +81,7 @@ Inside a mesh, slot order decides draw order. An incremental insert can only app
 | packed tile <-> animated or GIF tile | the sprite child must be created or removed |
 | tileset texture unavailable | nothing can be packed |
 
-A rebuild reconstructs the whole tile layer, including its sprite-backed tiles. Repeatedly inserting animated tiles is therefore the most expensive editing pattern.
+A rebuild reconstructs the tile layer's own meshes and sprites, including its sprite-backed tiles; children added by the caller stay in place. Repeatedly inserting animated tiles is therefore the most expensive editing pattern.
 
 Structural counters, not timings, are asserted in `test/renderer/tileEditingIncremental.test.ts` and `test/renderer/tileEditingStress.test.ts`, so CI stays deterministic. A 30k-operation random edit sequence performs zero rebuilds, keeps capacity bounded by the layer's cell count, and leaves the rendered quads matching the layer data.
 

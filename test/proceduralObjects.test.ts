@@ -184,9 +184,9 @@ describe('createObjectLayer tile input', () => {
       diagonalFlip: false
     }
 
-    // The pre-2.8.6 signature took no tilesets and passed objects straight
+    // Callers may omit the tilesets and pass resolved objects straight
     // through, so re-resolving this GID against an empty tileset list would
-    // throw on code that used to work.
+    // throw on valid input.
     const layer = createObjectLayer({
       type: 'objectgroup',
       name: 'actors',

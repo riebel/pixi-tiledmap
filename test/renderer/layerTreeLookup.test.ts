@@ -1,9 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * The tile-layer index added in 2.8.6 must be a pure speed-up: every lookup
- * semantic that existed before it, including first-match on duplicate names,
- * has to survive unchanged.
+ * The cached tile-layer index must be a pure speed-up: it has to give the same
+ * result as a live walk of the layer tree, including first-match on duplicate
+ * names.
  */
 import { Container, Texture } from 'pixi.js'
 import { describe, expect, it } from 'vitest'

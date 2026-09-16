@@ -1,12 +1,12 @@
 /**
  * @vitest-environment jsdom
  *
- * Structural regression tests for the 2.8.6 incremental insert path. These
+ * Structural regression tests for incremental tile editing. These
  * assert renderer bookkeeping (rebuilds, slot reuse, capacity growth, buffer
  * uploads) through the internal stats seam rather than wall-clock timing, so
  * they stay deterministic on CI.
  */
-import { type Mesh, Texture, TextureSource } from 'pixi.js'
+import { Container, type Mesh, Sprite, Texture, TextureSource } from 'pixi.js'
 import { describe, expect, it, vi } from 'vitest'
 import { readPackedTileStats } from '../../src/renderer/packedTileStats.js'
 import { TiledMap } from '../../src/renderer/TiledMap.js'
@@ -269,9 +269,9 @@ describe('rebuild fallbacks', () => {
     ).toEqual([0.5, 1])
   })
 
-  it('still rebuilds when an occupied cell changes alpha group', () => {
-    // Unchanged 2.8.5 semantics: an in-place update cannot move a quad between
-    // alpha batches, so the layer is rebuilt. Documented in docs/BENCHMARKS.md.
+  it('rebuilds when an occupied cell changes alpha group', () => {
+    // An in-place update cannot move a quad between alpha batches, so the
+    // layer is rebuilt. Documented in docs/BENCHMARKS.md.
     const layerData = makeResolvedTileLayer({
       width: 1,
       height: 1,
@@ -286,7 +286,7 @@ describe('rebuild fallbacks', () => {
     expect(renderer.children[0]?.alpha).toBe(0.5)
   })
 
-  it('still rebuilds when an occupied cell changes texture source', () => {
+  it('rebuilds when an occupied cell changes texture source', () => {
     const first = makeTileSetRenderer()
     const second = new TileSetRenderer(makeResolvedTileset({ columns: 1, tilecount: 1 }), null)
     second.setTileTexture(0, new Texture({ source: Texture.WHITE.source }))
@@ -461,7 +461,7 @@ describe('grouping correctness', () => {
     expect(stats.insertsIntoNewSlot).toBe(1)
   })
 
-  // Golden UV corner orders, pinned to the values 2.8.5 produced. These are
+  // Golden UV corner orders, pinned to literal values. These are
   // deliberately literal rather than derived, so a change to the internal flip
   // table cannot silently alter how flipped tiles render.
   it.each([
@@ -677,5 +677,113 @@ describe('lifecycle', () => {
     map.setTile('ground', 2, 2, 1)
 
     expect(() => map.destroy({ children: true })).not.toThrow()
+  })
+})
+
+describe('caller-added children', () => {
+  function animatedTileset() {
+    return makeTileSetRenderer({
+      tiles: new Map([
+        [
+          0,
+          {
+            id: 0,
+            animation: [
+              { tileid: 0, duration: 100 },
+              { tileid: 0, duration: 100 }
+            ]
+          }
+        ]
+      ])
+    })
+  }
+
+  it('keeps a child added above the tiles through a rebuild', () => {
+    const renderer = new TileLayerRenderer(filledLayer(2, 1), [makeTileSetRenderer()], ctx)
+    const player = new Sprite(Texture.WHITE)
+    renderer.addChild(player)
+
+    renderer.setTile(0, 0, makeResolvedTile({ alpha: 0.5 }))
+
+    expect(readPackedTileStats(renderer).fullRebuilds).toBe(1)
+    expect(player.destroyed).toBe(false)
+    expect(player.parent).toBe(renderer)
+    expect(renderer.children.at(-1)).toBe(player)
+    expect(
+      meshes(renderer)
+        .map((mesh) => mesh.alpha)
+        .sort()
+    ).toEqual([0.5, 1])
+  })
+
+  it('keeps a child added below the tiles below them through a rebuild', () => {
+    const renderer = new TileLayerRenderer(filledLayer(2, 1), [makeTileSetRenderer()], ctx)
+    const backdrop = new Container()
+    renderer.addChildAt(backdrop, 0)
+
+    renderer.setTile(0, 0, makeResolvedTile({ alpha: 0.5 }))
+
+    expect(backdrop.destroyed).toBe(false)
+    expect(renderer.children[0]).toBe(backdrop)
+    expect(renderer.children).toHaveLength(3)
+  })
+
+  it('keeps caller children through a rebuild of sprite-backed tiles', () => {
+    const renderer = new TileLayerRenderer(emptyLayer(2, 1), [animatedTileset()], ctx)
+    const player = new Sprite(Texture.WHITE)
+    renderer.addChild(player)
+
+    renderer.setTile(0, 0, makeResolvedTile())
+    renderer.setTile(1, 0, makeResolvedTile())
+
+    expect(readPackedTileStats(renderer).fullRebuilds).toBe(2)
+    expect(player.destroyed).toBe(false)
+    expect(renderer.children).toHaveLength(3)
+    expect(renderer.children.at(-1)).toBe(player)
+  })
+
+  it('places a mesh opened by an incremental insert below caller children', () => {
+    const first = makeTileSetRenderer()
+    const second = new TileSetRenderer(makeResolvedTileset({ columns: 1, tilecount: 1 }), null)
+    second.setTileTexture(0, new Texture({ source: Texture.WHITE.source }))
+    const layerData = makeResolvedTileLayer({
+      width: 2,
+      height: 1,
+      tiles: [makeResolvedTile({ tilesetIndex: 0 }), null]
+    })
+    const renderer = new TileLayerRenderer(layerData, [first, second], ctx)
+    const player = new Sprite(Texture.WHITE)
+    renderer.addChild(player)
+
+    renderer.setTile(1, 0, makeResolvedTile({ tilesetIndex: 1 }))
+
+    expect(readPackedTileStats(renderer).fullRebuilds).toBe(0)
+    expect(meshes(renderer)).toHaveLength(2)
+    expect(renderer.children.at(-1)).toBe(player)
+  })
+
+  it('keeps tile children in render order between caller children', () => {
+    const renderer = new TileLayerRenderer(emptyLayer(2, 1), [animatedTileset()], ctx)
+    const below = new Container()
+    const above = new Container()
+    renderer.setTile(0, 0, makeResolvedTile())
+    renderer.addChildAt(below, 0)
+    renderer.addChild(above)
+
+    renderer.setTile(1, 0, makeResolvedTile())
+
+    const tiles = renderer.children.filter((child) => child !== below && child !== above)
+    expect(renderer.children).toEqual([below, ...tiles, above])
+    expect(tiles.map((tile) => tile.x)).toEqual([0, 32])
+  })
+
+  it('still destroys caller children when the layer is destroyed with its children', () => {
+    const renderer = new TileLayerRenderer(filledLayer(1, 1), [makeTileSetRenderer()], ctx)
+    const player = new Sprite(Texture.WHITE)
+    renderer.addChild(player)
+
+    renderer.destroy({ children: true })
+
+    expect(player.destroyed).toBe(true)
   })
 })

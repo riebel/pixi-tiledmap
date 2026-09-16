@@ -68,7 +68,7 @@ export interface PackedTileRenderHandle {
  * Internal handle shape. The extra fields are intentionally absent from the
  * public `PackedTileRenderHandle` type: they are renderer-owned bookkeeping and
  * every consumer re-validates them through `asInternalHandle` before use, so a
- * hand-built public handle still works through the pre-2.8.6 code paths.
+ * hand-built public handle still works through the foreign-handle fallbacks.
  */
 interface InternalTileRenderHandle extends PackedTileRenderHandle {
   batch: PackedTileBatch
@@ -92,6 +92,17 @@ export class PackedTileLayerRenderer extends Container {
   readonly [packedTileStatsSymbol]: PackedTileStats = createPackedTileStats()
 
   private readonly _batches = new Map<TextureSource, Map<number, PackedTileBatch[]>>()
+  /**
+   * Meshes and tile sprites this renderer created. Anything else among
+   * `children` belongs to the caller and must survive a rebuild in place.
+   */
+  private readonly _ownChildren = new Set<Container>()
+  /**
+   * Where tile children go while none exist: the position the last ones held
+   * before a reset, or the bottom when the layer has never had any, so caller
+   * children sit above the tiles by default.
+   */
+  private _ownChildrenIndex = 0
   private readonly _initialTileCapacity: number
   private readonly _maxTilesPerMesh: number
   private _finalized = false
@@ -104,7 +115,7 @@ export class PackedTileLayerRenderer extends Container {
    * traversal a full rebuild performs. Slot order is therefore only guaranteed
    * to be visually irrelevant when no two quads overlap, which is what this
    * flag tracks. When it is false, structural edits fall back to a rebuild so
-   * layering stays byte-identical to 2.8.5.
+   * layering stays identical to what a full rebuild produces.
    */
   private _quadsConfined = true
 
@@ -123,7 +134,7 @@ export class PackedTileLayerRenderer extends Container {
   ): PackedTileRenderHandle | null {
     if (this._needsSpriteTile(tile, tsRenderer)) {
       const sprite = createTileSprite(tile, tsRenderer, x, y, ctx)
-      if (sprite) this.addChild(sprite)
+      if (sprite) this._addOwnChild(sprite)
       return null
     }
 
@@ -140,8 +151,8 @@ export class PackedTileLayerRenderer extends Container {
    * Returns `null` when the tile cannot be represented safely without a full
    * rebuild, in which case the caller must fall back to one.
    *
-   * Deliberately protected: 2.8.6 is a patch release, so this stays an internal
-   * seam for `TileLayerRenderer` rather than new public API surface.
+   * Deliberately protected: an internal seam for `TileLayerRenderer`, not
+   * public API surface.
    */
   protected insertPackedTile(
     tile: ResolvedTile,
@@ -266,7 +277,7 @@ export class PackedTileLayerRenderer extends Container {
    * rebuild afterwards; the renderer is left in its pre-build shape.
    */
   protected resetPackedTiles(): void {
-    for (const child of this.removeChildren()) {
+    for (const child of this._removeOwnChildren()) {
       if (child instanceof Mesh) this[packedTileStatsSymbol].meshesDestroyed++
       child.destroy()
     }
@@ -283,6 +294,7 @@ export class PackedTileLayerRenderer extends Container {
     const destroyChildren = typeof options === 'boolean' ? options : (options?.children ?? false)
     const destroyTextures = typeof options === 'boolean' ? options : (options?.texture ?? false)
     super.destroy(options)
+    this._ownChildren.clear()
     // Mesh.destroy() already destroys its texture when `texture` is requested.
     // Only reclaim the wrapper ourselves when Pixi left it intact.
     this._releaseBatches(destroyChildren && !destroyTextures)
@@ -414,7 +426,62 @@ export class PackedTileLayerRenderer extends Container {
     }
 
     this[packedTileStatsSymbol].meshesCreated++
-    this.addChild(mesh)
+    this._addOwnChild(mesh)
+  }
+
+  /**
+   * Adds a tile child after the renderer's other tile children, so children the
+   * caller placed above or below the tiles keep that position.
+   */
+  private _addOwnChild(child: Container): void {
+    const children = this.children
+    this._ownChildren.add(child)
+
+    // Common case: every child is ours, so appending keeps the order.
+    if (children.length === this._ownChildren.size - 1) {
+      this.addChild(child)
+      return
+    }
+
+    let index = children.length
+    if (this._ownChildren.size === 1) {
+      index = Math.min(this._ownChildrenIndex, index)
+    } else {
+      while (index > 0 && !this._ownChildren.has(children[index - 1]!)) index--
+    }
+    this.addChildAt(child, index)
+  }
+
+  /** Detaches this renderer's tile children and leaves caller children in place. */
+  private _removeOwnChildren(): Container[] {
+    const children = this.children
+    const own = this._ownChildren
+    if (children.length === own.size) {
+      own.clear()
+      return this.removeChildren()
+    }
+
+    const firstOwn = children.findIndex((child) => own.has(child))
+    if (firstOwn < 0) {
+      own.clear()
+      return []
+    }
+    this._ownChildrenIndex = firstOwn
+
+    const removed: Container[] = []
+    if (firstOwn === 0) {
+      // PixiJS 8 treats removeChildren's end index as a count, which is only
+      // correct for a range starting at 0, so only the leading run uses it.
+      let runEnd = 0
+      while (runEnd < children.length && own.has(children[runEnd]!)) runEnd++
+      removed.push(...this.removeChildren(0, runEnd))
+    }
+    for (const child of children.filter((candidate) => own.has(candidate))) {
+      removed.push(this.removeChild(child))
+    }
+
+    own.clear()
+    return removed
   }
 
   /**

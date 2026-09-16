@@ -60,7 +60,7 @@ If you want the best runtime behavior in your game/application:
 - Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
 - Keep the default `tileMeshBatchSize` unless you are profiling a GPU/driver that prefers smaller meshes; the default keeps packed meshes below 16-bit index limits while reducing render object count.
 - Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are packed into `Mesh` children, not one `Sprite` per tile.
-- Do not add your own display objects to a `TileLayerRenderer`: a layer rebuild destroys all of its children. Place sprites that move between layers (such as the player) in a separate container instead.
+- Display objects you add to a `TileLayerRenderer` (for example a player walking on that layer) survive tile edits and layer rebuilds and keep their position relative to the tiles. Tiles sit below children you add, unless you insert yours below them with `addChildAt`.
 
 ## Installation
 
