@@ -72,7 +72,7 @@ A freshly built layer has right-sized batch geometry; before the first edit, edi
 
 Inside a mesh, slot order decides draw order. An incremental insert can only append or recycle a slot, so it is used only while every tile quad stays inside its own grid cell, where quads cannot overlap. `tileSpritePadding` widens grid-sized quads to close seams; that overlap is tolerated up to `0.125`px (default `0.01`), where no rasterisation sample falls inside it. Larger padding is visible overlap and makes inserts rebuild.
 
-`TiledMap` resolves tile layers through a cached index, so an edit does not walk the render children of other layers.
+`TiledMap` resolves tile layers through a cached index, so an edit does not walk the render children of other layers. Repeated `getTile`, `setTile`, and `clearTile` calls for the same layer reuse the last index hit while the index is current; any child added to or removed from the map or one of its group layers drops both. Lookups that fall back to walking the layer tree, such as duplicate layer names, are never cached, because reordering children emits no event.
 
 ### Edits that rebuild the layer
 

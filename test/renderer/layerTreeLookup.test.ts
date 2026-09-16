@@ -248,3 +248,109 @@ describe('tile layer lookup semantics', () => {
     expect(map.getLayer('missing')).toBeUndefined()
   })
 })
+
+describe('tile layer lookups after a cached hit', () => {
+  const ctx = {
+    orientation: 'orthogonal' as const,
+    renderorder: 'right-down' as const,
+    tilewidth: 32,
+    tileheight: 32
+  }
+
+  it('reuses the layer for repeated lookups of one selector', () => {
+    const ground = makeResolvedTileLayer({ id: 1, name: 'ground', ...cell() })
+    const map = mapWith([ground, makeResolvedTileLayer({ id: 2, name: 'walls', ...cell() })])
+
+    map.setTile('ground', 0, 0, 1)
+    map.setTile('walls', 1, 1, 2)
+    map.setTile('ground', 1, 0, 3)
+    map.setTile(1, 0, 1, 4)
+
+    expect(ground.tiles.map((tile) => tile?.gid ?? 0)).toEqual([1, 3, 4, 0])
+    expect(map.getTile('walls', 1, 1)).toMatchObject({ gid: 2 })
+  })
+
+  it('stops resolving a cached layer once it is removed', () => {
+    const map = mapWith([makeResolvedTileLayer({ id: 1, name: 'ground', ...cell() })])
+    map.getTile('ground', 0, 0)
+
+    map.removeChild(map.getLayer('ground')!)
+
+    expect(() => map.getTile('ground', 0, 0)).toThrow(/not rendered/)
+  })
+
+  it('stops resolving a cached layer once it is destroyed', () => {
+    const map = mapWith([makeResolvedTileLayer({ id: 1, name: 'ground', ...cell() })])
+    map.getTile(1, 0, 0)
+
+    map.getLayer('ground')!.destroy()
+
+    expect(() => map.getTile(1, 0, 0)).toThrow(/not rendered/)
+  })
+
+  it('stops resolving a cached layer once it is reparented elsewhere', () => {
+    const map = mapWith([makeResolvedTileLayer({ id: 1, name: 'ground', ...cell() })])
+    map.getTile('ground', 0, 0)
+
+    new Container().addChild(map.getLayer('ground')!)
+
+    expect(() => map.getTile('ground', 0, 0)).toThrow(/not rendered/)
+  })
+
+  it('stops resolving a cached nested layer once its group is removed', () => {
+    const map = mapWith([
+      makeResolvedGroupLayer({
+        name: 'group',
+        layers: [makeResolvedTileLayer({ id: 3, name: 'deep', ...cell() })]
+      })
+    ])
+    map.getTile('deep', 0, 0)
+
+    map.removeChild(map.getLayer('group')!)
+
+    expect(() => map.getTile('deep', 0, 0)).toThrow(/not rendered/)
+  })
+
+  it('switches to a duplicate inserted in front of a cached layer', () => {
+    const original = makeResolvedTileLayer({ id: 1, name: 'ground', ...cell() })
+    const inserted = makeResolvedTileLayer({ id: 2, name: 'ground', ...cell() })
+    const map = mapWith([original])
+    map.getTile('ground', 0, 0)
+
+    map.addChildAt(new TileLayerRenderer(inserted, map.tileSetRenderers, ctx), 0)
+    map.setTile('ground', 0, 0, 1)
+
+    expect(inserted.tiles[0]).toMatchObject({ gid: 1 })
+    expect(original.tiles[0]).toBeNull()
+  })
+
+  it('switches to a duplicate id inserted into the group of a cached layer', () => {
+    const original = makeResolvedTileLayer({ id: 7, name: 'original', ...cell() })
+    const inserted = makeResolvedTileLayer({ id: 7, name: 'inserted', ...cell() })
+    const map = mapWith([makeResolvedGroupLayer({ name: 'group', layers: [original] })])
+    map.getTile(7, 0, 0)
+
+    map.getLayer('group')!.addChildAt(new TileLayerRenderer(inserted, map.tileSetRenderers, ctx), 0)
+    map.setTile(7, 0, 0, 1)
+
+    expect(inserted.tiles[0]).toMatchObject({ gid: 1 })
+    expect(original.tiles[0]).toBeNull()
+  })
+
+  it('never caches a duplicate-name hit, so a reorder is still followed', () => {
+    // setChildIndex emits no child events, so only index hits may be cached.
+    const first = makeResolvedTileLayer({ id: 1, name: 'dup', ...cell() })
+    const second = makeResolvedTileLayer({ id: 2, name: 'dup', ...cell() })
+    const map = mapWith([first, second])
+    map.setTile('dup', 0, 0, 1)
+
+    const secondRenderer = map.children.find(
+      (child) => child instanceof TileLayerRenderer && child.layerData.id === 2
+    )!
+    map.setChildIndex(secondRenderer, 0)
+    map.setTile('dup', 1, 0, 2)
+
+    expect(first.tiles.map((tile) => tile?.gid ?? 0)).toEqual([1, 0, 0, 0])
+    expect(second.tiles.map((tile) => tile?.gid ?? 0)).toEqual([0, 2, 0, 0])
+  })
+})

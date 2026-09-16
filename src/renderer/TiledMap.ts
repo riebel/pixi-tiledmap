@@ -31,6 +31,11 @@ export class TiledMap extends Container {
   private readonly _invalidateTileLayerIndex = (): void => {
     this._tileLayerIndex = null
   }
+  // Last index hit. Valid only while `_lastHitIndex` is still the current
+  // index: every child event that could change the answer drops that index.
+  private _lastHitIndex: TileLayerIndex | null = null
+  private _lastHitSelector: TiledTileLayerSelector | null = null
+  private _lastHitLayer: TileLayerRenderer | null = null
 
   constructor(mapData: ResolvedMap, options?: TiledMapOptions) {
     super()
@@ -128,8 +133,18 @@ export class TiledMap extends Container {
 
   private _getTileLayerRenderer(selector: TiledTileLayerSelector): TileLayerRenderer {
     const index = this._tileLayerIndex ?? this._rebuildTileLayerIndex()
+    // Edits and reads usually hit one layer many times in a row.
+    if (index === this._lastHitIndex && selector === this._lastHitSelector) {
+      return this._lastHitLayer!
+    }
+
     const indexed = findTileLayerInIndex(index, selector, this)
-    if (indexed) return indexed
+    if (indexed) {
+      this._lastHitIndex = index
+      this._lastHitSelector = selector
+      this._lastHitLayer = indexed
+      return indexed
+    }
 
     // Index miss: an ambiguous selector, or a tree mutated after construction.
     // Fall back to the live walk this lookup has always used.
@@ -169,6 +184,8 @@ export class TiledMap extends Container {
       ts.destroy()
     }
     this._tileLayerIndex = null
+    this._lastHitIndex = null
+    this._lastHitLayer = null
     super.destroy(options)
   }
 }
