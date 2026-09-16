@@ -105,6 +105,12 @@ app.stage.addChild(container);
 > first if you still need them. Textures and GIF sources stay in the `Assets`
 > cache.
 
+> GIF sprites created by the map never destroy their `GifSource`, not even with
+> `destroy(true)`, because other maps may share it. Call `source.destroy()`
+> yourself to free one. A `clone()` of such a sprite is a plain PixiJS
+> `GifSprite`: `clone.destroy(true)` does destroy the shared source, so destroy
+> clones without arguments.
+
 Renderer options can be supplied through Pixi's asset metadata:
 
 ```ts
