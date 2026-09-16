@@ -105,6 +105,13 @@ app.stage.addChild(container);
 > nested directory. External tileset paths inside object templates are likewise
 > resolved relative to the template file so template tile GIDs map correctly.
 
+> PixiJS caches loaded assets, so loading the same map URL again returns the
+> **same** `container`, not a copy. To render one map twice (for example below
+> and above the player), construct separate `TiledMap`s with `layerFilter`
+> as shown under the overhead-layer example below. After the container has been destroyed, the next
+> `Assets.load` hands back a freshly built one. `Assets.unload(url)` destroys
+> the current container.
+
 Renderer options can be supplied through Pixi's asset metadata:
 
 ```ts

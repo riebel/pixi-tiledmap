@@ -3,7 +3,7 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { Assets, BufferImageSource, DOMAdapter, Mesh, Texture } from 'pixi.js'
+import { Assets, BufferImageSource, DOMAdapter, extensions, Mesh, Sprite, Texture } from 'pixi.js'
 import { describe, expect, it, vi } from 'vitest'
 import {
   type FetchFn,
@@ -1017,5 +1017,90 @@ describe('loadTiledMapAsset', () => {
     expect(asset.mapData.layers[0]?.type).toBe('objectgroup')
     expect(fetcher).toHaveBeenCalledWith('maps/enemy.tj')
     expect(fetcher.mock.calls.filter(([url]) => url === 'maps/enemy.tj')).toHaveLength(1)
+  })
+})
+
+describe('cached map assets', () => {
+  const map = makeMap({
+    width: 1,
+    height: 1,
+    tilesets: [{ ...MINIMAL_TILESET, image: 'tiles.png', imagewidth: 16, imageheight: 16 }],
+    layers: [
+      {
+        type: 'tilelayer',
+        id: 1,
+        name: 'ground',
+        opacity: 1,
+        visible: true,
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        data: [1]
+      }
+    ]
+  })
+
+  function loadOptions() {
+    return {
+      fetchFn: makeFetcher({ 'maps/cached.tmj': jsonResponse(map) }),
+      loadAsset: <T>() => Promise.resolve(makeTexture(16, 16) as T)
+    }
+  }
+
+  it('keeps the same container while it is alive', async () => {
+    const asset = await loadTiledMapAsset('maps/cached.tmj', loadOptions())
+
+    expect(asset.container).toBe(asset.container)
+  })
+
+  it('rebuilds the container once the previous one was destroyed', async () => {
+    const asset = await loadTiledMapAsset('maps/cached.tmj', loadOptions())
+    const first = asset.container
+    first.getLayer('ground')?.addChild(new Sprite(Texture.WHITE))
+
+    first.destroy({ children: true })
+    const second = asset.container
+
+    expect(second).not.toBe(first)
+    expect(second.destroyed).toBe(false)
+    expect(second.getLayer('ground')).toBeDefined()
+    expect(second.getTile('ground', 0, 0)?.gid).toBe(1)
+  })
+
+  it('serves a usable container from the Assets cache after destroy (issue #34)', async () => {
+    extensions.add(tiledMapLoader)
+    await Assets.init({ skipDetections: true })
+    // The Assets resolver hands the loader an absolute URL.
+    const fetchFn = vi.fn<FetchFn>(() => Promise.resolve(jsonResponse(map) as Response))
+    const data = { ...loadOptions(), fetchFn }
+    const src = { alias: 'issue-34-map', src: 'maps/cached.tmj', data }
+
+    try {
+      const first = await Assets.load(src)
+      first.container.getLayer('ground')?.addChild(new Sprite(Texture.WHITE))
+      first.container.destroy({ children: true })
+
+      const second = await Assets.load(src)
+
+      expect(second).toBe(first)
+      expect(fetchFn).toHaveBeenCalledOnce()
+      expect(second.container.getLayer('ground')).toBeDefined()
+    } finally {
+      await Assets.unload(src)
+      extensions.remove(tiledMapLoader)
+    }
+  })
+
+  it('destroys the current container on unload without rebuilding a destroyed one', async () => {
+    const asset = await loadTiledMapAsset('maps/cached.tmj', loadOptions())
+    const container = asset.container
+
+    await tiledMapLoader.unload?.(asset)
+
+    expect(container.destroyed).toBe(true)
+
+    await tiledMapLoader.unload?.(asset)
+    expect(asset.container).not.toBe(container)
   })
 })

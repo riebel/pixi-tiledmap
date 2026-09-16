@@ -35,8 +35,16 @@ export interface TiledAssetPipelineOptions {
 
 export interface TiledMapAsset {
   mapData: ResolvedMap
+  /**
+   * The rendered map. PixiJS caches loaded assets, so every `Assets.load` of
+   * the same URL returns this same container. Once it has been destroyed, the
+   * next read builds a fresh one from `mapData` and the already loaded textures.
+   */
   container: TiledMap
 }
+
+/** The container an asset currently holds, read without rebuilding a destroyed one. */
+const currentContainers = new WeakMap<TiledMapAsset, () => TiledMap>()
 
 interface TextureManifestEntry {
   source: string
@@ -117,6 +125,11 @@ export const tiledMapLoader: LoaderParser<TiledMapAsset, TiledAssetPipelineOptio
 
   async load(url, resolvedAsset): Promise<TiledMapAsset> {
     return loadTiledMapAsset(url, resolvedAsset?.data)
+  },
+
+  unload(asset): void {
+    // Textures stay: they are separate Assets cache entries other maps may share.
+    currentContainers.get(asset)?.().destroy()
   }
 }
 
@@ -131,16 +144,27 @@ export async function loadTiledMapAsset(
   const { externalTilesets, templates } = await fetchMapDependencies(data, basePath, fetchFn)
   const mapData = await parseMapAsync(data, { externalTilesets, templates })
   const textures = await loadTextureManifest(collectTextureManifest(mapData, basePath), loadAsset)
-  const container = new TiledMap(mapData, {
+  const mapOptions: TiledMapOptions = {
     ...options?.mapOptions,
     tilesetTextures: textures.tilesetTextures,
     imageLayerTextures: textures.imageLayerTextures,
     tileImageTextures: textures.tileImageTextures,
     tileImageGifSources: textures.tileImageGifSources,
     imageLayerGifSources: textures.imageLayerGifSources
-  })
+  }
+  let container = new TiledMap(mapData, mapOptions)
 
-  return { mapData, container }
+  // The asset outlives any one container: the Assets cache hands this object
+  // back on every load, including after the caller destroyed the container.
+  const asset: TiledMapAsset = {
+    mapData,
+    get container(): TiledMap {
+      if (container.destroyed) container = new TiledMap(mapData, mapOptions)
+      return container
+    }
+  }
+  currentContainers.set(asset, () => container)
+  return asset
 }
 
 async function fetchTiledMapData(url: string, fetchFn: FetchFn): Promise<TiledMapData> {
