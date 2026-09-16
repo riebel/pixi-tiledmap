@@ -12,7 +12,11 @@ the tests that use `dist/` always see the current output without a redundant
 second build: the MagicLand visual regression, and
 `test/package/treeShaking.test.ts`, which bundles single imports from the built
 package and fails if the parser, export, procedural, lookup, or geometry APIs
-pull in PixiJS.
+pull in PixiJS, and `test/package/publishedTypes.test.ts`, which installs the
+files `npm pack` would publish into a scratch consumer and type-checks it for
+`nodenext`, `node16`, and `bundler` resolution. The declarations are emitted by
+TypeScript's native compiler, whose tsdown integration is still experimental,
+so that test pins them against silent changes.
 
 ## Fallow
 

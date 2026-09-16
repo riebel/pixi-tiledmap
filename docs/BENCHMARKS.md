@@ -19,6 +19,8 @@ Absolute numbers depend heavily on the machine and its current load. Compare a c
 
 Investigate changes that consistently move a benchmark by more than about 15-20% without an intentional renderer tradeoff.
 
+Vitest runs the benchmarks through Vite's module runner, which turns every imported binding into a getter. Some groups therefore report that they ["accessed module export getters too many times"](https://vitest.dev/guide/benchmarking#module-runner-overhead): part of the measured time is that getter overhead, for example on `tileToPixel`, not renderer work. It is the same for both sides of a same-session comparison, but it narrows the gap between a real change and noise, and it makes numbers from a different Vitest version or module layout hard to compare. Treat small differences, such as the few percent between PixiJS releases, with that in mind.
+
 ## Current Smoke Baseline
 
 Recorded on September 16, 2026 for `2.9.0` with PixiJS `8.20.1` and Vitest `5.0.1`, jsdom, on the local development machine. Higher is better.
