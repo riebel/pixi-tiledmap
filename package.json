@@ -61,6 +61,13 @@
     "url": "https://github.com/riebel/pixi-tiledmap/issues"
   },
   "homepage": "https://github.com/riebel/pixi-tiledmap#readme",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^22.22.2 || ^24.15.0 || >=26.0.0",
+      "onFail": "warn"
+    }
+  },
   "peerDependencies": {
     "pixi.js": ">=8.7.0"
   },

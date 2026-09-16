@@ -454,6 +454,8 @@ firstgid-space, preserving flip flags.
 
 ## Development
 
+Working on the library needs Node `^22.22.2`, `^24.15.0`, or `>=26`, the range the build and test tooling supports. `.node-version` selects Node 22 for version managers, and `devEngines` makes npm warn on an unsupported version. Using the published package has no Node requirement beyond the [requirements](#requirements) above.
+
 ```sh
 npm install
 npm run build        # ESM + CJS + types via tsdown
