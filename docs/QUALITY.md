@@ -37,7 +37,21 @@ Never refresh a baseline merely to make a failing gate green. Fix a regression
 when practical; otherwise document why accepting that specific finding is the
 safer choice in the change that updates the baseline.
 
-The current health baseline retains a small set of known complexity findings,
-including performance-sensitive tile editing and existing large test helpers.
-The current dead-code baseline is empty, and the previous renderer import cycle
-has been removed.
+## Accepted findings
+
+The dead-code and duplication baselines are empty. The health baseline accepts
+these findings on purpose:
+
+- `TileLayerRenderer.setTile`, `TileLayerRenderer._findCell`, and
+  `PackedTileLayerRenderer.updatePackedTile` are renderer hot paths. They stay
+  as plain branches and loops because splitting them costs allocations or calls
+  per edited tile; see [`BENCHMARKS.md`](BENCHMARKS.md).
+- `findChrome` in the MagicLand visual test and one helper in the tile editing
+  stress test are test infrastructure.
+- The refactoring targets `src/resolvedTile.ts` and `src/parser/xmlHelpers.ts`
+  are flagged for their number of importers, not their size. Both are small,
+  single-purpose modules, and splitting them would add dependencies rather
+  than remove them.
+
+Churn hotspots are also reported. They are derived from Git history and are
+not a code finding to fix.

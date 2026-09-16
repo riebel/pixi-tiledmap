@@ -1,51 +1,39 @@
-# pixi-tiledmap v2 [![NPM version][npm-image]][npm-url]
+# pixi-tiledmap [![NPM version][npm-image]][npm-url]
 
-Load and render [Tiled Map Editor](http://www.mapeditor.org/) maps with [PixiJS v8](https://pixijs.com/).
+Load, render, edit, generate, and export [Tiled Map Editor](https://www.mapeditor.org/) maps with [PixiJS v8](https://pixijs.com/).
 
-**v2** is a ground-up rewrite targeting PixiJS v8, with its own Tiled JSON and TMX XML parser (no external deps), full layer-type support, typed API, and ESM/CJS dual output.
+The library ships its own Tiled JSON and TMX XML parser with no runtime dependencies, supports every layer type and map orientation, and is fully typed.
 
 ## Features
 
-- **PixiJS v8** - uses the modern `Assets` / `LoadParser` extension system
+- **PixiJS v8** - integrates through the `Assets` / `LoadParser` extension system
 - **Tiled JSON + TMX XML** - full spec coverage (Tiled 1.11), both `.tmj` and `.tmx` formats
 - **All layer types** - tile, image, object, and group layers
 - **All orientations** - orthogonal, isometric, staggered, hexagonal
 - **Render order** - right-down, right-up, left-down, left-up
 - **Infinite maps** - chunk-based tile layer rendering
 - **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source and alpha, with large source-inspired batches and no external tilemap dependency
-- **Incremental tile edits** - same-atlas runtime tile edits update packed mesh buffers in place, painting into empty cells reuses freed quad slots or grows batch capacity instead of rebuilding, and the remaining structural changes safely rebuild the affected tile layer
+- **Incremental tile edits** - runtime tile edits update packed mesh buffers in place, and painting into empty cells reuses freed quad slots or grows batch capacity; edits that cannot be written in place rebuild the affected tile layer
 - **Tile features** - animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, runtime tile alpha, `tilerendersize` / `fillmode`
 - **Object rendering** - rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects
 - **Object templates** - automatic `.tx` / `.tj` resolution with gid remapping between template and map tileset spaces
 - **Parallax scrolling** - per-layer `parallaxx` / `parallaxy` and map-level `parallaxorigin`, composed multiplicatively through group layers, applied via `TiledMap.applyParallax(cameraX, cameraY)`
 - **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
+- **Asset lifecycle** - loaded maps follow the PixiJS `Assets` cache: `Assets.unload` destroys the map, and a destroyed map is rebuilt on the next load
 - **External tilesets** - automatic resolution via the asset loader (`.tsj` and `.tsx`)
 - **Runtime editing and generation** - edit loaded maps in place or create resolved maps procedurally, with tile objects taking the same friendly tile input as tile layer cells
 - **Map export** - `exportMap` writes a resolved map back to Tiled JSON and `exportTileset` writes a standalone `.tsj`, so a generated map opens in Tiled; parsing an exported map reproduces the same map exactly
 - **Map introspection** - `findLayer`, `getProperty`, and `tileAt` (point to tile cell, every orientation) work on the resolved map without a renderer, free of PixiJS and the DOM
 - **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
-- **Tree-shakable** - ESM + CJS dual build, side-effect-free
+- **Tree-shakable** - ESM + CJS dual build with bundled types, marked side-effect-free
 - **Typed** - comprehensive TypeScript types for the full Tiled spec
 
 > **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported - the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour.
 
-## Modernization Check (v2.0.0)
+## Requirements
 
-v2.0.0 is modernized for the current PixiJS ecosystem and modern TypeScript package distribution:
-
-- Targets **PixiJS v8** via `peerDependencies` (`pixi.js: >=8.7.0`)
-- Ships **ESM + CJS + TypeScript types** through the `exports` map (`import` + `require`)
-- Uses **native LoadParser integration** (`tiledMapLoader`) instead of legacy global loader APIs
-- Declares **side-effect-free** package metadata (`"sideEffects": false`) for tree-shaking
-- Uses a modern toolchain (`typescript`, `biome`, `vitest`, `tsdown`)
-
-## Why this package stands out
-
-- **Complete Tiled coverage in one package**: JSON + TMX, all layer types, all map orientations.
-- **PixiJS-native loading path**: register once via `extensions.add(tiledMapLoader)` and load maps through `Assets`.
-- **Performance-minded internals**: batchable packed mesh-backed tile layers, cached quad indices, partial packed mesh updates for same-atlas/same-alpha tile edits, chunked infinite-layer traversal, cached tile textures, and efficient GID→tileset resolution.
-- **Composable renderer pipeline**: layer filtering, parallax, tile visuals, and texture loading are factored so manual and loader-based usage share the same rendering behavior.
-- **Production packaging**: side-effect-free metadata, ESM/CJS dual output, and bundled type definitions.
+- `pixi.js` `>=8.7.0` as a peer dependency
+- A runtime with the Compression Streams API for gzip/zlib tile data (`parseMapAsync`); every current browser and Node 18+ provides it
 
 ## Internal Model
 
@@ -71,9 +59,8 @@ If you want the best runtime behavior in your game/application:
 - Keep large worlds in infinite/chunked maps to avoid over-allocating one giant layer.
 - Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
 - Keep the default `tileMeshBatchSize` unless you are profiling a GPU/driver that prefers smaller meshes; the default keeps packed meshes below 16-bit index limits while reducing render object count.
-- Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are usually `Mesh` children now, not one `Sprite` per tile.
-- Run `npm run bench` before and after renderer hot-path changes if you maintain a fork.
-- `npm test` includes a headless MagicLand visual regression that renders a real TMX + GIF tileset fixture and pixel-compares it against a checked-in reference image.
+- Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are packed into `Mesh` children, not one `Sprite` per tile.
+- Do not add your own display objects to a `TileLayerRenderer`: a layer rebuild destroys all of its children. Place sprites that move between layers (such as the player) in a separate container instead.
 
 ## Installation
 
@@ -107,10 +94,11 @@ app.stage.addChild(container);
 
 > PixiJS caches loaded assets, so loading the same map URL again returns the
 > **same** `container`, not a copy. To render one map twice (for example below
-> and above the player), construct separate `TiledMap`s with `layerFilter`
-> as shown under the overhead-layer example below. After the container has been destroyed, the next
-> `Assets.load` hands back a freshly built one. `Assets.unload(url)` destroys
-> the current container.
+> and above the player), construct separate `TiledMap`s with `layerFilter`, as
+> shown in the [`TiledMap` container](#tiledmap-container) section. Once the
+> container has been destroyed, the next `Assets.load` returns a freshly built
+> one from the cached map data and textures. `Assets.unload(url)` destroys the
+> current container and leaves the textures to the `Assets` cache.
 
 Renderer options can be supplied through Pixi's asset metadata:
 
@@ -183,16 +171,16 @@ map.setTile('chests', 12, 8, { tileset: 'dungeon', tileId: save.chestOpen ? 5 : 
 
 For static packed tiles, edits that stay on the same texture source and alpha group update the existing packed mesh geometry buffers in place. Unchanged rect/UV edits skip buffer uploads.
 
-Painting a static tile into a previously empty cell is also incremental: clearing a tile degenerates its quad and returns that slot to the layer, and a later insert reuses a freed slot before it grows batch capacity geometrically. Repeated clear/set cycles therefore reuse existing capacity and leave mesh count and buffer size unchanged. This applies to orthogonal maps whose tile quads stay inside their own grid cell, which is the common case; the renderer verifies that per tile. The default sub-pixel `tileSpritePadding` seam is allowed; a padding large enough to overlap neighbours visibly is not.
+Painting a static tile into an empty cell is incremental as well: clearing a tile degenerates its quad and returns that slot to the layer, and a later insert reuses a freed slot before it grows batch capacity geometrically. Repeated clear/set cycles therefore reuse existing capacity and leave mesh count and buffer size unchanged. This applies to orthogonal maps whose tile quads stay inside their own grid cell, which is the common case; the renderer verifies that per tile. The default sub-pixel `tileSpritePadding` seam is allowed; a padding large enough to overlap neighbours visibly is not.
 
-The following edits still rebuild the affected tile layer, because their result cannot be reproduced by writing a single quad in place:
+The following edits rebuild the affected tile layer, because their result cannot be reproduced by writing a single quad in place:
 
 - inserting into a cell of an isometric, staggered, or hexagonal map, or of any layer whose tiles overhang their grid cell (via `tileoffset`, a tile larger than the grid, or a `tileSpritePadding` above `0.125`px), where the draw order of overlapping quads is significant
 - switching an existing tile to a different texture source or alpha group
 - changing between packed tiles and sprite-backed tiles such as animated tiles or GIFs
 - inserting a tile whose tileset texture is not available
 
-See `docs/BENCHMARKS.md` for measured before/after figures.
+See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) for how incremental editing works and what it costs.
 
 Use `createMap` for generated maps. It returns the same resolved map shape as `parseMap`, so the rendered result supports the same editing API:
 
@@ -314,7 +302,7 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | --------------------- | ---------------------------------------------------------------- |
 | `tiledMapLoader`      | PixiJS `LoadParser` extension - register with `extensions.add()` |
 | `loadTiledMapAsset(url, options?)` | Load, resolve, texture, and render a TMJ/TMX map with optional renderer settings |
-| `TiledMapAsset`       | Loaded `mapData` plus a strongly typed `TiledMap` container      |
+| `TiledMapAsset`       | Loaded `mapData` plus a `TiledMap` container, rebuilt after `destroy` |
 | `TiledMap`            | `Container` subclass that renders a resolved map                 |
 | `TileLayerRenderer`   | Packed mesh-backed `Container` for a single tile layer           |
 | `ImageLayerRenderer`  | `Container` for a single image layer                             |
@@ -328,8 +316,8 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `createImageLayer(options)` | Create a resolved image layer                              |
 | `createObjectLayer(options, tilesets?)` | Create a resolved object layer               |
 | `createGroupLayer(options, tilesets?)` | Create a resolved group layer                  |
-| `parseMap(data)`      | Synchronous Tiled JSON → resolved IR                             |
-| `parseMapAsync(data)` | Async variant (required for gzip/zlib compressed data)           |
+| `parseMap(data, options?)` | Synchronous Tiled JSON → resolved IR; `options` supplies external tilesets and templates |
+| `parseMapAsync(data, options?)` | Async variant (required for gzip/zlib compressed data)   |
 | `parseTmx(xml)`       | Parse TMX XML string → `TiledMap` data (same shape as JSON)      |
 | `parseTsx(xml)`       | Parse TSX XML string → `TiledTilesetFile` data                   |
 | `parseTx(xml)`        | Parse TX XML string → `TiledObjectTemplate` data                 |
@@ -433,7 +421,7 @@ const mapData = parseMap(data, { externalTilesets, templates });
 
 Template-instance merging follows Tiled semantics: the template's object
 fields are the base, and the instance overrides any field it explicitly
-sets (name, type, size, properties, gid, shape). If the template carries
+sets (name, type, size, properties, text, gid, and shape). If the template carries
 an external-tileset reference whose `source` also exists in the map,
 `gid` is translated from the template firstgid-space to the map
 firstgid-space, preserving flip flags.
@@ -458,9 +446,13 @@ npm run check        # Biome lint + format
 npm run typecheck    # tsc --noEmit
 npm test             # Build, Vitest, and MagicLand visual regression
 npm run bench        # renderer hot-path benchmarks
+npm run quality:gate # check + typecheck + test, then the Fallow regression gate
 ```
 
-Benchmark guidance and the current smoke baseline live in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+`npm test` includes a headless MagicLand visual regression that renders a real TMX + GIF tileset fixture and pixel-compares it against a checked-in reference image.
 
-[npm-url]: https://npmjs.org/package/pixi-tiledmap
-[npm-image]: http://img.shields.io/npm/v/pixi-tiledmap.svg?style=flat
+- [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) - benchmark usage, the current smoke baseline, and how packed tile editing works
+- [`docs/QUALITY.md`](docs/QUALITY.md) - the release quality gate and the Fallow baselines
+
+[npm-url]: https://www.npmjs.com/package/pixi-tiledmap
+[npm-image]: https://img.shields.io/npm/v/pixi-tiledmap.svg?style=flat
