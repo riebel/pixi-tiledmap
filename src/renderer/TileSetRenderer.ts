@@ -100,12 +100,7 @@ export class TileSetRenderer {
    */
   getRenderWidth(localId: number, ctx: MapContext): number {
     this._ensureRenderCache(ctx)
-    const cached = this._renderWidthCache!.get(localId)
-    if (cached !== undefined) return cached
-    const size = this._computeRenderSize(localId, ctx)
-    this._renderWidthCache!.set(localId, size.width)
-    this._renderHeightCache!.set(localId, size.height)
-    return size.width
+    return this._renderWidthCache!.get(localId) ?? this._cacheRenderSize(localId, ctx).width
   }
 
   /**
@@ -113,12 +108,7 @@ export class TileSetRenderer {
    */
   getRenderHeight(localId: number, ctx: MapContext): number {
     this._ensureRenderCache(ctx)
-    const cached = this._renderHeightCache!.get(localId)
-    if (cached !== undefined) return cached
-    const size = this._computeRenderSize(localId, ctx)
-    this._renderWidthCache!.set(localId, size.width)
-    this._renderHeightCache!.set(localId, size.height)
-    return size.height
+    return this._renderHeightCache!.get(localId) ?? this._cacheRenderSize(localId, ctx).height
   }
 
   private _ensureRenderCache(ctx: MapContext): void {
@@ -133,6 +123,13 @@ export class TileSetRenderer {
     this._renderHeightCache = new Map()
     this._cachedCtxTileWidth = ctx.tilewidth
     this._cachedCtxTileHeight = ctx.tileheight
+  }
+
+  private _cacheRenderSize(localId: number, ctx: MapContext): { width: number; height: number } {
+    const size = this._computeRenderSize(localId, ctx)
+    this._renderWidthCache!.set(localId, size.width)
+    this._renderHeightCache!.set(localId, size.height)
+    return size
   }
 
   private _computeRenderSize(localId: number, ctx: MapContext): { width: number; height: number } {

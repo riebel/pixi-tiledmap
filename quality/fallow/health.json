@@ -36,11 +36,6 @@
         "count": 1
       }
     },
-    "src/renderer/layerTreeRenderer.ts": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
     "test/renderer/magiclandVisual.test.ts": {
       "complexity_high": {
         "count": 1

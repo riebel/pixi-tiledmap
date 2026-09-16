@@ -18,14 +18,10 @@ import type {
   ResolvedTileLayer,
   ResolvedTileset,
   TiledDrawOrder,
-  TiledFillMode,
-  TiledObjectAlignment,
   TiledProperty,
   TiledRenderOrder,
   TiledTileDefinition,
-  TiledTileInput,
-  TiledTileOffset,
-  TiledTileRenderSize
+  TiledTileInput
 } from './types/index.js'
 
 export interface CreateMapOptions {
@@ -46,25 +42,28 @@ export interface CreateMapOptions {
   tiledversion?: string
 }
 
-export interface CreateTilesetOptions {
-  name: string
-  firstgid?: number
-  source?: string
-  tilewidth: number
-  tileheight: number
-  columns?: number
-  tilecount: number
-  margin?: number
-  spacing?: number
-  image?: string
-  imagewidth?: number
-  imageheight?: number
-  tileoffset?: TiledTileOffset
-  objectalignment?: TiledObjectAlignment
-  tilerendersize?: TiledTileRenderSize
-  fillmode?: TiledFillMode
+/** A `ResolvedTileset` with its defaultable fields optional; `tiles` also accepts an array. */
+export interface CreateTilesetOptions
+  extends Pick<ResolvedTileset, 'name' | 'tilewidth' | 'tileheight' | 'tilecount'>,
+    Partial<
+      Pick<
+        ResolvedTileset,
+        | 'firstgid'
+        | 'source'
+        | 'columns'
+        | 'margin'
+        | 'spacing'
+        | 'image'
+        | 'imagewidth'
+        | 'imageheight'
+        | 'tileoffset'
+        | 'objectalignment'
+        | 'tilerendersize'
+        | 'fillmode'
+        | 'properties'
+      >
+    > {
   tiles?: TiledTileDefinition[] | Map<number, TiledTileDefinition>
-  properties?: TiledProperty[]
 }
 
 export type CreateLayerOptions =

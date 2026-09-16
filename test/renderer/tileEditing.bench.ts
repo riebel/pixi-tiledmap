@@ -65,6 +65,24 @@ function newRenderer(size: number, empty: boolean) {
   return new TileLayerRenderer(empty ? emptyLayer(size) : fullLayer(size), [tileset], ctx)
 }
 
+function randomInserts(count: number, size: number, seed: number): void {
+  const renderer = newRenderer(size, true)
+  const rng = makeRng(seed)
+  for (let i = 0; i < count; i++) {
+    renderer.setTile(Math.floor(rng() * size), Math.floor(rng() * size), makeResolvedTile())
+  }
+  renderer.destroy({ children: true })
+}
+
+/** 1000 writes alternating between two alpha groups, one per packed batch. */
+function alternatingAlphaWrites(size: number, empty: boolean): void {
+  const renderer = newRenderer(size, empty)
+  for (let i = 0; i < 1000; i++) {
+    renderer.setTile(i % size, Math.floor(i / size), makeResolvedTile({ alpha: i % 2 ? 0.5 : 1 }))
+  }
+  renderer.destroy({ children: true })
+}
+
 describe('single insert into an empty cell', () => {
   for (const size of [32, 256, 512]) {
     bench(`${size}x${size} empty layer, 1 insert`, () => {
@@ -97,12 +115,7 @@ describe('bulk inserts into empty cells', () => {
   })
 
   bench('10000 seeded random inserts into a 512x512 empty layer', () => {
-    const renderer = newRenderer(512, true)
-    const rng = makeRng(0x51ee)
-    for (let i = 0; i < 10_000; i++) {
-      renderer.setTile(Math.floor(rng() * 512), Math.floor(rng() * 512), makeResolvedTile())
-    }
-    renderer.destroy({ children: true })
+    randomInserts(10_000, 512, 0x51ee)
   })
 })
 
@@ -129,11 +142,7 @@ describe('updates of existing tiles', () => {
   })
 
   bench('1000 incompatible alpha updates in a 64x64 dense layer (rebuild fallback)', () => {
-    const renderer = newRenderer(64, false)
-    for (let i = 0; i < 1000; i++) {
-      renderer.setTile(i % 64, Math.floor(i / 64), makeResolvedTile({ alpha: i % 2 ? 0.5 : 1 }))
-    }
-    renderer.destroy({ children: true })
+    alternatingAlphaWrites(64, false)
   })
 })
 
@@ -152,12 +161,7 @@ describe('clear/set cycles', () => {
 
 describe('occupancy variants', () => {
   bench('1000 inserts into a sparse 512x512 layer', () => {
-    const renderer = newRenderer(512, true)
-    const rng = makeRng(0x5a2e)
-    for (let i = 0; i < 1000; i++) {
-      renderer.setTile(Math.floor(rng() * 512), Math.floor(rng() * 512), makeResolvedTile())
-    }
-    renderer.destroy({ children: true })
+    randomInserts(1000, 512, 0x5a2e)
   })
 
   bench('1000 inserts across multiple texture sources', () => {
@@ -176,11 +180,7 @@ describe('occupancy variants', () => {
   })
 
   bench('1000 inserts across multiple alpha groups', () => {
-    const renderer = newRenderer(64, true)
-    for (let i = 0; i < 1000; i++) {
-      renderer.setTile(i % 64, Math.floor(i / 64), makeResolvedTile({ alpha: i % 2 ? 0.5 : 1 }))
-    }
-    renderer.destroy({ children: true })
+    alternatingAlphaWrites(64, true)
   })
 })
 
