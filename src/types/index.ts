@@ -7,7 +7,7 @@ import type { GifSource } from 'pixi.js/gif'
 
 // ─── Enums / String Unions ───────────────────────────────────────────────────
 
-export type TiledOrientation = 'orthogonal' | 'isometric' | 'staggered' | 'hexagonal'
+export type TiledOrientation = 'orthogonal' | 'isometric' | 'staggered' | 'hexagonal' | 'oblique'
 
 export type TiledRenderOrder = 'right-down' | 'right-up' | 'left-down' | 'left-up'
 
@@ -686,6 +686,10 @@ export interface MapContext {
   hexsidelength?: number
   staggeraxis?: TiledStaggerAxis
   staggerindex?: TiledStaggerIndex
+  skewx?: number
+  skewy?: number
+  /** Map height in tiles; places Tiled's screen origin on isometric maps. */
+  mapHeight?: number
   /** Map width in pixels; used by image layers when tiling (repeatx/repeaty). */
   mapPixelWidth?: number
   /** Map height in pixels; used by image layers when tiling (repeatx/repeaty). */

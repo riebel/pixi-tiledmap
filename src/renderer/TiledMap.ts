@@ -16,8 +16,8 @@ import {
   type TileLayerIndex
 } from './layerTreeLookup.js'
 import { applyParallaxToLayerTree, renderLayerTree } from './layerTreeRenderer.js'
-import { computeMapPixelSize } from './mapSize.js'
-import { parseTintColor } from './parseColor.js'
+import { computeMapBounds, type MapBounds } from './mapGeometry.js'
+import { parseColorWithAlpha } from './parseColor.js'
 import type { TileLayerRenderer } from './TileLayerRenderer.js'
 import { TileSetRenderer } from './TileSetRenderer.js'
 
@@ -43,7 +43,7 @@ export class TiledMap extends Container {
     this.mapData = mapData
     this.label = 'TiledMap'
 
-    const pixelSize = computeMapPixelSize(mapData)
+    const bounds = computeMapBounds(mapData)
 
     // Force local bounds to the logical map size. Without this, pixi's
     // .width/.height setters (and getLocalBounds) would use the extent of
@@ -51,17 +51,17 @@ export class TiledMap extends Container {
     // top/left rows (bounds.minY > 0, causing content to overflow the
     // canvas when scaling via `.height = ...`) or when tall decoration
     // tiles extend beyond the grid.
-    this.boundsArea = new Rectangle(0, 0, pixelSize.width, pixelSize.height)
+    this.boundsArea = new Rectangle(bounds.x, bounds.y, bounds.width, bounds.height)
 
     this.tileSetRenderers = createTileSetRenderers(mapData, options)
 
     if (mapData.backgroundcolor) {
-      this._buildBackground(pixelSize.width, pixelSize.height, mapData.backgroundcolor)
+      this._buildBackground(bounds, mapData.backgroundcolor)
     }
 
     const renderedLayers = renderLayerTree(mapData.layers, {
       tilesets: this.tileSetRenderers,
-      mapContext: createMapContext(mapData, pixelSize, options),
+      mapContext: createMapContext(mapData, bounds, options),
       imageTextures: options?.imageLayerTextures ?? new Map(),
       imageGifSources: options?.imageLayerGifSources ?? new Map(),
       layerFilter: options?.layerFilter
@@ -124,9 +124,11 @@ export class TiledMap extends Container {
     applyParallaxToLayerTree(this.children, cameraX, cameraY, ox, oy)
   }
 
-  private _buildBackground(pixelWidth: number, pixelHeight: number, colorHex: string): void {
-    const color = parseTintColor(colorHex)
-    this._background = new Graphics().rect(0, 0, pixelWidth, pixelHeight).fill(color)
+  private _buildBackground(bounds: MapBounds, colorHex: string): void {
+    const { color, alpha } = parseColorWithAlpha(colorHex)
+    this._background = new Graphics()
+      .rect(bounds.x, bounds.y, bounds.width, bounds.height)
+      .fill({ color, alpha })
     this._background.label = 'background'
     this.addChild(this._background)
   }
@@ -229,6 +231,9 @@ function createMapContext(
     hexsidelength: mapData.hexsidelength,
     staggeraxis: mapData.staggeraxis,
     staggerindex: mapData.staggerindex,
+    skewx: mapData.skewx,
+    skewy: mapData.skewy,
+    mapHeight: mapData.height,
     mapPixelWidth: pixelSize.width,
     mapPixelHeight: pixelSize.height,
     tileSpritePadding: options?.tileSpritePadding ?? 0.01,

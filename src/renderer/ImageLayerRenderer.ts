@@ -1,7 +1,8 @@
 import { Container, Sprite, type Texture, TilingSprite } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedImageLayer } from '../types'
-import { applyLayerState } from './renderableLayer.js'
+import { getScreenOrigin } from './mapGeometry.js'
+import { applyLayerState, type RenderableLayer } from './renderableLayer.js'
 import { createGifSprite } from './tileSpriteFactory.js'
 
 export class ImageLayerRenderer extends Container {
@@ -17,7 +18,7 @@ export class ImageLayerRenderer extends Container {
     super()
 
     this.layerData = layerData
-    applyLayerState(this, layerData)
+    applyLayerState(this, layerData, ctx ? getScreenOrigin(ctx) : undefined)
 
     if (texture) {
       this._buildImage(texture, ctx, gifSource ?? null)
@@ -56,16 +57,14 @@ export class ImageLayerRenderer extends Container {
     const effectiveParallaxY = this.layerData.parallaxy * parentParallaxY
     const repeatsX = this.layerData.repeatx && this._tiledImage !== null
     const repeatsY = this.layerData.repeaty && this._tiledImage !== null
-    const layerX = this.layerData.offsetx + dx * (1 - effectiveParallaxX)
-    const layerY = this.layerData.offsety + dy * (1 - effectiveParallaxY)
+    const { layerBaseOffsetX: baseX, layerBaseOffsetY: baseY } = this as unknown as RenderableLayer
+    const layerX = baseX + dx * (1 - effectiveParallaxX)
+    const layerY = baseY + dy * (1 - effectiveParallaxY)
 
     this.position.set(layerX, layerY)
 
     if (this._tiledImage) {
-      this._tiledImage.position.set(
-        repeatsX ? this.layerData.offsetx - layerX : 0,
-        repeatsY ? this.layerData.offsety - layerY : 0
-      )
+      this._tiledImage.position.set(repeatsX ? baseX - layerX : 0, repeatsY ? baseY - layerY : 0)
       this._tiledImage.tilePosition.set(
         repeatsX ? -dx * effectiveParallaxX : 0,
         repeatsY ? -dy * effectiveParallaxY : 0

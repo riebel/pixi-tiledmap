@@ -9,6 +9,7 @@ import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
 import type { MapContext } from '../../src/types/index.js'
 import {
   makeResolvedGroupLayer,
+  makeResolvedImageLayer,
   makeResolvedMap,
   makeResolvedTile,
   makeResolvedTileLayer,
@@ -174,5 +175,41 @@ describe('tileSpritePadding', () => {
     const sprite = layer.children[0] as Sprite
     expect(sprite.width).toBe(32)
     expect(sprite.height).toBe(32)
+  })
+})
+
+describe('TiledMap map-space layout like Tiled', () => {
+  it('starts isometric bounds and background at the leftmost tile', () => {
+    const map = new TiledMap(
+      makeResolvedMap({
+        orientation: 'isometric',
+        width: 4,
+        height: 4,
+        tilewidth: 32,
+        tileheight: 16,
+        backgroundcolor: '#80112233'
+      })
+    )
+
+    expect(map.boundsArea).toMatchObject({ x: -48, y: 0, width: 128, height: 64 })
+    const background = map.getChildByLabel('background')!
+    const bounds = background.getLocalBounds()
+    expect(bounds).toMatchObject({ minX: -48, maxX: 80 })
+  })
+
+  it('places isometric image layers at the screen origin Tiled uses', () => {
+    const map = new TiledMap(
+      makeResolvedMap({
+        orientation: 'isometric',
+        width: 4,
+        height: 4,
+        tilewidth: 32,
+        tileheight: 16,
+        layers: [makeResolvedImageLayer({ name: 'sky', image: 'sky.png', offsetx: 5 })]
+      }),
+      { imageLayerTextures: new Map([['sky.png', Texture.WHITE]]) }
+    )
+
+    expect(map.getLayer('sky')!.position).toMatchObject({ x: -43, y: 0 })
   })
 })

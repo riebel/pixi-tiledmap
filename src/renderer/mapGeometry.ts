@@ -19,28 +19,127 @@ export interface TileIterationPlan {
 const _pos: TilePosition = { x: 0, y: 0 }
 
 export function computeMapPixelSize(mapData: ResolvedMap): MapPixelSize {
-  const { orientation, width, height, tilewidth, tileheight, staggeraxis } = mapData
+  const bounds = computeMapBounds(mapData)
+  return { width: bounds.width, height: bounds.height }
+}
+
+export interface MapBounds extends MapPixelSize {
+  x: number
+  y: number
+}
+
+/**
+ * The rectangle a map's grid covers in map space, following Tiled's renderers.
+ * It starts at the origin except where the grid extends past it: isometric
+ * maps reach left of it, and oblique maps with a negative skew reach left of
+ * or above it.
+ */
+export function computeMapBounds(mapData: ResolvedMap): MapBounds {
+  const { orientation, width, height, tilewidth, tileheight } = mapData
 
   switch (orientation) {
     case 'isometric':
       return {
+        x: getScreenOrigin({ orientation, tilewidth, mapHeight: height }).x,
+        y: 0,
         width: (width + height) * (tilewidth / 2),
         height: (width + height) * (tileheight / 2)
       }
     case 'staggered':
     case 'hexagonal':
-      return staggeraxis === 'x'
-        ? {
-            width: (width + 1) * (tilewidth / 2),
-            height: height * tileheight + tileheight / 2
-          }
-        : {
-            width: width * tilewidth + tilewidth / 2,
-            height: (height + 1) * (tileheight / 2)
-          }
+      return { x: 0, y: 0, ...staggeredMapSize(mapData) }
+    case 'oblique':
+      return obliqueMapBounds(mapData)
     default:
-      return { width: width * tilewidth, height: height * tileheight }
+      return { x: 0, y: 0, width: width * tilewidth, height: height * tileheight }
   }
+}
+
+/** Tiled's `HexagonalRenderer::boundingRect`, which also serves staggered maps. */
+function staggeredMapSize(mapData: ResolvedMap): MapPixelSize {
+  const { width, height, tilewidth, tileheight } = mapData
+  const side = mapData.orientation === 'hexagonal' ? (mapData.hexsidelength ?? 0) : 0
+
+  if (mapData.staggeraxis === 'x') {
+    const sideOffsetX = (tilewidth - side) / 2
+    return {
+      width: width * (sideOffsetX + side) + sideOffsetX,
+      height: height * tileheight + (width > 1 ? tileheight / 2 : 0)
+    }
+  }
+
+  const sideOffsetY = (tileheight - side) / 2
+  return {
+    width: width * tilewidth + (height > 1 ? tilewidth / 2 : 0),
+    height: height * (sideOffsetY + side) + sideOffsetY
+  }
+}
+
+function obliqueMapBounds(mapData: ResolvedMap): MapBounds {
+  const w = mapData.width * mapData.tilewidth
+  const h = mapData.height * mapData.tileheight
+  const shearX = obliqueShearX(mapData)
+  const shearY = obliqueShearY(mapData)
+  const xs = [0, w, h * shearX, w + h * shearX]
+  const ys = [0, w * shearY, h, w * shearY + h]
+  const x = Math.min(...xs)
+  const y = Math.min(...ys)
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
+}
+
+function obliqueShearX(ctx: Pick<MapContext, 'skewx' | 'tileheight'>): number {
+  return ctx.tileheight > 0 ? (ctx.skewx ?? 0) / ctx.tileheight : 0
+}
+
+function obliqueShearY(ctx: Pick<MapContext, 'skewy' | 'tilewidth'>): number {
+  return ctx.tilewidth > 0 ? (ctx.skewy ?? 0) / ctx.tilewidth : 0
+}
+
+/** A 2D affine transform in PixiJS `Matrix` order: x' = a*x + c*y + tx. */
+export interface AffineTransform {
+  a: number
+  b: number
+  c: number
+  d: number
+  tx: number
+  ty: number
+}
+
+/**
+ * Maps object coordinates, which Tiled stores unprojected, into map space:
+ * Tiled's `pixelToScreenCoords`. Only isometric and oblique maps project;
+ * every other orientation returns `null`.
+ *
+ * Tile and text objects only move their origin through this; shapes are drawn
+ * through it, so rectangles become diamonds on isometric maps.
+ */
+export function getObjectProjection(
+  ctx: Pick<MapContext, 'orientation' | 'tilewidth' | 'tileheight' | 'skewx' | 'skewy'>
+): AffineTransform | null {
+  if (ctx.orientation === 'isometric') {
+    if (ctx.tileheight <= 0) return null
+    const ratio = ctx.tilewidth / (2 * ctx.tileheight)
+    // Tile (0, 0) is drawn at x = 0 here, which puts the map's top corner - the
+    // object origin - at tilewidth / 2.
+    return { a: ratio, b: 0.5, c: -ratio, d: 0.5, tx: ctx.tilewidth / 2, ty: 0 }
+  }
+  if (ctx.orientation === 'oblique') {
+    return { a: 1, b: obliqueShearY(ctx), c: obliqueShearX(ctx), d: 1, tx: 0, ty: 0 }
+  }
+  return null
+}
+
+/**
+ * Where Tiled's screen origin lies in map space. Tiled shifts an isometric map
+ * right so its left corner sits at x = 0; this library keeps tile (0, 0) at
+ * x = 0 instead, so what Tiled places in screen space, such as image layers,
+ * moves left by the difference. Zero for every other orientation.
+ */
+export function getScreenOrigin(
+  ctx: Pick<MapContext, 'orientation' | 'tilewidth'> & { mapHeight?: number }
+): { x: number; y: number } {
+  if (ctx.orientation !== 'isometric' || !ctx.mapHeight) return { x: 0, y: 0 }
+  return { x: ctx.tilewidth / 2 - (ctx.mapHeight * ctx.tilewidth) / 2, y: 0 }
 }
 
 export function tileToPixel(col: number, row: number, ctx: MapContext): TilePosition {
@@ -60,6 +159,8 @@ export function tileToPixel(col: number, row: number, ctx: MapContext): TilePosi
       return staggeredToPixel(col, row, ctx)
     case 'hexagonal':
       return hexagonalToPixel(col, row, ctx)
+    case 'oblique':
+      return obliqueToPixel(col, row, ctx)
   }
 }
 
@@ -93,6 +194,21 @@ function computeCell(x: number, y: number, ctx: MapContext): TileCell {
     case 'staggered':
     case 'hexagonal':
       return staggeredPixelToTile(x, y, ctx)
+    case 'oblique':
+      return obliquePixelToTile(x, y, ctx)
+  }
+}
+
+/** Undo the shear, then read the orthogonal cell. */
+function obliquePixelToTile(x: number, y: number, ctx: MapContext): TileCell {
+  const shearX = obliqueShearX(ctx)
+  const shearY = obliqueShearY(ctx)
+  const det = 1 - shearX * shearY
+  const px = det !== 0 ? (x - shearX * y) / det : x
+  const py = det !== 0 ? (y - shearY * x) / det : y
+  return {
+    column: Math.floor(px / ctx.tilewidth),
+    row: Math.floor(py / ctx.tileheight)
   }
 }
 
@@ -244,7 +360,9 @@ export function tileAt(map: ResolvedMap, x: number, y: number): TileCell | null 
     tileheight: map.tileheight,
     hexsidelength: map.hexsidelength,
     staggeraxis: map.staggeraxis,
-    staggerindex: map.staggerindex
+    staggerindex: map.staggerindex,
+    skewx: map.skewx,
+    skewy: map.skewy
   })
 
   if (cell.column < 0 || cell.column >= map.width) return null
@@ -303,5 +421,18 @@ function hexagonalToPixel(col: number, row: number, ctx: MapContext): TilePositi
     _pos.x = col * ctx.tilewidth + (isStaggered ? ctx.tilewidth / 2 : 0)
     _pos.y = row * rowHeight
   }
+  return _pos
+}
+
+/**
+ * Tiled draws an oblique tile unsheared, with its bottom-left corner on the
+ * sheared cell's bottom-left corner. The tile renderers place a tile by the
+ * top-left of an unsheared, cell-high box, so return that point.
+ */
+function obliqueToPixel(col: number, row: number, ctx: MapContext): TilePosition {
+  const x = col * ctx.tilewidth
+  const bottom = (row + 1) * ctx.tileheight
+  _pos.x = x + obliqueShearX(ctx) * bottom
+  _pos.y = obliqueShearY(ctx) * x + bottom - ctx.tileheight
   return _pos
 }
