@@ -204,7 +204,8 @@ function parseTileDefinitions(
   if (tileEls.length === 0) return undefined
 
   return tileEls.map((t) => {
-    const img = parseImage(t)
+    // Tiled applies no color key to a single tile's image, so drop `trans`.
+    const { transparentcolor: _ignored, ...img } = parseImage(t)
     const terrainAttr = optStr(t, 'terrain')
     const terrain = terrainAttr
       ? terrainAttr.split(',').map((v) => (v === '' ? -1 : parseInt(v, 10)))

@@ -1,6 +1,7 @@
 import { Container, Sprite, type Texture, TilingSprite } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedImageLayer } from '../types'
+import { createColorKeyedTexture } from './colorKey.js'
 import { getScreenOrigin } from './mapGeometry.js'
 import { applyLayerState, type RenderableLayer } from './renderableLayer.js'
 import { createGifSprite } from './tileSpriteFactory.js'
@@ -8,6 +9,8 @@ import { createGifSprite } from './tileSpriteFactory.js'
 export class ImageLayerRenderer extends Container {
   readonly layerData: ResolvedImageLayer
   private _tiledImage: TilingSprite | null = null
+  /** The color-keyed copy of the image this layer made and must destroy. */
+  private _keyedTexture: Texture | null = null
 
   constructor(
     layerData: ResolvedImageLayer,
@@ -21,8 +24,19 @@ export class ImageLayerRenderer extends Container {
     applyLayerState(this, layerData, ctx ? getScreenOrigin(ctx) : undefined)
 
     if (texture) {
-      this._buildImage(texture, ctx, gifSource ?? null)
+      const keyed =
+        layerData.transparentcolor && !gifSource
+          ? createColorKeyedTexture(texture, layerData.transparentcolor)
+          : null
+      this._keyedTexture = keyed
+      this._buildImage(keyed ?? texture, ctx, gifSource ?? null)
     }
+  }
+
+  override destroy(options?: Parameters<Container['destroy']>[0]): void {
+    super.destroy(options)
+    this._keyedTexture?.destroy(true)
+    this._keyedTexture = null
   }
 
   private _buildImage(texture: Texture, ctx?: MapContext, gifSource?: GifSource | null): void {

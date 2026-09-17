@@ -206,6 +206,7 @@ function renderPixiShim(): string {
 export const AnimatedSprite = PIXI.AnimatedSprite;
 export const Application = PIXI.Application;
 export const Assets = PIXI.Assets;
+export const CanvasSource = PIXI.CanvasSource;
 export const Container = PIXI.Container;
 export const DOMAdapter = PIXI.DOMAdapter;
 export const ExtensionType = PIXI.ExtensionType;

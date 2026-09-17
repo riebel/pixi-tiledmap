@@ -1,6 +1,7 @@
 import { Rectangle, Texture } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../types'
+import { createColorKeyedTexture } from './colorKey.js'
 
 export class TileSetRenderer {
   readonly tileset: ResolvedTileset
@@ -17,9 +18,17 @@ export class TileSetRenderer {
   private _cachedCtxTileWidth = 0
   private _cachedCtxTileHeight = 0
 
+  /** The color-keyed copy of the atlas this renderer made and must destroy. */
+  private readonly _keyedBaseTexture: Texture | null = null
+
   constructor(tileset: ResolvedTileset, baseTexture: Texture | null) {
     this.tileset = tileset
-    this.baseTexture = baseTexture
+    const keyed =
+      baseTexture && tileset.transparentcolor
+        ? createColorKeyedTexture(baseTexture, tileset.transparentcolor)
+        : null
+    this._keyedBaseTexture = keyed
+    this.baseTexture = keyed ?? baseTexture
   }
 
   getTexture(localId: number): Texture | null {
@@ -185,6 +194,7 @@ export class TileSetRenderer {
     this._subTextures.clear()
     this._externalTextures.clear()
     this._gifSources.clear()
+    this._keyedBaseTexture?.destroy(true)
     this._renderWidthCache = null
     this._renderHeightCache = null
   }
