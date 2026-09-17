@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="pixi-tiledmap">
+  <title>pixi-tiledmap</title>
+  <rect x="4" y="4" width="24" height="24" rx="6" fill="#22d3ee" />
+  <rect x="36" y="4" width="24" height="24" rx="6" fill="#a78bfa" />
+  <rect x="4" y="36" width="24" height="24" rx="6" fill="#f472b6" />
+  <rect x="36" y="36" width="24" height="24" rx="6" fill="#fbbf24" />
+</svg>
