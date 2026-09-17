@@ -5,6 +5,8 @@ import type {
   TiledGridOrientation,
   TiledLayer,
   TiledObjectAlignment,
+  TiledProperty,
+  TiledPropertyValue,
   TiledTerrain,
   TiledTileDefinition,
   TiledTileOffset,
@@ -160,13 +162,35 @@ function parseWangSets(el: Element): TiledWangSet[] | undefined {
   })
 }
 
-function parseAnimation(el: Element): TiledFrame[] | undefined {
+function parseAnimation(el: Element, properties?: TiledProperty[]): TiledFrame[] | undefined {
   const animEl = child(el, 'animation')
-  if (!animEl) return undefined
+  if (!animEl) return properties ? parseLegacyAnimation(properties) : undefined
   return children(animEl, 'frame').map((f) => ({
     tileid: int(f, 'tileid'),
     duration: int(f, 'duration')
   }))
+}
+
+/**
+ * Tiled's TMX reader turns TMW/ManaPlus `animation-frameN` / `animation-delayN`
+ * properties into a tile animation, with delays in 10 ms units. Mirror that so
+ * such tilesets animate here as they do in the editor.
+ */
+function parseLegacyAnimation(properties: TiledProperty[]): TiledFrame[] | undefined {
+  const values = new Map(properties.map((p) => [p.name, p.value]))
+  const frames: TiledFrame[] = []
+  for (let i = 0; values.has(`animation-frame${i}`) && values.has(`animation-delay${i}`); i++) {
+    frames.push({
+      tileid: toInt(values.get(`animation-frame${i}`)),
+      duration: toInt(values.get(`animation-delay${i}`)) * 10
+    })
+  }
+  return frames.length > 0 ? frames : undefined
+}
+
+function toInt(value: TiledPropertyValue | undefined): number {
+  const n = parseInt(String(value), 10)
+  return Number.isNaN(n) ? 0 : n
 }
 
 function parseTileDefinitions(
@@ -185,6 +209,7 @@ function parseTileDefinitions(
 
     const ogEl = child(t, 'objectgroup')
     const objectgroup = ogEl && parseObjectGroup ? parseObjectGroup(ogEl) : undefined
+    const properties = parseProperties(t)
 
     return {
       id: int(t, 'id'),
@@ -194,8 +219,8 @@ function parseTileDefinitions(
       y: optInt(t, 'y'),
       width: optInt(t, 'width'),
       height: optInt(t, 'height'),
-      properties: parseProperties(t),
-      animation: parseAnimation(t),
+      properties,
+      animation: parseAnimation(t, properties),
       terrain,
       objectgroup,
       ...img

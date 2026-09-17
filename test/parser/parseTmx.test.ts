@@ -277,6 +277,65 @@ describe('parseTmx', () => {
     expect(tile0?.animation?.[2]).toEqual({ tileid: 2, duration: 200 })
   })
 
+  describe('TMW-style animation properties', () => {
+    const tsxWithTile = (tileXml: string) => `<?xml version="1.0" encoding="UTF-8"?>
+<tileset name="water" tilewidth="32" tileheight="32" tilecount="4" columns="2">
+  <image source="water.png" width="64" height="64"/>
+  <tile id="0">${tileXml}</tile>
+</tileset>`
+    const props = (entries: Record<string, string>) =>
+      `<properties>${Object.entries(entries)
+        .map(([name, value]) => `<property name="${name}" value="${value}"/>`)
+        .join('')}</properties>`
+
+    it('turns animation-frameN/animation-delayN into frames like Tiled does', () => {
+      const ts = parseTsx(
+        tsxWithTile(
+          props({
+            'animation-delay0': '50',
+            'animation-delay1': '20',
+            'animation-frame0': '0',
+            'animation-frame1': '3'
+          })
+        )
+      )
+      expect(ts.tiles?.[0]?.animation).toEqual([
+        { tileid: 0, duration: 500 },
+        { tileid: 3, duration: 200 }
+      ])
+    })
+
+    it('stops at the first frame without a matching delay', () => {
+      const ts = parseTsx(
+        tsxWithTile(
+          props({
+            'animation-frame0': '1',
+            'animation-delay0': '10',
+            'animation-frame1': '2',
+            'animation-frame2': '3',
+            'animation-delay2': '10'
+          })
+        )
+      )
+      expect(ts.tiles?.[0]?.animation).toEqual([{ tileid: 1, duration: 100 }])
+    })
+
+    it('leaves the tile static when the first frame has no delay', () => {
+      const ts = parseTsx(tsxWithTile(props({ 'animation-frame0': '1' })))
+      expect(ts.tiles?.[0]?.animation).toBeUndefined()
+    })
+
+    it('prefers an <animation> element over the properties', () => {
+      const ts = parseTsx(
+        tsxWithTile(
+          `${props({ 'animation-frame0': '1', 'animation-delay0': '10' })}
+          <animation><frame tileid="2" duration="70"/></animation>`
+        )
+      )
+      expect(ts.tiles?.[0]?.animation).toEqual([{ tileid: 2, duration: 70 }])
+    })
+  })
+
   it('parses infinite map with chunks', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" orientation="orthogonal" width="4" height="4"
