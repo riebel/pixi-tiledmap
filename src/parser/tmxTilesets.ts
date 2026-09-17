@@ -256,7 +256,11 @@ function parseTileDefinitions(
   if (tileEls.length === 0) return undefined
 
   return tileEls.map((t) => {
-    // Tiled applies no color key to a single tile's image, so drop `trans`.
+    // Tiled reads `trans` on a tile's own image into an `ImageReference`, but
+    // `ImageReference::create()` - the only thing `readTilesetTile` calls -
+    // ignores it, and `setTileImage` keeps just the pixmap and the source. The
+    // color key therefore never reaches a tile image, and Tiled drops it on the
+    // next save; TMJ has no field for it either. Dropped here to match.
     const { transparentcolor: _ignored, ...img } = parseImage(t)
     const terrainAttr = optStr(t, 'terrain')
     const terrain = terrainAttr
