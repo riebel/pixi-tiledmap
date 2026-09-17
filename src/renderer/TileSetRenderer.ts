@@ -3,6 +3,9 @@ import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../types'
 import { acquireColorKeyedTexture, releaseColorKeyedTexture } from './colorKey.js'
 
+/** Frame textures and durations of one animated tile, as `AnimatedSprite` takes them. */
+export type AnimationFrameTextures = { texture: Texture; time: number }[]
+
 export class TileSetRenderer {
   readonly tileset: ResolvedTileset
   readonly baseTexture: Texture | null
@@ -11,6 +14,8 @@ export class TileSetRenderer {
   /** Parts of supplied tile images; this renderer made them and destroys them. */
   private readonly _subTextures = new Map<number, Texture>()
   private readonly _gifSources = new Map<number, GifSource>()
+  /** Frame lists handed to animated tile visuals, built once per animated tile. */
+  private readonly _animationFrames = new Map<number, AnimationFrameTextures | null>()
   // Per-localId cached render dimensions (keyed by localId, value = width | height<<32
   // is not feasible for floats, so we use two parallel maps).
   private _renderWidthCache: Map<number, number> | null = null
@@ -66,6 +71,8 @@ export class TileSetRenderer {
    * (Tiled 1.9 tile `x`/`y`/`width`/`height`); that part is cut out here, once.
    */
   setTileTexture(localId: number, texture: Texture): void {
+    // A frame list may hold the texture this call replaces.
+    this._animationFrames.clear()
     this._subTextures.get(localId)?.destroy()
     this._subTextures.delete(localId)
 
@@ -92,6 +99,34 @@ export class TileSetRenderer {
 
   getAnimationFrames(localId: number): TiledTileDefinition['animation'] | undefined {
     return this.tileset.tiles.get(localId)?.animation
+  }
+
+  /**
+   * The frame textures and durations of an animated tile, in the shape
+   * PixiJS' `AnimatedSprite` takes, or `null` when the tile is not animated or
+   * a frame's texture is missing. Cached and shared: `AnimatedSprite` copies
+   * the list, so every instance of a tile can be handed the same one.
+   */
+  getAnimationFrameTextures(localId: number): AnimationFrameTextures | null {
+    const cached = this._animationFrames.get(localId)
+    if (cached !== undefined) return cached
+
+    const frames = this._buildAnimationFrameTextures(localId)
+    this._animationFrames.set(localId, frames)
+    return frames
+  }
+
+  private _buildAnimationFrameTextures(localId: number): AnimationFrameTextures | null {
+    const animation = this.getAnimationFrames(localId)
+    if (!animation || animation.length <= 1) return null
+
+    const frames: AnimationFrameTextures = []
+    for (const frame of animation) {
+      const texture = this.getTexture(frame.tileid)
+      if (!texture) return null
+      frames.push({ texture, time: frame.duration })
+    }
+    return frames
   }
 
   /**
@@ -198,6 +233,7 @@ export class TileSetRenderer {
     this._subTextures.clear()
     this._externalTextures.clear()
     this._gifSources.clear()
+    this._animationFrames.clear()
     this._renderWidthCache = null
     this._renderHeightCache = null
   }

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { BufferImageSource, Texture } from 'pixi.js'
+import { BufferImageSource, Texture, Ticker } from 'pixi.js'
 import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
 import type { MapContext, ResolvedChunk } from '../../src/types/index.js'
@@ -40,6 +40,23 @@ otherTileset.setTileTexture(
 
 function makeTiles(count: number) {
   return Array.from({ length: count }, () => makeResolvedTile())
+}
+
+function animatedTileset() {
+  return makeTileSetRenderer({
+    tiles: new Map([
+      [
+        0,
+        {
+          id: 0,
+          animation: [
+            { tileid: 0, duration: 100 },
+            { tileid: 0, duration: 100 }
+          ]
+        }
+      ]
+    ])
+  })
 }
 
 benchGroup('TileLayerRenderer hot path', (bench) => {
@@ -110,29 +127,32 @@ benchGroup('TileLayerRenderer hot path', (bench) => {
   })
 
   bench('animated finite 64x64 tile layer', () => {
-    const animatedTileset = makeTileSetRenderer({
-      tiles: new Map([
-        [
-          0,
-          {
-            id: 0,
-            animation: [
-              { tileid: 0, duration: 100 },
-              { tileid: 0, duration: 100 }
-            ]
-          }
-        ]
-      ])
-    })
     const renderer = new TileLayerRenderer(
       makeResolvedTileLayer({
         width: 64,
         height: 64,
         tiles: makeTiles(64 * 64)
       }),
-      [animatedTileset],
+      [animatedTileset()],
       ctx
     )
     renderer.destroy({ children: true })
+  })
+})
+
+benchGroup('animated tile ticks', (bench) => {
+  // The layer is built once: this measures advancing its 4096 animated tile
+  // visuals for one frame, not building them.
+  const renderer = new TileLayerRenderer(
+    makeResolvedTileLayer({ width: 64, height: 64, tiles: makeTiles(64 * 64) }),
+    [animatedTileset()],
+    ctx
+  )
+  let time = performance.now()
+
+  bench('one shared ticker update of an animated 64x64 layer', () => {
+    if (renderer.destroyed) throw new Error('the layer under test is gone')
+    time += 16
+    Ticker.shared.update(time)
   })
 })

@@ -48,6 +48,7 @@ The library is a map generator as well as a viewer, so parse and export form a r
 | `PackedTileLayerRenderer.ts` | Batchable `Mesh` packing grouped by texture source and alpha, keeping painter order; `addTextureRect()` is the low-level packing seam. See [BENCHMARKS.md](BENCHMARKS.md). |
 | `tileDrawPlan.ts` | Per-tile draw box (Tiled's `CellRenderer`), UVs, and the packed-quad-or-object-visual decision. |
 | `tileSpriteFactory.ts` | Object-backed tile visuals: animated/GIF map tiles, tile objects, flips, hexagonal turns. |
+| `tileAnimationTicker.ts` | One `Ticker.shared` listener per tile layer for its animated tile visuals, instead of PixiJS' one per sprite. |
 | `TileSetRenderer.ts` | Slices tileset textures, resolves `tilerendersize`/`fillmode`, holds GIF sources. |
 | `ImageLayerRenderer.ts` | Image layers: repeat, GIF, `transparentcolor`, placed at Tiled's screen origin. |
 | `ObjectLayerRenderer.ts` | Object layers styled like the Tiled editor (`TiledObjectStyle`), `topdown` order, isometric/oblique projection. |

@@ -7,6 +7,7 @@ import {
 } from './packedTileStats.js'
 import { destroysChildren } from './renderableLayer.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
+import { isTickerDriven, TileAnimationTicker } from './tileAnimationTicker.js'
 import { writeMapTileBox } from './tileDrawPlan.js'
 import { createTileSprite, hexTurnDegrees } from './tileSpriteFactory.js'
 
@@ -143,6 +144,8 @@ export class PackedTileLayerRenderer extends Container {
    * `children` belongs to the caller and must survive a rebuild in place.
    */
   private readonly _ownChildren = new Set<Container>()
+  /** Advances this layer's animated tile visuals from one ticker listener. */
+  private readonly _animations = new TileAnimationTicker()
   /**
    * Where tile children go while none exist: the position the last ones held
    * before a reset, or the bottom when the layer has never had any, so caller
@@ -335,6 +338,7 @@ export class PackedTileLayerRenderer extends Container {
    * rebuild afterwards; the renderer is left in its pre-build shape.
    */
   protected resetPackedTiles(): void {
+    this._animations.clear()
     for (const child of this._removeOwnChildren()) {
       if (child instanceof Mesh) this[packedTileStatsSymbol].meshesDestroyed++
       child.destroy()
@@ -349,6 +353,7 @@ export class PackedTileLayerRenderer extends Container {
    * is finalized it only takes its place in the draw order.
    */
   private _addSprite(sprite: Container, rect: PackedTextureRect | null, ownCell: boolean): void {
+    if (isTickerDriven(sprite)) this._animations.track(sprite)
     const order = this._drawItems.length
     this._drawItems.push(sprite)
     if (rect) {
@@ -370,6 +375,7 @@ export class PackedTileLayerRenderer extends Container {
     // when they go down with us.
     const destroyChildren = destroysChildren(options)
     const destroyTextures = typeof options === 'boolean' ? options : (options?.texture ?? false)
+    this._animations.clear()
     super.destroy(options)
     this._ownChildren.clear()
     // Mesh.destroy() already destroys its texture when `texture` is requested.

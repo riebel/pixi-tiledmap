@@ -1,4 +1,4 @@
-import { AnimatedSprite, Sprite, type Texture } from 'pixi.js'
+import { AnimatedSprite, Sprite } from 'pixi.js'
 import { type GifSource, GifSprite } from 'pixi.js/gif'
 import type { MapContext, ResolvedTile, TiledObjectAlignment } from '../types'
 import type { TileSetRenderer } from './TileSetRenderer.js'
@@ -16,8 +16,8 @@ class SharedSourceGifSprite extends GifSprite {
   }
 }
 
-export function createGifSprite(source: GifSource): GifSprite {
-  return new SharedSourceGifSprite({ source })
+export function createGifSprite(source: GifSource, autoUpdate = true): GifSprite {
+  return new SharedSourceGifSprite({ source, autoUpdate })
 }
 
 export interface TileSpritePlacement {
@@ -43,7 +43,10 @@ export function createTileSprite(
   py: number,
   ctx: MapContext
 ): Sprite | null {
-  const sprite = createTileVisual(tile, tsRenderer)
+  // Map tiles come by the thousand, so they are driven by the layer's own
+  // ticker listener instead of connecting one per sprite; see
+  // `tileAnimationTicker.ts`.
+  const sprite = createTileVisual(tile, tsRenderer, false)
   if (!sprite) return null
 
   const rect = getMapTileDrawRect(tile, tsRenderer, px, py, ctx)
@@ -68,7 +71,7 @@ export function createObjectTileSprite(
   tsRenderer: TileSetRenderer,
   placement: TileObjectPlacement
 ): Sprite | null {
-  const sprite = createTileVisual(tile, tsRenderer)
+  const sprite = createTileVisual(tile, tsRenderer, true)
   if (!sprite) return null
 
   const localId = tile.localId
@@ -149,18 +152,21 @@ function applyHexTurn(sprite: Sprite, tile: ResolvedTile, width: number, height:
   )
 }
 
-/** An animated, GIF or static sprite for a tile, before placement and sizing. */
-function createTileVisual(tile: ResolvedTile, tsRenderer: TileSetRenderer): Sprite | null {
-  const animFrames = tsRenderer.getAnimationFrames(tile.localId)
-
-  if (animFrames && animFrames.length > 1) {
-    const textures: { texture: Texture; time: number }[] = []
-    for (const frame of animFrames) {
-      const tex = tsRenderer.getTexture(frame.tileid)
-      if (!tex) return null
-      textures.push({ texture: tex, time: frame.duration })
-    }
-    const sprite = new AnimatedSprite(textures)
+/**
+ * An animated, GIF or static sprite for a tile, before placement and sizing.
+ * `autoUpdate` connects an animated visual to `Ticker.shared` itself; callers
+ * that pass `false` must advance it, as tile layers do.
+ */
+function createTileVisual(
+  tile: ResolvedTile,
+  tsRenderer: TileSetRenderer,
+  autoUpdate: boolean
+): Sprite | null {
+  const animation = tsRenderer.getAnimationFrames(tile.localId)
+  if (animation && animation.length > 1) {
+    const frames = tsRenderer.getAnimationFrameTextures(tile.localId)
+    if (!frames) return null
+    const sprite = new AnimatedSprite(frames, autoUpdate)
     sprite.play()
     return sprite
   }
@@ -169,7 +175,7 @@ function createTileVisual(tile: ResolvedTile, tsRenderer: TileSetRenderer): Spri
   if (!texture) return null
 
   const gifSource = tsRenderer.getGifSource(tile.localId)
-  return gifSource ? createGifSprite(gifSource) : new Sprite(texture)
+  return gifSource ? createGifSprite(gifSource, autoUpdate) : new Sprite(texture)
 }
 
 const ALIGNMENT_FACTORS: Record<Exclude<TiledObjectAlignment, 'unspecified'>, [number, number]> = {
