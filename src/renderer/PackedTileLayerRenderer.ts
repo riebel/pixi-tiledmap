@@ -5,6 +5,7 @@ import {
   type PackedTileStats,
   packedTileStatsSymbol
 } from './packedTileStats.js'
+import { destroysChildren } from './renderableLayer.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
 import { writeMapTileBox } from './tileDrawPlan.js'
 import { createTileSprite } from './tileSpriteFactory.js'
@@ -323,7 +324,7 @@ export class PackedTileLayerRenderer extends Container {
     // otherwise it detaches them and the caller may keep them alive. Those
     // meshes still reference the batch texture, so it is only ours to destroy
     // when they go down with us.
-    const destroyChildren = typeof options === 'boolean' ? options : (options?.children ?? false)
+    const destroyChildren = destroysChildren(options)
     const destroyTextures = typeof options === 'boolean' ? options : (options?.texture ?? false)
     super.destroy(options)
     this._ownChildren.clear()

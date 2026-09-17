@@ -1,7 +1,7 @@
 import { Rectangle, Texture } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../types'
-import { createColorKeyedTexture } from './colorKey.js'
+import { acquireColorKeyedTexture, releaseColorKeyedTexture } from './colorKey.js'
 
 export class TileSetRenderer {
   readonly tileset: ResolvedTileset
@@ -18,14 +18,14 @@ export class TileSetRenderer {
   private _cachedCtxTileWidth = 0
   private _cachedCtxTileHeight = 0
 
-  /** The color-keyed copy of the atlas this renderer made and must destroy. */
+  /** The color-keyed copy of the atlas this renderer holds and must release. */
   private readonly _keyedBaseTexture: Texture | null = null
 
   constructor(tileset: ResolvedTileset, baseTexture: Texture | null) {
     this.tileset = tileset
     const keyed =
       baseTexture && tileset.transparentcolor
-        ? createColorKeyedTexture(baseTexture, tileset.transparentcolor)
+        ? acquireColorKeyedTexture(baseTexture, tileset.transparentcolor)
         : null
     this._keyedBaseTexture = keyed
     this.baseTexture = keyed ?? baseTexture
@@ -185,16 +185,21 @@ export class TileSetRenderer {
     return { width: gridW, height: gridH }
   }
 
-  destroy(): void {
-    for (const tex of this._ownedTextures.values()) {
-      tex.destroy()
+  /**
+   * Destroys the textures this renderer made. Pass `keepTextures` while
+   * visuals built from them outlive the renderer, such as tile layers detached
+   * from a destroyed map; the textures are then left to them.
+   */
+  destroy(keepTextures = false): void {
+    if (!keepTextures) {
+      for (const tex of this._ownedTextures.values()) tex.destroy()
+      for (const tex of this._subTextures.values()) tex.destroy()
+      if (this._keyedBaseTexture) releaseColorKeyedTexture(this._keyedBaseTexture)
     }
     this._ownedTextures.clear()
-    for (const tex of this._subTextures.values()) tex.destroy()
     this._subTextures.clear()
     this._externalTextures.clear()
     this._gifSources.clear()
-    this._keyedBaseTexture?.destroy(true)
     this._renderWidthCache = null
     this._renderHeightCache = null
   }

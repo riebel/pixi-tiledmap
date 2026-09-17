@@ -19,6 +19,7 @@ import {
 import { applyParallaxToLayerTree, renderLayerTree } from './layerTreeRenderer.js'
 import { computeMapBounds, type MapBounds } from './mapGeometry.js'
 import { parseColorWithAlpha } from './parseColor.js'
+import { destroysChildren } from './renderableLayer.js'
 import type { TileLayerRenderer } from './TileLayerRenderer.js'
 import { TileSetRenderer } from './TileSetRenderer.js'
 
@@ -189,13 +190,13 @@ export class TiledMap extends Container {
 
   override destroy(options?: Parameters<Container['destroy']>[0]): void {
     this._detachTileLayerIndexListeners()
-    for (const ts of this.tileSetRenderers) {
-      ts.destroy()
-    }
     this._tileLayerIndex = null
     this._lastHitIndex = null
     this._lastHitLayer = null
     super.destroy(options)
+    // Layers detached rather than destroyed keep drawing the tileset textures.
+    const keepTextures = !destroysChildren(options)
+    for (const ts of this.tileSetRenderers) ts.destroy(keepTextures)
   }
 }
 

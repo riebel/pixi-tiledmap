@@ -15,6 +15,14 @@ export type ResolvedRenderableLayer =
 
 const renderableLayerMarker = Symbol('renderableLayer')
 
+/**
+ * Whether `Container.destroy(options)` destroys the children too. Without
+ * that, it only detaches them, and the caller may keep them alive.
+ */
+export function destroysChildren(options: Parameters<Container['destroy']>[0]): boolean {
+  return typeof options === 'boolean' ? options : (options?.children ?? false)
+}
+
 export interface RenderableLayer extends Container {
   readonly layerBaseOffsetX: number
   readonly layerBaseOffsetY: number

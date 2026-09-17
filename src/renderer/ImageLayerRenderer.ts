@@ -1,15 +1,15 @@
 import { Container, Sprite, type Texture, TilingSprite } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedImageLayer } from '../types'
-import { createColorKeyedTexture } from './colorKey.js'
+import { acquireColorKeyedTexture, releaseColorKeyedTexture } from './colorKey.js'
 import { getScreenOrigin } from './mapGeometry.js'
-import { applyLayerState, type RenderableLayer } from './renderableLayer.js'
+import { applyLayerState, destroysChildren, type RenderableLayer } from './renderableLayer.js'
 import { createGifSprite } from './tileSpriteFactory.js'
 
 export class ImageLayerRenderer extends Container {
   readonly layerData: ResolvedImageLayer
   private _tiledImage: TilingSprite | null = null
-  /** The color-keyed copy of the image this layer made and must destroy. */
+  /** The color-keyed copy of the image this layer holds and must release. */
   private _keyedTexture: Texture | null = null
 
   constructor(
@@ -26,7 +26,7 @@ export class ImageLayerRenderer extends Container {
     if (texture) {
       const keyed =
         layerData.transparentcolor && !gifSource
-          ? createColorKeyedTexture(texture, layerData.transparentcolor)
+          ? acquireColorKeyedTexture(texture, layerData.transparentcolor)
           : null
       this._keyedTexture = keyed
       this._buildImage(keyed ?? texture, ctx, gifSource ?? null)
@@ -35,7 +35,10 @@ export class ImageLayerRenderer extends Container {
 
   override destroy(options?: Parameters<Container['destroy']>[0]): void {
     super.destroy(options)
-    this._keyedTexture?.destroy(true)
+    // A sprite detached rather than destroyed still draws the keyed copy.
+    if (this._keyedTexture && destroysChildren(options)) {
+      releaseColorKeyedTexture(this._keyedTexture)
+    }
     this._keyedTexture = null
   }
 
