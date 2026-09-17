@@ -9,7 +9,14 @@ export class TileLayerRenderer extends PackedTileLayerRenderer {
   readonly layerData: ResolvedTileLayer
   private readonly _tilesets: TileSetRenderer[]
   private readonly _ctx: MapContext
-  private readonly _cellRenderHandles = new Map<string, PackedTileRenderHandle>()
+  /**
+   * Render handles of packed cells, per tile array (the layer's, or a chunk's)
+   * and indexed like it, so a lookup needs no coordinate key.
+   */
+  private readonly _cellRenderHandles = new Map<
+    (ResolvedTile | null)[],
+    (PackedTileRenderHandle | undefined)[]
+  >()
 
   constructor(layerData: ResolvedTileLayer, tilesets: TileSetRenderer[], ctx: MapContext) {
     super(estimateTileCapacity(layerData), ctx.tileMeshBatchSize)
@@ -36,47 +43,62 @@ export class TileLayerRenderer extends PackedTileLayerRenderer {
     }
 
     const nextTile = tile ? { ...tile } : null
-    const key = getCellKey(col, row)
-    const handle = this._cellRenderHandles.get(key)
+    const handle = this._cellRenderHandles.get(cell.tiles)?.[cell.index]
     const previousTile = cell.tiles[cell.index] ?? null
 
     cell.tiles[cell.index] = nextTile
 
-    if (!nextTile) {
-      if (!previousTile) {
-        this._cellRenderHandles.delete(key)
-        return
-      }
+    const applied = nextTile
+      ? this._packCell(cell, col, row, handle, previousTile, nextTile)
+      : this._clearCell(cell, handle, previousTile)
+    if (!applied) this._rebuildLayer()
+  }
 
-      if (handle && this.clearPackedTile(handle)) {
-        this._cellRenderHandles.delete(key)
-        return
-      }
-      this._rebuildLayer()
-      return
-    }
+  /** Clears a cell without a rebuild; false when only a rebuild can. */
+  private _clearCell(
+    cell: TileCell,
+    handle: PackedTileRenderHandle | undefined,
+    previousTile: ResolvedTile | null
+  ): boolean {
+    if (!previousTile) return true
+    if (!handle || !this.clearPackedTile(handle)) return false
+    this._setHandle(cell, undefined)
+    return true
+  }
 
+  /** Packs `nextTile` into a cell without a rebuild; false when only a rebuild can. */
+  private _packCell(
+    cell: TileCell,
+    col: number,
+    row: number,
+    handle: PackedTileRenderHandle | undefined,
+    previousTile: ResolvedTile | null,
+    nextTile: ResolvedTile
+  ): boolean {
     const tsRenderer = this._tilesets[nextTile.tilesetIndex]
-    if (tsRenderer) {
-      const pos = tileToPixel(col, row, this._ctx)
+    if (!tsRenderer) return false
 
-      if (handle) {
-        if (this.updatePackedTile(handle, nextTile, tsRenderer, pos.x, pos.y, this._ctx)) {
-          return
-        }
-      } else if (!previousTile) {
-        // Empty cell: no handle exists because nothing was ever packed here.
-        // A previous tile without a handle means a sprite-backed visual is
-        // still attached to this cell, which only a rebuild can remove.
-        const inserted = this.insertPackedTile(nextTile, tsRenderer, pos.x, pos.y, this._ctx)
-        if (inserted) {
-          this._cellRenderHandles.set(key, inserted)
-          return
-        }
-      }
+    const pos = tileToPixel(col, row, this._ctx)
+    const x = pos.x
+    const y = pos.y
+
+    if (handle) {
+      if (this.updatePackedTile(handle, nextTile, tsRenderer, x, y, this._ctx)) return true
+      // The quad needs another batch (texture source or alpha). While quads
+      // cannot overlap, moving it is a clear plus an insert; the insert
+      // declines exactly the cases that still need a rebuild.
+      if (!this.clearPackedTile(handle)) return false
+      this._setHandle(cell, undefined)
+    } else if (previousTile) {
+      // A previous tile without a handle means a sprite-backed visual is still
+      // attached to this cell, which only a rebuild can remove.
+      return false
     }
 
-    this._rebuildLayer()
+    const inserted = this.insertPackedTile(nextTile, tsRenderer, x, y, this._ctx)
+    if (!inserted) return false
+    this._setHandle(cell, inserted)
+    return true
   }
 
   clearTile(col: number, row: number): void {
@@ -129,6 +151,7 @@ export class TileLayerRenderer extends PackedTileLayerRenderer {
     ctx: MapContext
   ): void {
     const plan = getTileIterationPlan(layerWidth, layerHeight, ctx)
+    let handles: (PackedTileRenderHandle | undefined)[] | undefined
 
     for (let row = plan.rowStart; row !== plan.rowEnd; row += plan.rowStep) {
       const rowOffset = row * layerWidth
@@ -143,16 +166,30 @@ export class TileLayerRenderer extends PackedTileLayerRenderer {
         const pos = tileToPixel(originCol + col, originRow + row, ctx)
         const handle = this.addTile(tile, tsRenderer, pos.x, pos.y, ctx)
         if (handle) {
-          this._cellRenderHandles.set(getCellKey(originCol + col, originRow + row), handle)
+          handles ??= this._handlesFor(tiles)
+          handles[rowOffset + col] = handle
         }
       }
     }
   }
 
-  private _findCell(
-    col: number,
-    row: number
-  ): { tiles: (ResolvedTile | null)[]; index: number } | null {
+  private _setHandle(cell: TileCell, handle: PackedTileRenderHandle | undefined): void {
+    this._handlesFor(cell.tiles)[cell.index] = handle
+  }
+
+  /** Allocated on the first handle, so tile arrays that pack nothing cost nothing. */
+  private _handlesFor(tiles: (ResolvedTile | null)[]): (PackedTileRenderHandle | undefined)[] {
+    let handles = this._cellRenderHandles.get(tiles)
+    if (!handles) {
+      // Grown on demand: a dense layer fills it in order and keeps fast
+      // elements, a sparse one stays small instead of costing a slot per cell.
+      handles = []
+      this._cellRenderHandles.set(tiles, handles)
+    }
+    return handles
+  }
+
+  private _findCell(col: number, row: number): TileCell | null {
     if (!Number.isInteger(col) || !Number.isInteger(row)) return null
 
     if (this.layerData.infinite && this.layerData.chunks) {
@@ -175,8 +212,10 @@ export class TileLayerRenderer extends PackedTileLayerRenderer {
   }
 }
 
-function getCellKey(col: number, row: number): string {
-  return `${col},${row}`
+/** A cell's slot in the tile array (the layer's, or a chunk's) that holds it. */
+interface TileCell {
+  tiles: (ResolvedTile | null)[]
+  index: number
 }
 
 /**

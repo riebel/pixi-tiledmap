@@ -58,8 +58,8 @@ safer choice in the change that updates the baseline.
 The dead-code and duplication baselines are empty. The health baseline accepts
 these findings on purpose:
 
-- `TileLayerRenderer.setTile`, `TileLayerRenderer._findCell`, and
-  `PackedTileLayerRenderer.updatePackedTile` are renderer hot paths. They stay
+- `TileLayerRenderer._findCell` and `PackedTileLayerRenderer.updatePackedTile`
+  are renderer hot paths. They stay
   as plain branches and loops because splitting them costs allocations or calls
   per edited tile; see [`BENCHMARKS.md`](BENCHMARKS.md).
 - `findChrome` in the MagicLand visual test and one helper in the tile editing

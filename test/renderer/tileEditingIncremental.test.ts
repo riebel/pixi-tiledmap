@@ -269,9 +269,7 @@ describe('rebuild fallbacks', () => {
     ).toEqual([0.5, 1])
   })
 
-  it('rebuilds when an occupied cell changes alpha group', () => {
-    // An in-place update cannot move a quad between alpha batches, so the
-    // layer is rebuilt. Documented in docs/BENCHMARKS.md.
+  it('moves a quad to another alpha batch without rebuilding', () => {
     const layerData = makeResolvedTileLayer({
       width: 1,
       height: 1,
@@ -282,11 +280,38 @@ describe('rebuild fallbacks', () => {
 
     renderer.setTile(0, 0, makeResolvedTile({ alpha: 0.5 }))
 
-    expect(stats.fullRebuilds).toBe(1)
-    expect(renderer.children[0]?.alpha).toBe(0.5)
+    expect(stats.fullRebuilds).toBe(0)
+    const [opaque, faded] = meshes(renderer)
+    expect(opaque?.alpha).toBe(1)
+    expect(quadAt(opaque!, 0)).toEqual(new Array(8).fill(0))
+    expect(faded?.alpha).toBe(0.5)
+    expect(quadAt(faded!, 0)).toEqual([0, 0, 32, 0, 32, 32, 0, 32])
+
+    // Moving back recycles the slot the first move freed.
+    renderer.setTile(0, 0, makeResolvedTile())
+
+    expect(stats.fullRebuilds).toBe(0)
+    expect(stats.insertsIntoFreeSlot).toBe(1)
+    expect(quadAt(opaque!, 0)).toEqual([0, 0, 32, 0, 32, 32, 0, 32])
+    expect(quadAt(faded!, 0)).toEqual(new Array(8).fill(0))
+    expect(renderer.getTile(0, 0)?.alpha).toBeUndefined()
   })
 
-  it('rebuilds when an occupied cell changes texture source', () => {
+  it('rebuilds on an alpha change while quads overhang their cells', () => {
+    // A moved quad would take a new draw position among overlapping quads.
+    const tall = new TileSetRenderer(
+      makeResolvedTileset({ tilewidth: 32, tileheight: 64, columns: 1, tilecount: 1 }),
+      Texture.EMPTY
+    )
+    const renderer = new TileLayerRenderer(filledLayer(2, 2), [tall], ctx)
+
+    renderer.setTile(0, 1, makeResolvedTile({ alpha: 0.5 }))
+
+    expect(readPackedTileStats(renderer).fullRebuilds).toBe(1)
+    expect(renderer.getTile(0, 1)).toMatchObject({ alpha: 0.5 })
+  })
+
+  it('moves a quad to another texture source without rebuilding', () => {
     const first = makeTileSetRenderer()
     const second = new TileSetRenderer(makeResolvedTileset({ columns: 1, tilecount: 1 }), null)
     second.setTileTexture(0, new Texture({ source: Texture.WHITE.source }))
@@ -300,8 +325,12 @@ describe('rebuild fallbacks', () => {
 
     renderer.setTile(0, 0, makeResolvedTile({ tilesetIndex: 1 }))
 
-    expect(readPackedTileStats(renderer).fullRebuilds).toBe(1)
+    expect(readPackedTileStats(renderer).fullRebuilds).toBe(0)
     expect(renderer.getTile(0, 0)).toMatchObject({ tilesetIndex: 1 })
+    expect(meshes(renderer).map((mesh) => mesh.texture.source)).toEqual([
+      Texture.EMPTY.source,
+      Texture.WHITE.source
+    ])
   })
 
   it('rebuilds when inserting an animated tile into an empty cell', () => {
@@ -555,6 +584,26 @@ describe('infinite layers', () => {
     ])
   })
 
+  it('clears tiles in place at far chunk coordinates', () => {
+    const far = 2 ** 26
+    const layerData = makeResolvedTileLayer({
+      infinite: true,
+      chunks: [
+        makeResolvedChunk({ x: far, y: -far, width: 2, height: 1, tiles: new Array(2).fill(null) })
+      ]
+    })
+    const renderer = new TileLayerRenderer(layerData, [makeTileSetRenderer()], ctx)
+
+    renderer.setTile(far, -far, makeResolvedTile())
+    renderer.setTile(far + 1, -far, makeResolvedTile())
+    renderer.clearTile(far, -far)
+
+    // A clear only avoids the rebuild when it finds the cell's handle.
+    expect(readPackedTileStats(renderer).fullRebuilds).toBe(0)
+    expect(renderer.getTile(far, -far)).toBeNull()
+    expect(renderer.getTile(far + 1, -far)).toMatchObject({ gid: 1 })
+  })
+
   it('rejects coordinates outside existing chunks', () => {
     const layerData = makeResolvedTileLayer({
       infinite: true,
@@ -699,30 +748,32 @@ describe('caller-added children', () => {
   }
 
   it('keeps a child added above the tiles through a rebuild', () => {
-    const renderer = new TileLayerRenderer(filledLayer(2, 1), [makeTileSetRenderer()], ctx)
+    const renderer = new TileLayerRenderer(
+      filledLayer(2, 1),
+      [makeTileSetRenderer(), animatedTileset()],
+      ctx
+    )
     const player = new Sprite(Texture.WHITE)
     renderer.addChild(player)
 
-    renderer.setTile(0, 0, makeResolvedTile({ alpha: 0.5 }))
+    renderer.setTile(0, 0, makeResolvedTile({ tilesetIndex: 1 }))
 
     expect(readPackedTileStats(renderer).fullRebuilds).toBe(1)
     expect(player.destroyed).toBe(false)
     expect(player.parent).toBe(renderer)
+    expect(renderer.children).toHaveLength(3)
     expect(renderer.children.at(-1)).toBe(player)
-    expect(
-      meshes(renderer)
-        .map((mesh) => mesh.alpha)
-        .sort()
-    ).toEqual([0.5, 1])
+    expect(meshes(renderer)).toHaveLength(1)
   })
 
-  it('keeps a child added below the tiles below them through a rebuild', () => {
+  it('keeps a child added below the tiles below a moved quad', () => {
     const renderer = new TileLayerRenderer(filledLayer(2, 1), [makeTileSetRenderer()], ctx)
     const backdrop = new Container()
     renderer.addChildAt(backdrop, 0)
 
     renderer.setTile(0, 0, makeResolvedTile({ alpha: 0.5 }))
 
+    expect(readPackedTileStats(renderer).fullRebuilds).toBe(0)
     expect(backdrop.destroyed).toBe(false)
     expect(renderer.children[0]).toBe(backdrop)
     expect(renderer.children).toHaveLength(3)

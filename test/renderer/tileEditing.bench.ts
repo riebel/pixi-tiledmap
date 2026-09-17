@@ -141,7 +141,7 @@ benchGroup('updates of existing tiles', (bench) => {
     renderer.destroy({ children: true })
   })
 
-  bench('1000 incompatible alpha updates in a 64x64 dense layer (rebuild fallback)', () => {
+  bench('1000 alpha group changes in a 64x64 dense layer', () => {
     alternatingAlphaWrites(64, false)
   })
 })

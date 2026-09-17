@@ -189,7 +189,7 @@ describe('TileLayerRenderer runtime editing', () => {
     expect(mesh.geometry.positions.length).toBe(16)
   })
 
-  it('rebuilds when a packed tile edit changes alpha', () => {
+  it('moves a packed tile to an alpha batch when an edit changes alpha', () => {
     const layerData = makeResolvedTileLayer({
       width: 1,
       height: 1,
@@ -200,8 +200,8 @@ describe('TileLayerRenderer runtime editing', () => {
 
     renderer.setTile(0, 0, makeResolvedTile({ alpha: 0.5 }))
 
-    expect(renderer.children[0]).not.toBe(initialMesh)
-    expect(renderer.children[0]?.alpha).toBe(0.5)
+    expect(renderer.children[0]).toBe(initialMesh)
+    expect(renderer.children[1]?.alpha).toBe(0.5)
   })
 
   it('honors the packed mesh batch size option', () => {

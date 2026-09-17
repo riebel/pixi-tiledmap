@@ -1037,22 +1037,29 @@ function writeTextureUvs(
   uvs: Float32Array,
   offset: number,
   texture: Texture,
-  uvOrder: readonly [number, number, number, number] = [0, 1, 2, 3]
+  uvOrder: readonly [number, number, number, number] = UV_ORDERS[0]!
 ): void {
-  const { x0, y0, x1, y1, x2, y2, x3, y3 } = texture.uvs
-  const corners: [[number, number], [number, number], [number, number], [number, number]] = [
-    [x0, y0],
-    [x1, y1],
-    [x2, y2],
-    [x3, y3]
-  ]
+  const source = texture.uvs
+  const corners = _uvCorners
+  corners[0] = source.x0
+  corners[1] = source.y0
+  corners[2] = source.x1
+  corners[3] = source.y1
+  corners[4] = source.x2
+  corners[5] = source.y2
+  corners[6] = source.x3
+  corners[7] = source.y3
 
-  for (const index of uvOrder) {
-    const corner = corners[index]!
-    uvs[offset++] = corner[0]
-    uvs[offset++] = corner[1]
+  for (let i = 0; i < 4; i++) {
+    const corner = uvOrder[i]! * 2
+    uvs[offset++] = corners[corner]!
+    uvs[offset++] = corners[corner + 1]!
   }
 }
+
+// Reusable corner scratch for writeTextureUvs, so packing a tile never allocates.
+// A Float64Array keeps the values exact until they are written to the Float32 target.
+const _uvCorners = new Float64Array(8)
 
 function getTileFlipIndex(tile: ResolvedTile): number {
   return (tile.horizontalFlip ? 1 : 0) + (tile.verticalFlip ? 2 : 0) + (tile.diagonalFlip ? 4 : 0)

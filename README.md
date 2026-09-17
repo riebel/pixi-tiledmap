@@ -203,12 +203,11 @@ map.setTile('chests', 12, 8, { tileset: 'dungeon', tileId: save.chestOpen ? 5 : 
 
 For static packed tiles, edits that stay on the same texture source and alpha group update the existing packed mesh geometry buffers in place. Unchanged rect/UV edits skip buffer uploads.
 
-Painting a static tile into an empty cell is incremental as well: clearing a tile degenerates its quad and returns that slot to the layer, and a later insert reuses a freed slot before it grows batch capacity geometrically. Repeated clear/set cycles therefore reuse existing capacity and leave mesh count and buffer size unchanged. This applies to orthogonal maps whose tile quads stay inside their own grid cell, which is the common case; the renderer verifies that per tile. The default sub-pixel `tileSpritePadding` seam is allowed; a padding large enough to overlap neighbours visibly is not.
+Painting a static tile into an empty cell is incremental as well: clearing a tile degenerates its quad and returns that slot to the layer, and a later insert reuses a freed slot before it grows batch capacity geometrically. Repeated clear/set cycles therefore reuse existing capacity and leave mesh count and buffer size unchanged. Switching an existing tile to a different texture source or alpha group works the same way: its quad is cleared and inserted into a batch of the new group. This applies to orthogonal maps whose tile quads stay inside their own grid cell, which is the common case; the renderer verifies that per tile. The default sub-pixel `tileSpritePadding` seam is allowed; a padding large enough to overlap neighbours visibly is not.
 
 The following edits rebuild the affected tile layer, because their result cannot be reproduced by writing a single quad in place:
 
-- inserting into a cell of an isometric, staggered, or hexagonal map, or of any layer whose tiles overhang their grid cell (via `tileoffset`, a tile larger than the grid, or a `tileSpritePadding` above `0.125`px), where the draw order of overlapping quads is significant
-- switching an existing tile to a different texture source or alpha group
+- inserting into a cell, or switching an existing tile to a different texture source or alpha group, on an isometric, staggered, or hexagonal map, or in any layer whose tiles overhang their grid cell (via `tileoffset`, a tile larger than the grid, or a `tileSpritePadding` above `0.125`px), where the draw order of overlapping quads is significant
 - changing between packed tiles and sprite-backed tiles: animated tiles, GIFs, and tiles a hexagonal map turns by 60 or 120 degrees
 - inserting a tile whose tileset texture is not available
 
