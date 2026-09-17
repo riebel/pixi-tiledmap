@@ -8,7 +8,7 @@ import {
 import { destroysChildren } from './renderableLayer.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
 import { writeMapTileBox } from './tileDrawPlan.js'
-import { createTileSprite } from './tileSpriteFactory.js'
+import { createTileSprite, hexTurnDegrees } from './tileSpriteFactory.js'
 
 const DEFAULT_TILES_PER_MESH = 16_000
 const MAX_TILES_PER_MESH = 16_383
@@ -168,16 +168,23 @@ export class PackedTileLayerRenderer extends Container {
       const sprite = createTileSprite(tile, tsRenderer, x, y, ctx)
       if (!sprite) return null
       const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
-      if (rect) this._trackConfinement(rect, x, y, ctx)
-      this._addSprite(sprite, rect, rect !== null && isTileInOwnCellShape(tile, rect, x, y, ctx))
+      if (!rect) {
+        this._addSprite(sprite, null, false)
+        return null
+      }
+      const ownCell = isTileInOwnCellShape(tile, rect, x, y, ctx)
+      this._trackConfinement(ownCell, ctx)
+      turnRectBounds(rect, hexTurnDegrees(tile, ctx.orientation))
+      this._addSprite(sprite, rect, ownCell)
       return null
     }
 
     const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
     if (!rect) return null
 
-    this._trackConfinement(rect, x, y, ctx)
-    return this._addRect(rect, isTileInOwnCellShape(tile, rect, x, y, ctx))
+    const ownCell = isTileInOwnCellShape(tile, rect, x, y, ctx)
+    this._trackConfinement(ownCell, ctx)
+    return this._addRect(rect, ownCell)
   }
 
   /**
@@ -698,14 +705,13 @@ export class PackedTileLayerRenderer extends Container {
     return batch.handles[candidate.slot] === handle ? (handle as InternalTileRenderHandle) : null
   }
 
-  private _trackConfinement(
-    rect: PackedTextureRect,
-    cellX: number,
-    cellY: number,
-    ctx: MapContext
-  ): void {
-    if (!this._quadsConfined) return
-    if (!isRectConfinedToCell(rect, cellX, cellY, ctx)) this._quadsConfined = false
+  /**
+   * Clears `_quadsConfined` for a visual that may leave its grid cell. On
+   * orthogonal maps `ownCell` is exactly `isRectConfinedToCell`; elsewhere no
+   * cell is a rectangle, so nothing counts as confined.
+   */
+  private _trackConfinement(ownCell: boolean, ctx: MapContext): void {
+    if (!ownCell || ctx.orientation !== 'orthogonal') this._quadsConfined = false
   }
 
   /** Mirrors `needsMapTileVisual`, kept a method for the hot path. */
@@ -887,6 +893,20 @@ function isRectCellSized(rect: PackedTextureRect, ctx: MapContext): boolean {
     rect.width >= ctx.tilewidth - CONFINEMENT_EPSILON &&
     rect.height >= ctx.tileheight - CONFINEMENT_EPSILON
   )
+}
+
+/** Widens `rect` in place to the bounds of its content turned around its center. */
+function turnRectBounds(rect: PackedTextureRect, degrees: number): void {
+  if (degrees === 0) return
+  const radians = (degrees * Math.PI) / 180
+  const cos = Math.abs(Math.cos(radians))
+  const sin = Math.abs(Math.sin(radians))
+  const width = rect.width * cos + rect.height * sin
+  const height = rect.width * sin + rect.height * cos
+  rect.x += (rect.width - width) / 2
+  rect.y += (rect.height - height) / 2
+  rect.width = width
+  rect.height = height
 }
 
 function isSameBatchGroup(rect: PackedTextureRect, handle: PackedTileRenderHandle): boolean {

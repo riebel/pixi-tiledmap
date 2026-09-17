@@ -127,7 +127,7 @@ export function createObjectTileSprite(
  * How far Tiled turns a tile on a hexagonal map: its diagonal-flip bit means
  * 60 degrees there, and the extra hexagonal bit 120 more. Zero elsewhere.
  */
-function hexTurnDegrees(
+export function hexTurnDegrees(
   tile: ResolvedTile,
   orientation: MapContext['orientation'] | undefined
 ): number {

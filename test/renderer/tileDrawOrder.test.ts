@@ -196,6 +196,53 @@ describe('packed tile draw order', () => {
     expect(visuals.map((visual) => visual.sprite)).toEqual([false, true, false])
   })
 
+  it('draws a tile over a squashed hexagonal tile turned into its cell', () => {
+    // A 48x24 hexagon turned by 60 degrees reaches well into the cell below.
+    const hexCtx: MapContext = {
+      ...ctx,
+      orientation: 'hexagonal',
+      tilewidth: 48,
+      tileheight: 24,
+      hexsidelength: 16,
+      staggeraxis: 'x',
+      staggerindex: 'odd'
+    }
+    const tileset = (): TileSetRenderer => {
+      const renderer = new TileSetRenderer(
+        makeResolvedTileset({ tilewidth: 48, tileheight: 24 }),
+        null
+      )
+      renderer.setTileTexture(0, makeTexture(48, 24))
+      return renderer
+    }
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({
+        width: 1,
+        height: 3,
+        tiles: [tileFrom(0), makeResolvedTile({ tilesetIndex: 1, diagonalFlip: true }), tileFrom(0)]
+      }),
+      [tileset(), tileset()],
+      hexCtx
+    )
+
+    expect(drawnVisuals(renderer).map((visual) => visual.sprite)).toEqual([false, true, false])
+  })
+
+  it('keeps one mesh per tileset beside an oversized tile at default padding', () => {
+    // The tall tile makes the layer unconfined, so every tile consults the grid.
+    const tiles: ResolvedTile[] = [tileFrom(2)]
+    for (let index = 1; index < 16; index++) {
+      tiles.push(tileFrom(((index % 4) + Math.floor(index / 4)) % 2))
+    }
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({ width: 4, height: 4, tiles }),
+      [makeTileset(32), makeTileset(32), makeTileset(96)],
+      { ...ctx, tileSpritePadding: 0.01 }
+    )
+
+    expect(renderer.children).toHaveLength(3)
+  })
+
   it('draws an oversized isometric tile over a grid-sized tile it covers', () => {
     const isoCtx: MapContext = { ...ctx, orientation: 'isometric', tilewidth: 64 }
     const ground = new TileSetRenderer(makeResolvedTileset({ tilewidth: 64, tileheight: 32 }), null)
