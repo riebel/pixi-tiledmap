@@ -8,6 +8,7 @@ import { ImageLayerRenderer } from '../../src/renderer/ImageLayerRenderer.js'
 import { TiledMap } from '../../src/renderer/TiledMap.js'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
 import {
+  makeResolvedGroupLayer,
   makeResolvedImageLayer,
   makeResolvedMap,
   makeResolvedTile,
@@ -190,6 +191,31 @@ describe('transparentcolor in renderers', () => {
     expect(keyedSource.destroyed).toBe(true)
   })
 
+  it('keeps the keyed atlas while a group destroy only detaches its layers', () => {
+    const { texture } = stubPixels([255, 0, 255, 255, 0, 0, 0, 255])
+    const map = new TiledMap(
+      makeResolvedMap({
+        tilesets: [makeResolvedTileset({ transparentcolor: '#ff00ff', image: 'atlas.png' })],
+        layers: [
+          makeResolvedGroupLayer({
+            layers: [makeResolvedTileLayer({ width: 1, height: 1, tiles: [makeResolvedTile()] })]
+          })
+        ]
+      }),
+      { tilesetTextures: new Map([['atlas.png', texture]]) }
+    )
+    const keyedSource = map.tileSetRenderers[0]!.baseTexture!.source
+    const group = map.children[0]!
+    const tileLayer = group.children[0]!
+
+    map.destroy()
+    group.destroy()
+    expect(keyedSource.destroyed).toBe(false)
+
+    tileLayer.destroy({ children: true })
+    expect(keyedSource.destroyed).toBe(true)
+  })
+
   it('releases the keyed atlas after the last of several detached layers', () => {
     const { texture } = stubPixels([255, 0, 255, 255, 0, 0, 0, 255])
     const tile = () => makeResolvedTileLayer({ width: 1, height: 1, tiles: [makeResolvedTile()] })
@@ -204,9 +230,9 @@ describe('transparentcolor in renderers', () => {
     const [first, second] = map.children
 
     map.destroy()
-    first!.destroy()
+    first!.destroy({ children: true })
     expect(keyedSource.destroyed).toBe(false)
-    second!.destroy()
+    second!.destroy({ children: true })
     expect(keyedSource.destroyed).toBe(true)
   })
 

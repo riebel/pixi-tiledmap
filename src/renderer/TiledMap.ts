@@ -191,8 +191,9 @@ export class TiledMap extends Container {
   /**
    * Destroys the map. Tileset textures are destroyed with it when its layers
    * are (`{ children: true }`). Layers that are merely detached keep drawing
-   * them, so the textures are destroyed once every detached layer has been
-   * destroyed. Destroying an already destroyed map does nothing.
+   * them, so the textures are destroyed once everything those layers draw
+   * has been destroyed, e.g. with `layer.destroy({ children: true })`.
+   * Destroying an already destroyed map does nothing.
    */
   override destroy(options?: Parameters<Container['destroy']>[0]): void {
     if (this.destroyed) return

@@ -24,11 +24,14 @@ export function destroysChildren(options: Parameters<Container['destroy']>[0]): 
 }
 
 /**
- * Runs `release` once every container in `holders` has been destroyed, or at
- * once when there are none. Used to hand shared textures over to children a
- * `destroy()` only detached, which keep drawing them.
+ * Runs `release` once every leaf under `roots` has been destroyed, or at once
+ * when there are none. Used to hand shared textures over to children a
+ * `destroy()` only detached, which keep drawing them. Leaves are the
+ * drawables, so a group or layer that is itself destroyed without its
+ * children does not count: its detached children still draw.
  */
-export function releaseWhenDestroyed(holders: readonly Container[], release: () => void): void {
+export function releaseWhenDestroyed(roots: readonly Container[], release: () => void): void {
+  const holders = collectLeaves(roots)
   let pending = holders.length
   if (pending === 0) {
     release()
@@ -38,6 +41,16 @@ export function releaseWhenDestroyed(holders: readonly Container[], release: () 
     if (--pending === 0) release()
   }
   for (const holder of holders) holder.once('destroyed', onDestroyed)
+}
+
+function collectLeaves(roots: readonly Container[]): Container[] {
+  const leaves: Container[] = []
+  const stack = [...roots]
+  for (let node = stack.pop(); node; node = stack.pop()) {
+    if (node.children.length === 0) leaves.push(node)
+    else stack.push(...node.children)
+  }
+  return leaves
 }
 
 export interface RenderableLayer extends Container {
