@@ -142,6 +142,14 @@ export function getScreenOrigin(
   return { x: ctx.tilewidth / 2 - (ctx.mapHeight * ctx.tilewidth) / 2, y: 0 }
 }
 
+/**
+ * Maps a tile cell to the map-space position of its image box, for every
+ * orientation: the inverse of `pixelToTile`.
+ *
+ * Every call returns the same object, overwritten in place, so renderers can
+ * place thousands of tiles without allocating. Read `x` and `y` before the next
+ * call, or copy them: `const { x, y } = tileToPixel(col, row, ctx)`.
+ */
 export function tileToPixel(col: number, row: number, ctx: MapContext): TilePosition {
   switch (ctx.orientation) {
     case 'orthogonal':

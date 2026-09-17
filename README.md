@@ -60,6 +60,7 @@ If you want the best runtime behavior in your game/application:
 - Keep large worlds in infinite/chunked maps to avoid over-allocating one giant layer.
 - Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
 - Keep the default `tileMeshBatchSize` unless you are profiling a GPU/driver that prefers smaller meshes; the default keeps packed meshes below 16-bit index limits while reducing render object count.
+- Object layers show each named shape's name as in the Tiled editor, one `Text` texture per label. For layers with many named objects, such as collision layers, pass `objectStyle: { showLabels: false }`, and consider `screenSpace: false` if the map zooms continuously.
 - Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are packed into `Mesh` children, not one `Sprite` per tile.
 - Display objects you add to a `TileLayerRenderer` (for example a player walking on that layer) survive tile edits and layer rebuilds and keep their position relative to the tiles. Tiles sit below children you add, unless you insert yours below them with `addChildAt`. Destroying the map with its children, or unloading it, destroys them too.
 
@@ -397,8 +398,9 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `walkLayers(map)`     | Iterate the layer tree depth-first, group layers included        |
 | `getProperty(holder, name, type?)` | Read a Tiled custom property off a map, layer, object, or tileset; pass the Tiled type to narrow the result |
 | `tileAt(map, x, y)`   | Map-space point → tile cell, or `null` outside the map           |
-| `tileToPixel(col, row, ctx)` | Tile cell → map-space position of its image box, for every orientation |
+| `tileToPixel(col, row, ctx)` | Tile cell → map-space position of its image box, for every orientation; returns one reused object, so copy `x`/`y` before the next call |
 | `pixelToTile(x, y, ctx)` | Unbounded map-space point → tile cell - the inverse of `tileToPixel` |
+| `FLIPPED_HORIZONTALLY_FLAG`, `FLIPPED_VERTICALLY_FLAG`, `FLIPPED_DIAGONALLY_FLAG`, `ROTATED_HEXAGONAL_120_FLAG`, `GID_MASK` | Tiled's raw GID bits: the flip and hexagonal-turn flags, and the mask for the global tile id |
 
 #### XML parsing outside the browser
 
@@ -462,7 +464,7 @@ Object layers draw shapes the way the Tiled editor does. `objectStyle` tunes tha
 const map = new TiledMap(resolvedMap, {
   objectStyle: {
     fillAlpha: 0, // outlines only; defaults to the editor's 50/255
-    showLabels: true, // name tags above named shapes (default false)
+    showLabels: false, // name tags above named shapes (default true, as in Tiled)
     defaultColor: '#ff8800', // for layers without their own color
     screenSpace: true, // one-device-pixel outlines at any zoom (default); redraws shapes on zoom
     clipText: false, // skip the per-object mask that clips text to its box

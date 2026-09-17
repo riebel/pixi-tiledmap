@@ -23,33 +23,33 @@ Vitest runs the benchmarks through Vite's module runner, which turns every impor
 
 ## Current Smoke Baseline
 
-Recorded on September 16, 2026 for `2.9.0` with PixiJS `8.20.1` and Vitest `5.0.1`, jsdom, on the local development machine. Higher is better.
+Recorded on September 17, 2026 for `2.10.0` with PixiJS `8.20.1` and Vitest `5.0.1`, jsdom, on the local development machine. Higher is better. Every result is within 10% of `2.9.0`, which is inside this machine's run-to-run noise.
 
 ### Layer construction
 
 | Benchmark | Result |
 | --- | ---: |
-| finite `64x64` tile layer | `663 hz` |
-| finite `64x64` tile layer, `tileMeshBatchSize: 2000` | `630 hz` |
-| infinite `16` chunks of `16x16` tiles | `658 hz` |
-| animated finite `64x64` tile layer | `16 hz` |
+| finite `64x64` tile layer | `640 hz` |
+| finite `64x64` tile layer, `tileMeshBatchSize: 2000` | `607 hz` |
+| infinite `16` chunks of `16x16` tiles | `605 hz` |
+| animated finite `64x64` tile layer | `15 hz` |
 | finite `256x256` tile layer from two alternating tilesets | `27 hz` |
 
-The two-tileset case was added after `2.9.0` and measured on September 17, 2026 on the same machine; `2.9.0` itself builds it at `28 hz`. It guards the draw-order bookkeeping, which must stay free for layers whose tiles all keep to their cells.
+The two-tileset case guards the draw-order bookkeeping, which must stay free for layers whose tiles all keep to their cells.
 
 ### Runtime editing
 
 | Benchmark | Result |
 | --- | ---: |
-| `1` insert into a `256x256` empty layer | `2,597 hz` |
-| `100` inserts into a `256x256` empty layer | `2,162 hz` |
-| `10000` inserts into a `256x256` empty layer | `120 hz` |
+| `1` insert into a `256x256` empty layer | `2,443 hz` |
+| `100` inserts into a `256x256` empty layer | `2,006 hz` |
+| `10000` inserts into a `256x256` empty layer | `116 hz` |
 | `10000` clear/set cycles in a `64x64` dense layer | `91 hz` |
-| `1000` inserts into a `16`-chunk infinite layer | `1,654 hz` |
-| `10000` compatible updates in a `256x256` dense layer | `21 hz` |
-| `1000` alpha updates in a `64x64` dense layer (rebuild) | `1.3 hz` |
+| `1000` inserts into a `16`-chunk infinite layer | `1,646 hz` |
+| `10000` compatible updates in a `256x256` dense layer | `19 hz` |
+| `1000` alpha updates in a `64x64` dense layer (rebuild) | `1.5 hz` |
 
-Each editing benchmark includes building its layer, so results drop with layer size even for a single insert (`108,670 hz` at `32x32`, `637 hz` at `512x512`). Compare editing cases of the same layer size.
+Each editing benchmark includes building its layer, so results drop with layer size even for a single insert (`102,307 hz` at `32x32`, `593 hz` at `512x512`). Compare editing cases of the same layer size.
 
 ## Packed Tile Layers
 
