@@ -547,6 +547,8 @@ npm run quality:gate # check + typecheck + test, then the Fallow regression gate
 
 `npm test` includes a headless MagicLand visual regression that renders a real TMX + GIF tileset fixture and pixel-compares it against a checked-in reference image.
 
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - module map, data flow, packaging, and compatibility constraints
+- [`docs/TESTING.md`](docs/TESTING.md) - test layout, package and visual tests, and how to test export and parsing
 - [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) - benchmark usage, the current smoke baseline, and how packed tile editing works
 - [`docs/QUALITY.md`](docs/QUALITY.md) - the quality gate, CI and npm releases, and the Fallow baselines
 
