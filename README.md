@@ -33,7 +33,7 @@ The library ships its own Tiled JSON and TMX XML parser with no runtime dependen
 
 ## Requirements
 
-- `pixi.js` `>=8.7.0` as a peer dependency
+- `pixi.js` `>=8.10.0` as a peer dependency
 - A runtime with the Compression Streams API for gzip/zlib tile data (`parseMapAsync`, `exportMapAsync`); every current browser and Node 18+ provides it
 
 ## Internal Model
@@ -462,9 +462,9 @@ Object layers draw shapes the way the Tiled editor does. `objectStyle` tunes tha
 const map = new TiledMap(resolvedMap, {
   objectStyle: {
     fillAlpha: 0, // outlines only; defaults to the editor's 50/255
-    showLabels: false, // hide name tags above named shapes
+    showLabels: true, // name tags above named shapes (default false)
     defaultColor: '#ff8800', // for layers without their own color
-    screenSpace: true, // one-device-pixel outlines at any zoom (default)
+    screenSpace: true, // one-device-pixel outlines at any zoom (default); redraws shapes on zoom
     clipText: false, // skip the per-object mask that clips text to its box
   },
 });
