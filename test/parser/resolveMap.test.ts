@@ -615,3 +615,37 @@ describe('parseMap', () => {
     expect(obj2?.tile?.gid).toBe(102)
   })
 })
+
+describe('map version', () => {
+  /**
+   * Tiled's minimum-compatibility JSON writes the version as a number. `1.0`
+   * stringifies to `'1'`, which is not a Tiled version string at all, so whole
+   * numbers keep a decimal place.
+   */
+  it.each([
+    [1, '1.0'],
+    [1.0, '1.0'],
+    [1.4, '1.4'],
+    ['1.10', '1.10']
+  ])('reads %p as %p', (version, expected) => {
+    const data = {
+      type: 'map',
+      version,
+      orientation: 'orthogonal',
+      renderorder: 'right-down',
+      width: 1,
+      height: 1,
+      tilewidth: 16,
+      tileheight: 16,
+      infinite: false,
+      tilesets: [],
+      layers: []
+    } as unknown as TiledMap
+
+    expect(parseMap(data).version).toBe(expected)
+  })
+
+  it('cannot tell a numeric 1.10 from 1.1, which JSON.parse has already merged', () => {
+    expect(JSON.parse('{"v":1.10}').v).toBe(1.1)
+  })
+})

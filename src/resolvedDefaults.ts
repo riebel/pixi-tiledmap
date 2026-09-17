@@ -81,12 +81,23 @@ export function resolvedMapDefaults(
     parallaxoriginx: input.parallaxoriginx ?? 0,
     parallaxoriginy: input.parallaxoriginy ?? 0,
     properties: input.properties ?? [],
-    // Tiled's minimum-compatibility JSON writes the version as a number.
-    version: input.version === undefined ? versionFallback : String(input.version),
+    version: input.version === undefined ? versionFallback : versionString(input.version),
     compressionlevel: input.compressionlevel,
     nextlayerid: input.nextlayerid,
     nextobjectid: input.nextobjectid
   }
+}
+
+/**
+ * Tiled's minimum-compatibility JSON writes the map version as a number rather
+ * than a string. A whole one keeps a decimal place, so `1.0` stays `'1.0'`
+ * instead of becoming `'1'`. A numeric `1.10` is already `1.1` by the time
+ * `JSON.parse` is done and cannot be told from a real `1.1`; Tiled's readers
+ * do not read the field back, so the difference stays cosmetic.
+ */
+function versionString(version: string | number): string {
+  if (typeof version !== 'number') return version
+  return Number.isInteger(version) ? version.toFixed(1) : String(version)
 }
 
 export interface ResolvedLayerDefaultInput {
