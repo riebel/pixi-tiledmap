@@ -910,7 +910,11 @@ function isRectWithinCell(
  * whose bounding boxes overlap their neighbours'; a tile drawn exactly over
  * that box is taken to fill the cell shape, as grid-sized tile art for those
  * maps does. A hexagonal tile turned by 60 or 120 degrees no longer fits its
- * hexagon, and oblique cells are sheared, so neither is assumed to fit.
+ * hexagon, so it is never taken as confined.
+ *
+ * Oblique maps draw unsheared tiles at sheared positions. With only one of
+ * `skewx` and `skewy` set, grid-sized tiles still tile the plane: a row (or
+ * column) is shifted as a whole. With both set, neighbours overlap.
  */
 function isTileInOwnCellShape(
   tile: ResolvedTile,
@@ -923,7 +927,7 @@ function isTileInOwnCellShape(
     case 'orthogonal':
       return isRectConfinedToCell(rect, cellX, cellY, ctx)
     case 'oblique':
-      return false
+      return (!ctx.skewx || !ctx.skewy) && isRectOnCellBox(rect, cellX, cellY, ctx)
     case 'hexagonal':
       if (tile.diagonalFlip || tile.rotatedHex120 === true) return false
       return isRectOnCellBox(rect, cellX, cellY, ctx)

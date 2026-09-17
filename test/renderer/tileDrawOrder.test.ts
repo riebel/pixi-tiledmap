@@ -135,7 +135,9 @@ describe('packed tile draw order', () => {
         staggeraxis: 'y',
         staggerindex: 'odd'
       }
-    ]
+    ],
+    ['oblique with skewx', { ...ctx, orientation: 'oblique', tilewidth: 64, skewx: 8 }],
+    ['oblique with skewy', { ...ctx, orientation: 'oblique', tilewidth: 64, skewy: -8 }]
   ] satisfies [string, MapContext][])(
     'keeps one mesh per tileset for grid-sized %s tiles',
     (_name, mapCtx) => {
@@ -198,6 +200,30 @@ describe('packed tile draw order', () => {
 
     const visuals = drawnVisuals(renderer)
     expect(visuals.map((visual) => visual.sprite)).toEqual([false, true, false])
+  })
+
+  it('keeps overlapping tiles of an oblique map skewed both ways in render order', () => {
+    // Skewed both ways, (1, 0) reaches down into (0, 1) and must stay below it.
+    const obliqueCtx: MapContext = {
+      ...ctx,
+      orientation: 'oblique',
+      skewx: 16,
+      skewy: 16
+    }
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({
+        width: 2,
+        height: 2,
+        tiles: [tileFrom(0), tileFrom(1), tileFrom(0), null]
+      }),
+      [makeTileset(32), makeTileset(32)],
+      obliqueCtx
+    )
+
+    const sources = drawnVisuals(renderer).map((visual) => visual.source)
+    expect(sources).toHaveLength(3)
+    expect(sources.at(-1)).toBe(sources[0])
+    expect(renderer.children).toHaveLength(3)
   })
 
   it('draws a tile over a squashed hexagonal tile turned into its cell', () => {
