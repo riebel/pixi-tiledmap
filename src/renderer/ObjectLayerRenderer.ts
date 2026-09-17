@@ -11,6 +11,7 @@ import { type AffineTransform, getObjectProjection } from './mapGeometry.js'
 import { parseTintColor, tiledColorToCss } from './parseColor.js'
 import { applyLayerState } from './renderableLayer.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
+import { disableKerning } from './textKerning.js'
 import { createObjectTileSprite } from './tileSpriteFactory.js'
 
 /** The Tiled editor's default object color. */
@@ -513,6 +514,7 @@ function createText(td: TiledText, wrapWidth: number): Text {
       align: td.halign ?? 'left'
     }
   })
+  if (td.kerning === false) disableKerning(text.style)
   return text
 }
 
