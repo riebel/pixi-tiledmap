@@ -2,13 +2,16 @@
  * @vitest-environment jsdom
  */
 
+import { BufferImageSource, Texture } from 'pixi.js'
 import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
+import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
 import type { MapContext, ResolvedChunk } from '../../src/types/index.js'
 import { benchGroup } from '../helpers/bench.js'
 import {
   makeResolvedChunk,
   makeResolvedTile,
   makeResolvedTileLayer,
+  makeResolvedTileset,
   makeTileSetRenderer
 } from '../helpers/resolved.js'
 
@@ -26,6 +29,14 @@ const legacyBatchCtx: MapContext = {
 }
 
 const tileset = makeTileSetRenderer()
+// A second texture source, so alternating tiles need a second mesh.
+const otherTileset = new TileSetRenderer(makeResolvedTileset({ name: 'other' }), null)
+otherTileset.setTileTexture(
+  0,
+  new Texture({
+    source: new BufferImageSource({ resource: new Uint8Array(32 * 32 * 4), width: 32, height: 32 })
+  })
+)
 
 function makeTiles(count: number) {
   return Array.from({ length: count }, () => makeResolvedTile())
@@ -41,6 +52,18 @@ benchGroup('TileLayerRenderer hot path', (bench) => {
       }),
       [tileset],
       legacyBatchCtx
+    )
+    renderer.destroy({ children: true })
+  })
+
+  bench('finite 256x256 tile layer from two alternating tilesets', () => {
+    const tiles = Array.from({ length: 256 * 256 }, (_, index) =>
+      makeResolvedTile({ tilesetIndex: ((index % 256) + Math.floor(index / 256)) % 2 })
+    )
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({ width: 256, height: 256, tiles }),
+      [tileset, otherTileset],
+      ctx
     )
     renderer.destroy({ children: true })
   })

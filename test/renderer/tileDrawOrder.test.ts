@@ -74,6 +74,10 @@ function drawnVisuals(renderer: Container): DrawnVisual[] {
   return visuals
 }
 
+function coverageOf(renderer: Container): Map<number, number> {
+  return (renderer as unknown as { _coverage: Map<number, number> })._coverage
+}
+
 describe('packed tile draw order', () => {
   it('draws an oversized tile over an earlier tile from another tileset', () => {
     // Tileset 0 holds 32x96 tables, tileset 1 a 32x32 barrel. The table at
@@ -376,6 +380,53 @@ describe('packed tile draw order', () => {
     )
     expect(covered).toBeGreaterThanOrEqual(0)
     expect(covered).toBeLessThan(grown)
+  })
+
+  it('records no full coverage for confined tiles however many meshes they need', () => {
+    const tiles: ResolvedTile[] = []
+    for (let index = 0; index < 64; index++) {
+      tiles.push(tileFrom(((index % 8) + Math.floor(index / 8)) % 2))
+    }
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({ width: 8, height: 8, tiles }),
+      [makeTileset(32), makeTileset(32)],
+      { ...ctx, tileSpritePadding: 0.01, tileMeshBatchSize: 8 }
+    )
+
+    expect(renderer.children.length).toBeGreaterThan(2)
+    expect(coverageOf(renderer).size).toBe(0)
+  })
+
+  it('drops the full coverage once a layer with an oversized tile is finalized', () => {
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({
+        width: 2,
+        height: 3,
+        tiles: [tileFrom(0), tileFrom(1), null, null, null, tileFrom(0)]
+      }),
+      [makeTileset(96), makeTileset(32)],
+      ctx
+    )
+
+    expect(renderer.children).toHaveLength(3)
+    expect(coverageOf(renderer).size).toBe(0)
+  })
+
+  it('keeps raw rectangles added after finalizing above what they overlap', () => {
+    const first = makeTexture(8, 8)
+    const second = makeTexture(8, 8)
+    const renderer = new PackedTileLayerRenderer()
+
+    renderer.addTextureRect({ texture: first, x: 0, y: 0, width: 16, height: 16 })
+    renderer.addTextureRect({ texture: second, x: 8, y: 8, width: 16, height: 16 })
+    renderer.finalize()
+    renderer.addTextureRect({ texture: first, x: 16, y: 16, width: 16, height: 16 })
+
+    expect(drawnVisuals(renderer).map((visual) => [visual.source, visual.x])).toEqual([
+      [first.source, 0],
+      [second.source, 8],
+      [first.source, 16]
+    ])
   })
 
   it('orders overlapping raw rectangles by insertion', () => {

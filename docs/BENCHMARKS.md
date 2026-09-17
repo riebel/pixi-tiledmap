@@ -33,6 +33,9 @@ Recorded on September 16, 2026 for `2.9.0` with PixiJS `8.20.1` and Vitest `5.0.
 | finite `64x64` tile layer, `tileMeshBatchSize: 2000` | `630 hz` |
 | infinite `16` chunks of `16x16` tiles | `658 hz` |
 | animated finite `64x64` tile layer | `16 hz` |
+| finite `256x256` tile layer from two alternating tilesets | `27 hz` |
+
+The two-tileset case was added after `2.9.0` and measured on September 17, 2026 on the same machine; `2.9.0` itself builds it at `28 hz`. It guards the draw-order bookkeeping, which must stay free for layers whose tiles all keep to their cells.
 
 ### Runtime editing
 
@@ -51,7 +54,7 @@ Each editing benchmark includes building its layer, so results drop with layer s
 ## Packed Tile Layers
 
 - Static map tiles are packed into batchable PixiJS `Mesh` children, grouped by texture source and alpha.
-- Grouping never changes what is drawn on top. A tile joins the newest mesh for its texture and alpha only if nothing it overlaps is drawn above that mesh; otherwise it starts a new mesh on top. A grid of map-sized cells records the highest draw position covering each cell. Tiles confined to their own cell overlap nothing, so an ordinary layer still gets one mesh per texture and alpha, and a layer that never needs a second mesh records nothing. Animated and GIF tile sprites take their place in the same draw order.
+- Grouping never changes what is drawn on top. A tile joins the newest mesh for its texture and alpha only if nothing it overlaps is drawn above that mesh; otherwise it starts a new mesh on top. A grid of map-sized cells records the highest draw position covering each cell. Tiles confined to their own cell shape only need to stay above tiles that are not, which a second, much smaller grid records, so an ordinary layer still gets one mesh per texture and alpha. The full grid is only kept while such an unconfined tile is being placed: it is filled from the tiles packed so far when the first one arrives and dropped when the layer is finalized, so a layer of confined tiles records nothing there, however many meshes it needs. A mesh opened only to keep draw order starts at `16` quads. Animated and GIF tile sprites take their place in the same draw order.
 - Packed meshes default to `16000` quads each (`tileMeshBatchSize`), which stays below 16-bit index limits while keeping render object count low. Lower it only for a renderer or device profile that measurably prefers smaller meshes.
 - Quad indices are cached by quad count and shared across mesh instances.
 - Interleaved custom geometry is not used, because PixiJS v8 only batches `MeshGeometry` instances through its built-in mesh batcher.

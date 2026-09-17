@@ -85,6 +85,14 @@ interface InternalTileRenderHandle extends PackedTileRenderHandle {
   released: boolean
 }
 
+/** The part of a quad or sprite placement the coverage grid reads. */
+interface CoverageRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface PackedTextureRect {
   texture: Texture
   x: number
@@ -119,6 +127,14 @@ export class PackedTileLayerRenderer extends Container {
    * confined visual only has to stay above these.
    */
   private readonly _looseCoverage = new Map<number, number>()
+  /**
+   * Whether `_coverage` is being kept. Only a visual that may leave its cell
+   * shape reads it, so it is filled from the packed quads and sprites when the
+   * first such visual arrives, and dropped again when the layer is finalized.
+   */
+  private _coverageTracked = false
+  /** Where each tile sprite is drawn, for filling `_coverage` later. */
+  private readonly _spriteRects = new Map<Container, CoverageRect>()
   private _coverageCellWidth = 0
   private _coverageCellHeight = 0
   private _coverageSlack = 0
@@ -219,6 +235,8 @@ export class PackedTileLayerRenderer extends Container {
       else this._materializeBatch(item)
     }
     this._finalized = true
+    this._coverage.clear()
+    this._coverageTracked = false
   }
 
   updatePackedTile(
@@ -333,7 +351,15 @@ export class PackedTileLayerRenderer extends Container {
   private _addSprite(sprite: Container, rect: PackedTextureRect | null, ownCell: boolean): void {
     const order = this._drawItems.length
     this._drawItems.push(sprite)
-    if (rect) this._recordCoverage(rect, order, ownCell)
+    if (rect) {
+      this._spriteRects.set(sprite, {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height
+      })
+      this._recordCoverage(rect, order, ownCell)
+    }
     if (this._finalized) this._addOwnChild(sprite)
   }
 
@@ -623,6 +649,8 @@ export class PackedTileLayerRenderer extends Container {
     this._drawItems.length = 0
     this._coverage.clear()
     this._looseCoverage.clear()
+    this._coverageTracked = false
+    this._spriteRects.clear()
   }
 
   /**
@@ -649,35 +677,48 @@ export class PackedTileLayerRenderer extends Container {
    */
   private _coveredOrder(rect: PackedTextureRect, ownCell: boolean): number {
     if (this._quadsConfined) return 0
+    if (!ownCell) this._trackCoverage()
     const coverage = ownCell ? this._looseCoverage : this._coverage
     if (coverage.size === 0 || !this._setCoverageBounds(rect)) return 0
-
-    const { left, top, right, bottom } = _coverageBounds
-    let order = 0
-    for (let row = top; row <= bottom; row++) {
-      for (let col = left; col <= right; col++) {
-        const covered = coverage.get(coverageKey(col, row))
-        if (covered !== undefined && covered > order) order = covered
-      }
-    }
-    return order
+    return highestCoverage(coverage)
   }
 
   private _recordCoverage(rect: PackedTextureRect, order: number, ownCell: boolean): void {
-    if (order === 0 || !this._setCoverageBounds(rect)) return
+    if (order === 0) return
+    if (this._coverageTracked) this._raiseCoverage(this._coverage, rect, order)
+    if (!ownCell) this._raiseCoverage(this._looseCoverage, rect, order)
+  }
 
+  /** Fills `_coverage` from every quad and sprite drawn above the first item. */
+  private _trackCoverage(): void {
+    if (this._coverageTracked) return
+    this._coverageTracked = true
+    const items = this._drawItems
+    for (let order = 1; order < items.length; order++) {
+      const item = items[order]!
+      if (item instanceof Container) {
+        const rect = this._spriteRects.get(item)
+        if (rect) this._raiseCoverage(this._coverage, rect, order)
+        continue
+      }
+      for (const handle of item.handles) {
+        if (handle) this._raiseCoverage(this._coverage, handle, order)
+      }
+    }
+  }
+
+  private _raiseCoverage(coverage: Map<number, number>, rect: CoverageRect, order: number): void {
+    if (!this._setCoverageBounds(rect)) return
     const { left, top, right, bottom } = _coverageBounds
     for (let row = top; row <= bottom; row++) {
       for (let col = left; col <= right; col++) {
-        const key = coverageKey(col, row)
-        raiseCoverage(this._coverage, key, order)
-        if (!ownCell) raiseCoverage(this._looseCoverage, key, order)
+        raiseCoverage(coverage, coverageKey(col, row), order)
       }
     }
   }
 
   /** Writes the coverage cells under `rect` to `_coverageBounds`; false when it covers none. */
-  private _setCoverageBounds(rect: PackedTextureRect): boolean {
+  private _setCoverageBounds(rect: CoverageRect): boolean {
     if (this._coverageCellWidth === 0) {
       // Raw rectangles added before any tile: pick a grid and keep it.
       this._coverageCellWidth = DEFAULT_COVERAGE_CELL
@@ -733,6 +774,19 @@ const COVERAGE_KEY_SPAN = 2 ** 21
 
 // Reusable coverage cell range; callers read it before the next bounds query.
 const _coverageBounds = { left: 0, top: 0, right: 0, bottom: 0 }
+
+/** Highest order recorded in `coverage` within `_coverageBounds`; 0 when none. */
+function highestCoverage(coverage: Map<number, number>): number {
+  const { left, top, right, bottom } = _coverageBounds
+  let order = 0
+  for (let row = top; row <= bottom; row++) {
+    for (let col = left; col <= right; col++) {
+      const covered = coverage.get(coverageKey(col, row))
+      if (covered !== undefined && covered > order) order = covered
+    }
+  }
+  return order
+}
 
 function raiseCoverage(coverage: Map<number, number>, key: number, order: number): void {
   const covered = coverage.get(key)
