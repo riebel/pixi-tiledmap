@@ -45,6 +45,27 @@ describe('disableKerning', () => {
     expect(unkerned.letterSpacing).toBeLessThan(0.01)
   })
 
+  it('finds the style in the text-first signature of PixiJS before 8.16', async () => {
+    // The hooks install once per module, so this test needs fresh modules.
+    vi.resetModules()
+    const pixi = await import('pixi.js')
+    const kerning = await import('../../src/renderer/textKerning.js')
+    const drawContext = { fontKerning: 'auto' }
+    const seen: string[] = []
+    const generator = pixi.CanvasTextGenerator as unknown as Internals
+    vi.spyOn(generator, '_renderTextToCanvas').mockImplementation(() => {
+      seen.push(drawContext.fontKerning)
+    })
+
+    const unkerned = new pixi.TextStyle()
+    kerning.disableKerning(unkerned)
+    generator._renderTextToCanvas('AV', unkerned, 0, 1, { context: drawContext })
+    generator._renderTextToCanvas('AV', new pixi.TextStyle(), 0, 1, { context: drawContext })
+
+    expect(seen).toEqual(['none', 'auto'])
+    expect(drawContext.fontKerning).toBe('auto')
+  })
+
   it('is applied to Tiled text objects with kerning off', () => {
     const layer = makeResolvedObjectLayer({
       objects: [

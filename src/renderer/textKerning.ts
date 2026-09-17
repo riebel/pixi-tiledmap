@@ -25,13 +25,12 @@ interface KerningContext {
   fontKerning?: string
 }
 
-type RenderTextToCanvas = (
-  style: TextStyle,
-  padding: number,
-  resolution: number,
-  canvasAndContext: { context: KerningContext },
-  measured: unknown
-) => void
+/**
+ * PixiJS 8.16 and later: `(style, padding, resolution, canvasAndContext,
+ * measured)`. PixiJS 8.10 to 8.15 pass the text first: `(text, style, padding,
+ * resolution, canvasAndContext)`.
+ */
+type RenderTextToCanvas = (...args: unknown[]) => void
 
 type MeasureText = (text: string, style: TextStyle, ...rest: unknown[]) => unknown
 
@@ -81,11 +80,14 @@ function installKerningHooks(): void {
   const generator = CanvasTextGenerator as unknown as { _renderTextToCanvas?: RenderTextToCanvas }
   const render = generator._renderTextToCanvas
   if (render) {
-    generator._renderTextToCanvas = function (this: unknown, style, ...rest) {
+    generator._renderTextToCanvas = function (this: unknown, ...args) {
+      // Only the older signature starts with the text.
+      const styleIndex = typeof args[0] === 'string' ? 1 : 0
+      const canvasAndContext = args[styleIndex + 3] as { context?: KerningContext } | undefined
       withoutKerning(
-        style,
-        () => rest[2].context,
-        () => render.call(this, style, ...rest)
+        args[styleIndex] as TextStyle,
+        () => canvasAndContext?.context,
+        () => render.apply(this, args)
       )
     }
   }
