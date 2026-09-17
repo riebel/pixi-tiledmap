@@ -3,19 +3,9 @@ import { mergeTemplate } from '../../src/parser/mergeTemplate.js'
 import type { ResolvedTileset, TiledObject, TiledObjectTemplate } from '../../src/types/index.js'
 import { FLIPPED_HORIZONTALLY_FLAG, FLIPPED_VERTICALLY_FLAG } from '../../src/types/index.js'
 
+/** A template instance as Tiled writes it: only the fields it overrides. */
 function makeInstance(overrides: Partial<TiledObject> = {}): TiledObject {
-  return {
-    id: 1,
-    name: '',
-    type: '',
-    x: 10,
-    y: 20,
-    width: 0,
-    height: 0,
-    rotation: 0,
-    visible: true,
-    ...overrides
-  }
+  return { id: 1, type: '', x: 10, y: 20, ...overrides } as TiledObject
 }
 
 function makeTemplate(
@@ -75,10 +65,42 @@ describe('mergeTemplate', () => {
       expect(result.visible).toBe(false)
     })
 
-    it('template provides name and type defaults when instance fields are empty', () => {
-      const result = mergeTemplate(makeInstance({ name: '', type: '' }), makeTemplate({}), [])
+    it('template provides name and type when the instance omits them', () => {
+      const result = mergeTemplate(makeInstance({ type: '' }), makeTemplate({}), [])
       expect(result.name).toBe('from-template')
       expect(result.type).toBe('enemy')
+    })
+
+    it('an instance name that was cleared stays empty', () => {
+      const result = mergeTemplate(makeInstance({ name: '' }), makeTemplate({}), [])
+      expect(result.name).toBe('')
+    })
+
+    it('template rotation and visibility apply when the instance omits them', () => {
+      const result = mergeTemplate(
+        makeInstance(),
+        makeTemplate({ rotation: 45, visible: false }),
+        []
+      )
+      expect(result.rotation).toBe(45)
+      expect(result.visible).toBe(false)
+    })
+
+    it('an explicit zero rotation and visible instance override the template', () => {
+      const result = mergeTemplate(
+        makeInstance({ rotation: 0, visible: true }),
+        makeTemplate({ rotation: 45, visible: false }),
+        []
+      )
+      expect(result.rotation).toBe(0)
+      expect(result.visible).toBe(true)
+    })
+
+    it('template opacity applies unless the instance sets its own', () => {
+      expect(mergeTemplate(makeInstance(), makeTemplate({ opacity: 0.5 }), []).opacity).toBe(0.5)
+      expect(
+        mergeTemplate(makeInstance({ opacity: 1 }), makeTemplate({ opacity: 0.5 }), []).opacity
+      ).toBe(1)
     })
 
     it('non-empty instance name and type override the template', () => {
@@ -97,8 +119,8 @@ describe('mergeTemplate', () => {
       expect(result.height).toBe(48)
     })
 
-    it('template width and height used when instance has zero dimensions', () => {
-      const result = mergeTemplate(makeInstance({ width: 0, height: 0 }), makeTemplate({}), [])
+    it('template width and height used when the instance omits them', () => {
+      const result = mergeTemplate(makeInstance(), makeTemplate({}), [])
       expect(result.width).toBe(16)
       expect(result.height).toBe(16)
     })
@@ -133,7 +155,7 @@ describe('mergeTemplate', () => {
         }),
         []
       )
-      expect(result.properties).toBe(instance.properties)
+      expect(result.properties).toEqual(instance.properties)
       expect(result.text).toBe(instance.text)
       expect(result.polyline).toBe(instance.polyline)
       expect(result.ellipse).toBe(true)
@@ -147,9 +169,43 @@ describe('mergeTemplate', () => {
         ellipse: true
       })
       const result = mergeTemplate(makeInstance(), template, [])
-      expect(result.properties).toBe(template.object.properties)
+      expect(result.properties).toEqual(template.object.properties)
       expect(result.text).toBe(template.object.text)
       expect(result.ellipse).toBe(true)
+    })
+
+    it('merges custom properties by name, the instance winning', () => {
+      const result = mergeTemplate(
+        makeInstance({
+          properties: [
+            { name: 'b', type: 'string', value: 'B2' },
+            { name: 'c', type: 'int', value: 3 }
+          ]
+        }),
+        makeTemplate({
+          properties: [
+            { name: 'a', type: 'string', value: 'A' },
+            { name: 'b', type: 'string', value: 'B' }
+          ]
+        }),
+        []
+      )
+      expect(result.properties).toEqual([
+        { name: 'a', type: 'string', value: 'A' },
+        { name: 'b', type: 'string', value: 'B2' },
+        { name: 'c', type: 'int', value: 3 }
+      ])
+    })
+
+    it('an instance shape replaces the whole template shape', () => {
+      const polygon = [
+        { x: 0, y: 0 },
+        { x: 8, y: 0 },
+        { x: 8, y: 8 }
+      ]
+      const result = mergeTemplate(makeInstance({ polygon }), makeTemplate({ ellipse: true }), [])
+      expect(result.polygon).toBe(polygon)
+      expect(result.ellipse).toBeUndefined()
     })
   })
 
@@ -230,6 +286,27 @@ describe('mergeTemplate', () => {
       )
       // localId = 3 - 5 = -2, skip → gid unchanged
       expect(result.gid).toBe(3)
+    })
+
+    it('matches a tileset source regardless of ./ and .. spelling', () => {
+      const result = mergeTemplate(
+        makeInstance(),
+        makeTemplate({ gid: 3 }, { firstgid: 1, source: 'tilesets/a.tsx' }),
+        [makeTileset(100, './tilesets/../tilesets/a.tsx')]
+      )
+      expect(result.gid).toBe(102)
+    })
+
+    it('resolves a template tileset source relative to the template path', () => {
+      // A caller of parseMap passes the template as read from disk, so its
+      // tileset source is still relative to templates/.
+      const result = mergeTemplate(
+        makeInstance(),
+        makeTemplate({ gid: 3 }, { firstgid: 1, source: '../tilesets/a.tsx' }),
+        [makeTileset(100, 'tilesets/a.tsx')],
+        'templates/enemy.tx'
+      )
+      expect(result.gid).toBe(102)
     })
 
     it('uses first matching tileset when map has multiple tilesets', () => {

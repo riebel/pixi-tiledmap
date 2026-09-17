@@ -128,6 +128,10 @@ export interface TiledText {
 
 // ─── Object ──────────────────────────────────────────────────────────────────
 
+/**
+ * A map object. A template instance (`template` set) carries only the fields
+ * it overrides, as Tiled writes it, so any other field may be absent there.
+ */
 export interface TiledObject {
   /** Tiled 1.12: a capsule (stadium) shape spanning the object's size. */
   capsule?: boolean

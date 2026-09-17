@@ -1,29 +1,33 @@
 import type { TiledHAlign, TiledObject, TiledPoint, TiledText, TiledVAlign } from '../types'
 import { parseProperties } from './tmxProperties.js'
-import { bool, child, float, int, optInt, optStr, str } from './xmlHelpers.js'
+import { bool, child, float, int, optFloat, optInt, optStr, str } from './xmlHelpers.js'
 
 export function parseObject(el: Element): TiledObject {
-  const obj: TiledObject = {
-    id: int(el, 'id'),
-    name: str(el, 'name'),
-    type: str(el, 'type') || str(el, 'class'),
-    x: float(el, 'x'),
-    y: float(el, 'y'),
-    width: float(el, 'width'),
-    height: float(el, 'height'),
-    rotation: float(el, 'rotation'),
-    visible: el.hasAttribute('visible') ? bool(el, 'visible', true) : true,
-    properties: parseProperties(el)
-  }
+  const template = optStr(el, 'template')
+  const obj = template
+    ? parseTemplateInstanceFields(el, template)
+    : ({
+        id: int(el, 'id'),
+        name: str(el, 'name'),
+        type: str(el, 'type') || str(el, 'class'),
+        x: float(el, 'x'),
+        y: float(el, 'y'),
+        width: float(el, 'width'),
+        height: float(el, 'height'),
+        rotation: float(el, 'rotation'),
+        visible: el.hasAttribute('visible') ? bool(el, 'visible', true) : true,
+        properties: parseProperties(el)
+      } satisfies TiledObject)
+
+  const opacity = optFloat(el, 'opacity')
+  if (opacity !== undefined) obj.opacity = opacity
 
   const gid = optInt(el, 'gid')
   if (gid != null) obj.gid = gid
 
-  const template = optStr(el, 'template')
-  if (template) obj.template = template
-
   if (child(el, 'ellipse')) obj.ellipse = true
   if (child(el, 'point')) obj.point = true
+  if (child(el, 'capsule')) obj.capsule = true
 
   const polygonEl = child(el, 'polygon')
   if (polygonEl) {
@@ -41,6 +45,28 @@ export function parseObject(el: Element): TiledObject {
   }
 
   return obj
+}
+
+/**
+ * Tiled writes a field on a template instance only when the instance changed
+ * it. Leave the others absent, so the template can supply them.
+ */
+function parseTemplateInstanceFields(el: Element, template: string): TiledObject {
+  const obj: Record<string, unknown> = {
+    id: int(el, 'id'),
+    template,
+    type: str(el, 'type') || str(el, 'class'),
+    x: float(el, 'x'),
+    y: float(el, 'y')
+  }
+  if (el.hasAttribute('name')) obj.name = str(el, 'name')
+  for (const key of ['width', 'height', 'rotation'] as const) {
+    if (el.hasAttribute(key)) obj[key] = float(el, key)
+  }
+  if (el.hasAttribute('visible')) obj.visible = bool(el, 'visible', true)
+  const properties = parseProperties(el)
+  if (properties) obj.properties = properties
+  return obj as unknown as TiledObject
 }
 
 function parsePoints(pointStr: string): TiledPoint[] {

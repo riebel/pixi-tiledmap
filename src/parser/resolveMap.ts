@@ -115,7 +115,7 @@ function resolveObjects(
     let merged: TiledObject = raw
     if (raw.template && templates) {
       const tpl = templates.get(raw.template)
-      if (tpl) merged = mergeTemplate(raw, tpl, tilesets)
+      if (tpl) merged = mergeTemplate(raw, tpl, tilesets, raw.template)
     }
 
     const { gid } = merged

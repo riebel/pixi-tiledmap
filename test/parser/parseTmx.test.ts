@@ -5,6 +5,7 @@ import { DOMAdapter, WebWorkerAdapter } from 'pixi.js'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseTmx, parseTsx, parseTx } from '../../src/parser/parseTmx.js'
 import { parseMap } from '../../src/parser/resolveMap.js'
+import type { ResolvedObjectLayer } from '../../src/types/index.js'
 
 describe('parseTmx', () => {
   it('parses a minimal orthogonal map', () => {
@@ -249,6 +250,20 @@ describe('parseTmx', () => {
       propertytype: undefined,
       value: true
     })
+  })
+
+  it('reads Tiled 1.12 map and layer attributes', () => {
+    const map = parseTmx(`<map version="1.10" orientation="oblique" width="1" height="1"
+     tilewidth="16" tileheight="16" skewx="4" skewy="-2" nextlayerid="3" nextobjectid="2">
+  <layer id="1" name="ground" mode="screen" width="1" height="1"><data encoding="csv">0</data></layer>
+  <objectgroup id="2" name="things">
+    <object id="1" x="0" y="0" width="8" height="4" opacity="0.25"><capsule/></object>
+  </objectgroup>
+</map>`)
+
+    expect(map).toMatchObject({ orientation: 'oblique', skewx: 4, skewy: -2 })
+    expect(map.layers[0]!.mode).toBe('screen')
+    expect(map.layers[1]!.objects![0]).toMatchObject({ opacity: 0.25, capsule: true })
   })
 
   it('normalizes a TMX image color key to the JSON form', () => {
@@ -596,6 +611,43 @@ describe('parseTx', () => {
 
   it('throws when template has no <object>', () => {
     expect(() => parseTx('<template/>')).toThrow('missing <object>')
+  })
+
+  it('lets a TMX instance inherit every field it does not write', () => {
+    const template = parseTx(`<template>
+  <object name="rock" type="prop" width="16" height="8" rotation="45" visible="0" opacity="0.5">
+    <properties><property name="a" value="A"/></properties>
+    <ellipse/>
+  </object>
+</template>`)
+    const map = parseTmx(`<map version="1.10" orientation="orthogonal" width="1" height="1"
+     tilewidth="32" tileheight="32" nextlayerid="2" nextobjectid="3">
+  <objectgroup id="1" name="objects">
+    <object id="1" template="rock.tx" x="5" y="6">
+      <properties><property name="b" value="B"/></properties>
+    </object>
+    <object id="2" template="rock.tx" name="" x="7" y="8" rotation="0" visible="1"/>
+  </objectgroup>
+</map>`)
+
+    const layer = parseMap(map, { templates: new Map([['rock.tx', template]]) })
+      .layers[0] as ResolvedObjectLayer
+    expect(layer.objects[0]).toMatchObject({
+      name: 'rock',
+      type: 'prop',
+      x: 5,
+      y: 6,
+      width: 16,
+      height: 8,
+      rotation: 45,
+      visible: false,
+      ellipse: true,
+      properties: [
+        { name: 'a', value: 'A' },
+        { name: 'b', value: 'B' }
+      ]
+    })
+    expect(layer.objects[1]).toMatchObject({ name: '', rotation: 0, visible: true })
   })
 })
 

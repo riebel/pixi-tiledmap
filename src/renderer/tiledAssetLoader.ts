@@ -11,6 +11,7 @@ import {
 import type { GifSource } from 'pixi.js/gif'
 import { GifAsset } from 'pixi.js/gif'
 import { parseMapAsync, parseTmx, parseTsx, parseTx } from '../parser'
+import { joinRelativePath } from '../parser/relativePath.js'
 import { isTilesetRef } from '../parser/tilesetHelpers.js'
 import type {
   ResolvedMap,
@@ -221,7 +222,9 @@ function collectTextureManifest(mapData: ResolvedMap, basePath: string): Texture
 export function resolveAssetUrl(basePath: string, source: string): string {
   if (isRootedPath(source)) return source
   if (isRootedPath(basePath)) return pixiPath.join(basePath, source)
-  return joinRelativePath(basePath, source)
+  // Unlike `pixiPath.join`, this keeps a `..` that climbs above `basePath`, so
+  // a tileset in a sibling directory of the map is not moved into the map directory.
+  return joinRelativePath(pixiPath.toPosix(basePath), pixiPath.toPosix(source))
 }
 
 function isRootedPath(path: string): boolean {
@@ -232,24 +235,6 @@ function isRootedPath(path: string): boolean {
     pixiPath.isBlobUrl(path) ||
     pixiPath.hasProtocol(path)
   )
-}
-
-/**
- * Joins two relative paths. Unlike `pixiPath.join`, a `..` that climbs above
- * `basePath` is kept, so a tileset in a sibling directory of the map stays
- * `../tilesets/...` instead of silently moving into the map directory.
- */
-function joinRelativePath(basePath: string, source: string): string {
-  const segments: string[] = []
-  for (const segment of pixiPath.toPosix(`${basePath}/${source}`).split('/')) {
-    if (segment === '' || segment === '.') continue
-    if (segment === '..' && segments.length > 0 && segments[segments.length - 1] !== '..') {
-      segments.pop()
-    } else {
-      segments.push(segment)
-    }
-  }
-  return segments.join('/')
 }
 
 /**

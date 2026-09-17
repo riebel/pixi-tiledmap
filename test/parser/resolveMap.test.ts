@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseMap } from '../../src/parser/resolveMap.js'
-import type { ResolvedObjectLayer, TiledMap } from '../../src/types/index.js'
+import type { ResolvedObjectLayer, TiledMap, TiledObject } from '../../src/types/index.js'
 
 function makeMinimalMap(overrides?: Partial<TiledMap>): TiledMap {
   return {
@@ -478,19 +478,9 @@ describe('parseMap', () => {
           x: 0,
           y: 0,
           objects: [
-            // Instance only overrides position - name/type/size come from template.
-            {
-              id: 1,
-              name: '',
-              type: '',
-              x: 100,
-              y: 200,
-              width: 0,
-              height: 0,
-              rotation: 0,
-              visible: true,
-              template: 'sign.tx'
-            }
+            // Tiled writes only the fields an instance overrides: here the
+            // position. Name, type and size come from the template.
+            { id: 1, type: '', x: 100, y: 200, template: 'sign.tx' } as TiledObject
           ]
         }
       ]
