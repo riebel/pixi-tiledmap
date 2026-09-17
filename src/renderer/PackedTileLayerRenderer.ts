@@ -19,6 +19,11 @@ const MAX_TILES_PER_MESH = 16_383
 // positions.length / 2), so unused capacity is not free.
 const MAX_CAPACITY_GROWTH_STEP = 1024
 
+// Starting capacity of a batch opened only to keep draw order. Layers that mix
+// tilesets under overlapping tiles can open one such batch per tile, so each
+// starts small and grows like any other batch.
+const ORDER_SPLIT_TILE_CAPACITY = 16
+
 /**
  * Corner orders for the eight flip combinations, indexed by
  * `horizontal | vertical << 1 | diagonal << 2`. Precomputed so packing a tile
@@ -108,6 +113,12 @@ export class PackedTileLayerRenderer extends Container {
    * order 0, so a layer that never leaves its first batch records nothing.
    */
   private readonly _coverage = new Map<number, number>()
+  /**
+   * The same record for quads and sprites that are not confined to their own
+   * cell shape. Confined visuals of different cells never overlap, so a
+   * confined visual only has to stay above these.
+   */
+  private readonly _looseCoverage = new Map<number, number>()
   private _coverageCellWidth = 0
   private _coverageCellHeight = 0
   private _coverageSlack = 0
@@ -158,7 +169,7 @@ export class PackedTileLayerRenderer extends Container {
       if (!sprite) return null
       const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
       if (rect) this._trackConfinement(rect, x, y, ctx)
-      this._addSprite(sprite, rect)
+      this._addSprite(sprite, rect, rect !== null && isRectInOwnCellShape(rect, x, y, ctx))
       return null
     }
 
@@ -166,7 +177,7 @@ export class PackedTileLayerRenderer extends Container {
     if (!rect) return null
 
     this._trackConfinement(rect, x, y, ctx)
-    return this._addRect(rect)
+    return this._addRect(rect, isRectInOwnCellShape(rect, x, y, ctx))
   }
 
   /**
@@ -192,7 +203,7 @@ export class PackedTileLayerRenderer extends Container {
     if (!rect) return null
     if (!isRectConfinedToCell(rect, x, y, ctx)) return null
 
-    return this._addRect(rect)
+    return this._addRect(rect, true)
   }
 
   finalize(): void {
@@ -262,7 +273,7 @@ export class PackedTileLayerRenderer extends Container {
   addTextureRect(rect: PackedTextureRect): PackedTileRenderHandle {
     // Raw rectangles carry no grid-cell contract, so they can overlap freely.
     this._quadsConfined = false
-    return this._addRect(rect)
+    return this._addRect(rect, false)
   }
 
   clearPackedTile(handle: PackedTileRenderHandle): boolean {
@@ -312,10 +323,10 @@ export class PackedTileLayerRenderer extends Container {
    * Places a sprite-backed tile above everything added so far. Before the layer
    * is finalized it only takes its place in the draw order.
    */
-  private _addSprite(sprite: Container, rect: PackedTextureRect | null): void {
+  private _addSprite(sprite: Container, rect: PackedTextureRect | null, ownCell: boolean): void {
     const order = this._drawItems.length
     this._drawItems.push(sprite)
-    if (rect) this._recordCoverage(rect, order)
+    if (rect) this._recordCoverage(rect, order, ownCell)
     if (this._finalized) this._addOwnChild(sprite)
   }
 
@@ -333,10 +344,10 @@ export class PackedTileLayerRenderer extends Container {
     this._releaseBatches(destroyChildren && !destroyTextures)
   }
 
-  private _addRect(rect: PackedTextureRect): InternalTileRenderHandle {
+  private _addRect(rect: PackedTextureRect, ownCell: boolean): InternalTileRenderHandle {
     const alpha = rect.alpha ?? 1
-    const batch = this._getBatch(rect.texture, alpha, this._coveredOrder(rect))
-    this._recordCoverage(rect, batch.order)
+    const batch = this._getBatch(rect.texture, alpha, this._coveredOrder(rect, ownCell))
+    this._recordCoverage(rect, batch.order, ownCell)
     const slot = this._allocSlot(batch)
     const offset = slot * 8
 
@@ -564,17 +575,22 @@ export class PackedTileLayerRenderer extends Container {
     const last = batches[batches.length - 1]
     if (last && last.order >= minOrder && this._hasRoom(last)) return last
 
+    // A group whose newest batch still has room only splits to keep draw order.
+    const capacity =
+      last && this._hasRoom(last)
+        ? Math.min(this._initialTileCapacity, ORDER_SPLIT_TILE_CAPACITY)
+        : this._initialTileCapacity
     const batch: PackedTileBatch = {
       order: this._drawItems.length,
       texture: new Texture({ source }),
       alpha,
-      positions: new Float32Array(this._initialTileCapacity * 8),
-      uvs: new Float32Array(this._initialTileCapacity * 8),
-      indices: getQuadIndices(this._initialTileCapacity),
+      positions: new Float32Array(capacity * 8),
+      uvs: new Float32Array(capacity * 8),
+      indices: getQuadIndices(capacity),
       handles: [],
       freeSlots: [],
       tileCount: 0,
-      tileCapacity: this._initialTileCapacity,
+      tileCapacity: capacity,
       mesh: null
     }
     batches.push(batch)
@@ -599,6 +615,7 @@ export class PackedTileLayerRenderer extends Container {
     this._batches.clear()
     this._drawItems.length = 0
     this._coverage.clear()
+    this._looseCoverage.clear()
   }
 
   /**
@@ -617,34 +634,37 @@ export class PackedTileLayerRenderer extends Container {
   }
 
   /**
-   * Highest draw order among the quads and sprites under `rect`. While every
-   * visual is confined to its cell nothing can be under it, and cells cleared
-   * by edits still hold their old order, so the grid is not consulted.
+   * Highest draw order among the quads and sprites under `rect` that it may
+   * overlap. While every visual is confined to its cell nothing can be under
+   * it, and cells cleared by edits still hold their old order, so the grid is
+   * not consulted. A visual confined to its own cell shape can only overlap
+   * visuals that are not.
    */
-  private _coveredOrder(rect: PackedTextureRect): number {
-    if (this._quadsConfined || this._coverage.size === 0) return 0
-    if (!this._setCoverageBounds(rect)) return 0
+  private _coveredOrder(rect: PackedTextureRect, ownCell: boolean): number {
+    if (this._quadsConfined) return 0
+    const coverage = ownCell ? this._looseCoverage : this._coverage
+    if (coverage.size === 0 || !this._setCoverageBounds(rect)) return 0
 
     const { left, top, right, bottom } = _coverageBounds
     let order = 0
     for (let row = top; row <= bottom; row++) {
       for (let col = left; col <= right; col++) {
-        const covered = this._coverage.get(coverageKey(col, row))
+        const covered = coverage.get(coverageKey(col, row))
         if (covered !== undefined && covered > order) order = covered
       }
     }
     return order
   }
 
-  private _recordCoverage(rect: PackedTextureRect, order: number): void {
+  private _recordCoverage(rect: PackedTextureRect, order: number, ownCell: boolean): void {
     if (order === 0 || !this._setCoverageBounds(rect)) return
 
     const { left, top, right, bottom } = _coverageBounds
     for (let row = top; row <= bottom; row++) {
       for (let col = left; col <= right; col++) {
         const key = coverageKey(col, row)
-        const covered = this._coverage.get(key)
-        if (covered === undefined || covered < order) this._coverage.set(key, order)
+        raiseCoverage(this._coverage, key, order)
+        if (!ownCell) raiseCoverage(this._looseCoverage, key, order)
       }
     }
   }
@@ -707,6 +727,11 @@ const COVERAGE_KEY_SPAN = 2 ** 21
 
 // Reusable coverage cell range; callers read it before the next bounds query.
 const _coverageBounds = { left: 0, top: 0, right: 0, bottom: 0 }
+
+function raiseCoverage(coverage: Map<number, number>, key: number, order: number): void {
+  const covered = coverage.get(key)
+  if (covered === undefined || covered < order) coverage.set(key, order)
+}
 
 /** Packs a coverage cell into one safe integer; cells stay within +-2^20. */
 function coverageKey(col: number, row: number): number {
@@ -794,14 +819,59 @@ function isRectConfinedToCell(
   ctx: MapContext
 ): boolean {
   if (ctx.orientation !== 'orthogonal') return false
-
   const overhang = Math.min(ctx.tileSpritePadding ?? 0, MAX_CONFINED_OVERHANG)
+  return isRectWithinCell(rect, cellX, cellY, ctx, overhang)
+}
+
+/** Whether `rect` stays inside the grid box at (`cellX`, `cellY`) plus `overhang`. */
+function isRectWithinCell(
+  rect: PackedTextureRect,
+  cellX: number,
+  cellY: number,
+  ctx: MapContext,
+  overhang: number
+): boolean {
   const tolerance = overhang + CONFINEMENT_EPSILON
   return (
     rect.x >= cellX - CONFINEMENT_EPSILON &&
     rect.y >= cellY - CONFINEMENT_EPSILON &&
     rect.x + rect.width <= cellX + ctx.tilewidth + tolerance &&
     rect.y + rect.height <= cellY + ctx.tileheight + tolerance
+  )
+}
+
+/**
+ * Whether a tile's visible content stays inside its own cell shape, so it
+ * cannot overlap the content of another tile that does the same.
+ *
+ * Orthogonal cells are rectangles, and seam padding is an intentional
+ * overdraw whose order does not matter. Isometric, staggered and hexagonal
+ * cells are diamonds and hexagons whose bounding boxes overlap their
+ * neighbours'; a tile drawn exactly over that box is taken to fill the cell
+ * shape, as grid-sized tile art for those maps does. Oblique cells are
+ * sheared, so no tile is assumed to fit one.
+ */
+function isRectInOwnCellShape(
+  rect: PackedTextureRect,
+  cellX: number,
+  cellY: number,
+  ctx: MapContext
+): boolean {
+  switch (ctx.orientation) {
+    case 'orthogonal':
+      return isRectWithinCell(rect, cellX, cellY, ctx, ctx.tileSpritePadding ?? 0)
+    case 'oblique':
+      return false
+    default:
+      // A grid-sized tile without offset fills exactly the cell's box.
+      return isRectWithinCell(rect, cellX, cellY, ctx, 0) && isRectCellSized(rect, ctx)
+  }
+}
+
+function isRectCellSized(rect: PackedTextureRect, ctx: MapContext): boolean {
+  return (
+    rect.width >= ctx.tilewidth - CONFINEMENT_EPSILON &&
+    rect.height >= ctx.tileheight - CONFINEMENT_EPSILON
   )
 }
 

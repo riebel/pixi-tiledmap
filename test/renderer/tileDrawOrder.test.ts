@@ -115,6 +115,92 @@ describe('packed tile draw order', () => {
     expect(renderer.children).toHaveLength(2)
   })
 
+  it.each([
+    ['isometric', { ...ctx, orientation: 'isometric', tilewidth: 64 }],
+    [
+      'staggered',
+      { ...ctx, orientation: 'staggered', tilewidth: 64, staggeraxis: 'y', staggerindex: 'odd' }
+    ],
+    [
+      'hexagonal',
+      {
+        ...ctx,
+        orientation: 'hexagonal',
+        tilewidth: 64,
+        hexsidelength: 16,
+        staggeraxis: 'y',
+        staggerindex: 'odd'
+      }
+    ],
+    ['padded orthogonal', { ...ctx, tileSpritePadding: 0.5 }]
+  ] satisfies [string, MapContext][])(
+    'keeps one mesh per tileset for grid-sized %s tiles',
+    (_name, mapCtx) => {
+      const tiles: ResolvedTile[] = []
+      for (let index = 0; index < 64; index++) {
+        tiles.push(tileFrom(((index % 8) + Math.floor(index / 8)) % 2))
+      }
+      const tileset = (): TileSetRenderer => {
+        const renderer = new TileSetRenderer(
+          makeResolvedTileset({ tilewidth: mapCtx.tilewidth, tileheight: 32 }),
+          null
+        )
+        renderer.setTileTexture(0, makeTexture(mapCtx.tilewidth, 32))
+        return renderer
+      }
+      const renderer = new TileLayerRenderer(
+        makeResolvedTileLayer({ width: 8, height: 8, tiles }),
+        [tileset(), tileset()],
+        mapCtx
+      )
+
+      expect(renderer.children).toHaveLength(2)
+    }
+  )
+
+  it('draws an oversized isometric tile over a grid-sized tile it covers', () => {
+    const isoCtx: MapContext = { ...ctx, orientation: 'isometric', tilewidth: 64 }
+    const ground = new TileSetRenderer(makeResolvedTileset({ tilewidth: 64, tileheight: 32 }), null)
+    ground.setTileTexture(0, makeTexture(64, 32))
+    const trees = new TileSetRenderer(makeResolvedTileset({ tilewidth: 64, tileheight: 96 }), null)
+    trees.setTileTexture(0, makeTexture(64, 96))
+    // Cell (0, 0) holds ground, cell (1, 1) a tree reaching up over it, and
+    // cell (1, 0) more ground, so the tree cannot join the first mesh.
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({
+        width: 2,
+        height: 2,
+        tiles: [tileFrom(0), tileFrom(1), tileFrom(0), tileFrom(1)]
+      }),
+      [ground, trees],
+      isoCtx
+    )
+
+    const sources = drawnVisuals(renderer).map((visual) => visual.source)
+    const treeSource = trees.getTexture(0)!.source
+    const groundSource = ground.getTexture(0)!.source
+    expect(sources.lastIndexOf(groundSource)).toBeLessThan(sources.lastIndexOf(treeSource))
+  })
+
+  it('opens batches split only for draw order with a small capacity', () => {
+    const first = makeTexture(8, 8)
+    const second = makeTexture(8, 8)
+    const renderer = new PackedTileLayerRenderer(1000)
+
+    for (let index = 0; index < 4; index++) {
+      renderer.addTextureRect({
+        texture: index % 2 === 0 ? first : second,
+        x: index * 8,
+        y: 0,
+        width: 16,
+        height: 16
+      })
+    }
+
+    const batches = (renderer as unknown as { _drawItems: { tileCapacity: number }[] })._drawItems
+    expect(batches.map((batch) => batch.tileCapacity)).toEqual([1000, 1000, 16, 16])
+  })
+
   it('draws an oversized animated tile over the static tile it covers', () => {
     const animation = new Map<number, TiledTileDefinition>([
       [
