@@ -77,6 +77,7 @@ function parseObjectGroup(el: Element): TiledLayer {
   return {
     ...parseLayerCommon(el),
     type: 'objectgroup' as TiledLayerType,
+    color: optStr(el, 'color'),
     draworder: optStr(el, 'draworder') as TiledDrawOrder | undefined,
     objects: children(el, 'object').map(parseObject)
   } as TiledLayer

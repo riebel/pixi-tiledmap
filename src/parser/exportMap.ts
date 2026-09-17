@@ -198,6 +198,7 @@ function exportLayer(layer: ResolvedLayer, encoding: TiledEncoding): TiledLayer 
       return {
         ...common,
         type: 'objectgroup',
+        ...optional('color', layer.color),
         ...omitDefault('draworder', layer.draworder, 'topdown'),
         objects: layer.objects.map(exportObject)
       }

@@ -182,6 +182,7 @@ describe('exportMap', () => {
                 y: 0,
                 opacity: 1,
                 visible: true,
+                color: '#ff00ff00',
                 draworder: 'index',
                 objects: [
                   {

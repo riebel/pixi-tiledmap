@@ -101,7 +101,7 @@ describe('parseTmx', () => {
 <map version="1.10" orientation="orthogonal" width="10" height="10"
      tilewidth="32" tileheight="32" infinite="0"
      nextlayerid="3" nextobjectid="6">
-  <objectgroup id="2" name="objects">
+  <objectgroup id="2" name="objects" color="#ff0000">
     <object id="1" name="rect" x="10" y="20" width="50" height="30"/>
     <object id="2" name="circle" x="100" y="100" width="40" height="40">
       <ellipse/>
@@ -122,6 +122,7 @@ describe('parseTmx', () => {
     expect(map.layers).toHaveLength(1)
     const layer = map.layers[0]!
     expect(layer.type).toBe('objectgroup')
+    expect(layer.color).toBe('#ff0000')
     expect(layer.objects).toHaveLength(5)
 
     const rect = layer.objects![0]!

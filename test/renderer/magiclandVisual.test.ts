@@ -210,6 +210,7 @@ export const Container = PIXI.Container;
 export const DOMAdapter = PIXI.DOMAdapter;
 export const ExtensionType = PIXI.ExtensionType;
 export const Graphics = PIXI.Graphics;
+export const Matrix = PIXI.Matrix;
 export const Mesh = PIXI.Mesh;
 export const MeshGeometry = PIXI.MeshGeometry;
 export const Rectangle = PIXI.Rectangle;

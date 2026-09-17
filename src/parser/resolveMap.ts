@@ -153,6 +153,7 @@ function resolveObjectLayer(
   return {
     type: 'objectgroup',
     ...layerDefaults(layer),
+    color: layer.color,
     draworder: (layer.draworder ?? 'topdown') as TiledDrawOrder,
     objects: resolveObjects(layer.objects ?? [], tilesets, templates)
   }

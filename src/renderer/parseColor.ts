@@ -10,6 +10,15 @@ export function parseColorWithAlpha(hex: string): { color: number; alpha: number
   return { color: parseInt(clean, 16), alpha: 1 }
 }
 
+/**
+ * Converts a Tiled color to a CSS hex color. Tiled puts alpha first
+ * (`#AARRGGBB`); CSS and PixiJS put it last (`#RRGGBBAA`).
+ */
+export function tiledColorToCss(hex: string): string {
+  const clean = hex.replace('#', '')
+  return clean.length === 8 ? `#${clean.slice(2)}${clean.slice(0, 2)}` : `#${clean}`
+}
+
 export function parseTintColor(hex: string): number {
   const clean = hex.replace('#', '')
   // #AARRGGBB → strip alpha, use RRGGBB

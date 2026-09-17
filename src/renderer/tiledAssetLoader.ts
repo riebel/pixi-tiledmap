@@ -32,7 +32,10 @@ export type LoadAssetFn = <T>(url: string) => Promise<T>
 export interface TiledAssetPipelineOptions {
   fetchFn?: FetchFn
   loadAsset?: LoadAssetFn
-  mapOptions?: Pick<TiledMapOptions, 'layerFilter' | 'tileSpritePadding' | 'tileMeshBatchSize'>
+  mapOptions?: Pick<
+    TiledMapOptions,
+    'layerFilter' | 'tileSpritePadding' | 'tileMeshBatchSize' | 'objectStyle'
+  >
   /**
    * Scale mode applied to every texture source the map loads. Defaults to
    * `'nearest'`, so tile edges stay sharp and neighbouring atlas cells do not

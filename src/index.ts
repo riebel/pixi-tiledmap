@@ -90,6 +90,7 @@ export type {
   TiledMapOptions,
   TiledObject,
   TiledObjectAlignment,
+  TiledObjectStyle,
   TiledObjectTemplate,
   TiledOrientation,
   TiledPoint,

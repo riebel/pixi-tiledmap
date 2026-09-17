@@ -173,6 +173,8 @@ export interface TiledChunk {
 export interface TiledLayer {
   chunks?: TiledChunk[]
   class?: string
+  /** Object layers only: the color the Tiled editor draws the layer's objects in. */
+  color?: string
   compression?: TiledCompression
   data?: number[] | string
   draworder?: TiledDrawOrder
@@ -519,6 +521,8 @@ export interface ResolvedObjectLayer {
   /** Tiled 1.12 blend mode; absent means `'normal'`. */
   mode?: TiledBlendMode
   properties: TiledProperty[]
+  /** Editor color of the layer's objects; `undefined` means Tiled's default gray. */
+  color?: string
   draworder: TiledDrawOrder
   objects: ResolvedObject[]
 }
@@ -654,6 +658,40 @@ export interface TiledMapOptions {
    * object count for large layers.
    */
   tileMeshBatchSize?: number
+  /**
+   * How object layers draw shape objects (rectangles, ellipses, points,
+   * polygons, polylines). Defaults match the Tiled editor.
+   */
+  objectStyle?: TiledObjectStyle
+}
+
+export interface TiledObjectStyle {
+  /**
+   * Opacity of the fill of closed shapes, from 0 to 1. Defaults to the Tiled
+   * editor's 50/255. Set to 0 to draw outlines only.
+   */
+  fillAlpha?: number
+  /**
+   * Draw each named shape object's name centered above it, as the Tiled
+   * editor does. Defaults to `true`.
+   */
+  showLabels?: boolean
+  /** Object color for layers without their own `color`. Defaults to `#a0a0a4`. */
+  defaultColor?: string
+  /**
+   * Keep outlines one device pixel wide and labels at their on-screen size
+   * however the map is scaled, as the Tiled editor does. Set to `false` to
+   * scale them with the map instead. Defaults to `true`.
+   *
+   * This uses the object layer's `onRender` hook; replacing that hook stops
+   * the adjustment.
+   */
+  screenSpace?: boolean
+  /**
+   * Clip text objects to their box, as the Tiled editor does. Each clipped
+   * text object gets a mask. Defaults to `true`.
+   */
+  clipText?: boolean
 }
 
 export type TiledLayerFilter = (layer: ResolvedLayer) => boolean

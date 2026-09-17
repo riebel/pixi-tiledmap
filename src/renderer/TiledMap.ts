@@ -64,7 +64,8 @@ export class TiledMap extends Container {
       mapContext: createMapContext(mapData, bounds, options),
       imageTextures: options?.imageLayerTextures ?? new Map(),
       imageGifSources: options?.imageLayerGifSources ?? new Map(),
-      layerFilter: options?.layerFilter
+      layerFilter: options?.layerFilter,
+      objectStyle: options?.objectStyle
     })
     if (renderedLayers.length > 0) this.addChild(...renderedLayers)
 

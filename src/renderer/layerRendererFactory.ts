@@ -1,6 +1,12 @@
 import type { Container, Texture } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
-import type { MapContext, ResolvedGroupLayer, ResolvedLayer, TiledLayerFilter } from '../types'
+import type {
+  MapContext,
+  ResolvedGroupLayer,
+  ResolvedLayer,
+  TiledLayerFilter,
+  TiledObjectStyle
+} from '../types'
 import { ImageLayerRenderer } from './ImageLayerRenderer.js'
 import { ObjectLayerRenderer } from './ObjectLayerRenderer.js'
 import { TileLayerRenderer } from './TileLayerRenderer.js'
@@ -12,6 +18,7 @@ export interface LayerTreeRendererContext {
   imageTextures: Map<string, Texture>
   imageGifSources?: Map<string, GifSource>
   layerFilter?: TiledLayerFilter
+  objectStyle?: TiledObjectStyle
 }
 
 type GroupRendererFactory = (
@@ -46,7 +53,12 @@ function createLeafLayerRenderer(
     }
 
     case 'objectgroup':
-      return new ObjectLayerRenderer(layer, context.tilesets)
+      return new ObjectLayerRenderer(
+        layer,
+        context.tilesets,
+        context.objectStyle,
+        context.mapContext
+      )
 
     default:
       return assertNever(layer)

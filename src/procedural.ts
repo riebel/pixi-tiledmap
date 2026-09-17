@@ -153,6 +153,7 @@ export interface CreateObjectOptions extends ResolvedObjectDefaultInput {
 
 export interface CreateObjectLayerOptions extends CreateLayerBaseOptions {
   type: 'objectgroup'
+  color?: string
   draworder?: TiledDrawOrder
   objects?: CreateObjectOptions[]
 }
@@ -277,6 +278,7 @@ export function createObjectLayer(
   return {
     type: 'objectgroup',
     ...layerDefaults(options, options.id ?? 1),
+    color: options.color,
     draworder: options.draworder ?? 'topdown',
     objects: (options.objects ?? []).map((object) => createObject(object, tilesets))
   }
