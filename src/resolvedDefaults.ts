@@ -105,6 +105,28 @@ export interface ResolvedLayerDefaultInput {
   properties?: TiledProperty[]
 }
 
+/** Every blend mode name Tiled reads (`blendModeMapping` in Tiled's `tiled.cpp`). */
+const TILED_BLEND_MODES: ReadonlySet<string> = new Set<TiledBlendMode>([
+  'normal',
+  'add',
+  'multiply',
+  'screen',
+  'overlay',
+  'darken',
+  'lighten',
+  'color-dodge',
+  'color-burn',
+  'hard-light',
+  'soft-light',
+  'difference',
+  'exclusion'
+])
+
+/** Tiled reads an unknown blend mode name as normal, which is also what an absent one means. */
+function knownBlendMode(mode: string | undefined): TiledBlendMode | undefined {
+  return mode !== undefined && TILED_BLEND_MODES.has(mode) ? (mode as TiledBlendMode) : undefined
+}
+
 export function resolvedLayerDefaults(input: ResolvedLayerDefaultInput, idFallback = 0) {
   return {
     id: input.id ?? idFallback,
@@ -118,7 +140,7 @@ export function resolvedLayerDefaults(input: ResolvedLayerDefaultInput, idFallba
     parallaxx: input.parallaxx ?? 1,
     parallaxy: input.parallaxy ?? 1,
     tintcolor: input.tintcolor,
-    mode: input.mode,
+    mode: knownBlendMode(input.mode),
     properties: input.properties ?? []
   }
 }

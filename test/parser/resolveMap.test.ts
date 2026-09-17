@@ -37,6 +37,24 @@ describe('parseMap', () => {
     expect(result.infinite).toBe(false)
   })
 
+  it('reads an unknown blend mode as normal, as Tiled does', () => {
+    const group = (id: number, mode: string) =>
+      ({
+        id,
+        name: `g${id}`,
+        type: 'group',
+        opacity: 1,
+        visible: true,
+        x: 0,
+        y: 0,
+        layers: [],
+        mode
+      }) as unknown as TiledMap['layers'][number]
+    const result = parseMap(makeMinimalMap({ layers: [group(1, 'overlay'), group(2, 'glow')] }))
+
+    expect(result.layers.map((layer) => layer.mode)).toEqual(['overlay', undefined])
+  })
+
   it('resolves a tile layer with embedded tileset', () => {
     const map = makeMinimalMap({
       tilesets: [
