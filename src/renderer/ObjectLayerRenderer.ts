@@ -127,7 +127,7 @@ export class ObjectLayerRenderer extends Container {
     this._orientation = ctx?.orientation
 
     this._buildObjects(tilesets)
-    if (style?.showLabels !== false) this.labels = this._buildLabels()
+    if (style?.showLabels === true) this.labels = this._buildLabels()
     if (this._needsRenderHook()) this.onRender = this._syncWithScreen
   }
 

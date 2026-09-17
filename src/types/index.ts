@@ -697,7 +697,8 @@ export interface TiledObjectStyle {
   fillAlpha?: number
   /**
    * Draw each named shape object's name centered above it, as the Tiled
-   * editor does. Defaults to `true`.
+   * editor does. Each label is a PixiJS `Text` with its own texture, grouped
+   * in an `objectLabels` child above the objects. Defaults to `false`.
    */
   showLabels?: boolean
   /** Object color for layers without their own `color`. Defaults to `#a0a0a4`. */
@@ -708,7 +709,9 @@ export interface TiledObjectStyle {
    * scale them with the map instead. Defaults to `true`.
    *
    * This uses the object layer's `onRender` hook; replacing that hook stops
-   * the adjustment.
+   * the adjustment. Every change of the on-screen scale redraws the layer's
+   * shapes, so for large layers that are zoomed continuously, such as
+   * collision layers, `false` is cheaper.
    */
   screenSpace?: boolean
   /**

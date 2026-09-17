@@ -308,7 +308,7 @@ describe('ObjectLayerRenderer shape style', () => {
         makeShape({ id: 5, name: 'hidden', visible: false })
       ]
     })
-    const renderer = new ObjectLayerRenderer(layer, [])
+    const renderer = new ObjectLayerRenderer(layer, [], { showLabels: true })
 
     const labels = renderer.labels
     expect(labels).toBeInstanceOf(Container)
@@ -343,7 +343,7 @@ describe('ObjectLayerRenderer shape style', () => {
       objects: [makeTextObject({ text: 'hi' }, { name: 'caption' })]
     })
 
-    expect(new ObjectLayerRenderer(layer, []).labels).toBeNull()
+    expect(new ObjectLayerRenderer(layer, [], { showLabels: true }).labels).toBeNull()
   })
 
   it('draws one-device-pixel outlines by default and scaled ones without screenSpace', () => {
@@ -367,7 +367,7 @@ describe('ObjectLayerRenderer shape style', () => {
         makeShape({ id: 2, x: 0, y: 0, rotation: 90 })
       ]
     })
-    const renderer = new ObjectLayerRenderer(layer, [])
+    const renderer = new ObjectLayerRenderer(layer, [], { showLabels: true })
     const camera = new Container()
     camera.scale.set(4)
     camera.addChild(renderer)
@@ -392,7 +392,7 @@ describe('ObjectLayerRenderer shape style', () => {
   it('leaves labels scaled with the map and unhooks after layout without screenSpace', async () => {
     stubTextSize()
     const layer = makeResolvedObjectLayer({ objects: [makeShape({ name: 'zone' })] })
-    const renderer = new ObjectLayerRenderer(layer, [], { screenSpace: false })
+    const renderer = new ObjectLayerRenderer(layer, [], { screenSpace: false, showLabels: true })
     const camera = new Container()
     camera.scale.set(4)
     camera.addChild(renderer)
@@ -411,9 +411,12 @@ describe('ObjectLayerRenderer shape style', () => {
     expect(new ObjectLayerRenderer(layer, []).onRender).toBeNull()
   })
 
-  it('omits labels when showLabels is false', () => {
+  it.each([
+    ['by default', undefined],
+    ['when showLabels is false', { showLabels: false }]
+  ])('omits labels %s', (_name, style) => {
     const layer = makeResolvedObjectLayer({ objects: [makeShape({ name: 'zone' })] })
-    const renderer = new ObjectLayerRenderer(layer, [], { showLabels: false })
+    const renderer = new ObjectLayerRenderer(layer, [], style)
 
     expect(renderer.labels).toBeNull()
     expect(renderer.children).toHaveLength(1)
