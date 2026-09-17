@@ -73,6 +73,10 @@ interface DataFormat {
  * Two things a `ResolvedMap` can hold have no place in the Tiled format and are
  * therefore not written: `ResolvedTile.alpha` (a runtime render property) and
  * any state the parser itself drops, such as an object's originating template.
+ *
+ * A layer's `compression` is not written either, because compressing has no
+ * synchronous form, so a compressed map re-parses without it. Use
+ * `exportMapAsync` for an exact round trip of compressed maps.
  */
 export function exportMap(map: ResolvedMap, options?: ExportMapOptions): TiledMap {
   return exportMapWith(map, options, (layer) => ({
