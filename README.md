@@ -7,33 +7,34 @@ The library ships its own Tiled JSON and TMX XML parser with no runtime dependen
 ## Features
 
 - **PixiJS v8** - integrates through the `Assets` / `LoadParser` extension system
-- **Tiled JSON + TMX XML** - full spec coverage (Tiled 1.11), both `.tmj` and `.tmx` formats
+- **Tiled JSON + TMX XML** - full spec coverage (Tiled 1.11, plus the 1.12 additions below), both `.tmj` and `.tmx` formats, which parse to identical data - including `object`, `class` and `list` custom properties
 - **All layer types** - tile, image, object, and group layers
-- **All orientations** - orthogonal, isometric, staggered, hexagonal
+- **All orientations** - orthogonal, isometric, staggered, hexagonal, and Tiled 1.12 oblique (`skewx` / `skewy`)
 - **Render order** - right-down, right-up, left-down, left-up
 - **Infinite maps** - chunk-based tile layer rendering
 - **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source and alpha without changing draw order, with large source-inspired batches and no external tilemap dependency
 - **Incremental tile edits** - runtime tile edits update packed mesh buffers in place, and painting into empty cells reuses freed quad slots or grows batch capacity; edits that cannot be written in place rebuild the affected tile layer
-- **Tile features** - animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, runtime tile alpha, `tilerendersize` / `fillmode`
-- **Object rendering** - rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects
-- **Object templates** - automatic `.tx` / `.tj` resolution with gid remapping between template and map tileset spaces
+- **Tile features** - animated tiles, flip/rotation flags, image-collection tilesets (including Tiled 1.9 image sub-rectangles), tint color, tile offset, runtime tile alpha, `tilerendersize` / `fillmode`, `transparentcolor` color keys on tilesets and image layers
+- **Layer blend modes** - Tiled 1.12 `mode` maps onto the container's PixiJS `blendMode`; PixiJS' advanced blend modes are loaded on demand for maps that use them
+- **Object rendering** - rectangles, ellipses, capsules, polygons, polylines, points, text (aligned and clipped to its box, with underline/strikeout), and tile objects (animated, placed by `objectalignment`, rotated around their origin), in `topdown` or `index` draw order and projected on isometric and oblique maps like in Tiled
+- **Object templates** - automatic `.tx` / `.tj` resolution following Tiled's inheritance rules, with gid remapping between template and map tileset spaces
 - **Parallax scrolling** - per-layer `parallaxx` / `parallaxy` and map-level `parallaxorigin`, composed multiplicatively through group layers, applied via `TiledMap.applyParallax(cameraX, cameraY)`
-- **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib)
+- **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib), read and written
 - **Asset lifecycle** - loaded maps follow the PixiJS `Assets` cache: `Assets.unload` destroys the map, and a destroyed map is rebuilt on the next load
 - **External tilesets** - automatic resolution via the asset loader (`.tsj` and `.tsx`)
 - **Runtime editing and generation** - edit loaded maps in place or create resolved maps procedurally, with tile objects taking the same friendly tile input as tile layer cells
-- **Map export** - `exportMap` writes a resolved map back to Tiled JSON and `exportTileset` writes a standalone `.tsj`, so a generated map opens in Tiled; parsing an exported map reproduces the same map exactly
+- **Map export** - `exportMap` / `exportMapAsync` write a resolved map back to Tiled JSON, keeping each tile layer's encoding and (async) its gzip/zlib compression, and `exportTileset` writes a standalone `.tsj`, so a generated map opens in Tiled; parsing an exported map reproduces the same map exactly
 - **Map introspection** - `findLayer`, `getProperty`, and `tileAt` (point to tile cell, every orientation) work on the resolved map without a renderer, free of PixiJS and the DOM
 - **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
 - **Tree-shakable** - ESM + CJS builds with one module per source file and included type definitions; the parser, map export, procedural maps, lookups, and map geometry bundle without PixiJS
 - **Typed** - comprehensive TypeScript types for the full Tiled spec
 
-> **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported - the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour.
+> **Notes on Tiled-spec coverage.** `zstd`-compressed tile data is not supported - the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains (including the pre-1.5 TMX format) are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour. Tiled's hexagonal tile turns (the diagonal-flip bit as 60°, the extra bit as 120°) render as sprites rather than packed quads.
 
 ## Requirements
 
 - `pixi.js` `>=8.7.0` as a peer dependency
-- A runtime with the Compression Streams API for gzip/zlib tile data (`parseMapAsync`); every current browser and Node 18+ provides it
+- A runtime with the Compression Streams API for gzip/zlib tile data (`parseMapAsync`, `exportMapAsync`); every current browser and Node 18+ provides it
 
 ## Internal Model
 
@@ -188,6 +189,8 @@ app.stage.addChild(container);
 
 For image layers, image-collection tilesets, and animated GIF sources, pass the corresponding texture maps through `TiledMapOptions`. The asset loader fills these maps automatically.
 
+A map whose layers use advanced blend modes (`overlay`, `darken`, ...) needs PixiJS' advanced blend modes registered before it renders. The asset loader takes care of that; when constructing the map yourself, `await loadMapBlendModes(mapData)` before `new TiledMap(...)`. It resolves at once for maps that do not need it.
+
 ## Runtime Editing and Procedural Maps
 
 Use `setTile`, `getTile`, and `clearTile` to update rendered tile layers by layer name or numeric layer id:
@@ -205,7 +208,7 @@ The following edits rebuild the affected tile layer, because their result cannot
 
 - inserting into a cell of an isometric, staggered, or hexagonal map, or of any layer whose tiles overhang their grid cell (via `tileoffset`, a tile larger than the grid, or a `tileSpritePadding` above `0.125`px), where the draw order of overlapping quads is significant
 - switching an existing tile to a different texture source or alpha group
-- changing between packed tiles and sprite-backed tiles such as animated tiles or GIFs
+- changing between packed tiles and sprite-backed tiles: animated tiles, GIFs, and tiles a hexagonal map turns by 60 or 120 degrees
 - inserting a tile whose tileset texture is not available
 
 See [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) for how incremental editing works and what it costs.
@@ -246,7 +249,7 @@ const map = new TiledMap(generated, { tilesetTextures });
 map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 ```
 
-For isometric, staggered, and hexagonal maps, set `orientation`, and for staggered and hexagonal maps add `staggeraxis`, `staggerindex`, and (hexagonal only) `hexsidelength`, as in a Tiled map file:
+For isometric, staggered, hexagonal, and oblique maps, set `orientation`. Staggered and hexagonal maps also take `staggeraxis`, `staggerindex`, and (hexagonal only) `hexsidelength`, and oblique maps `skewx` / `skewy`, as in a Tiled map file:
 
 ```ts
 const hexMap = createMap({
@@ -293,8 +296,17 @@ A tileset is written as an external `{ firstgid, source }` reference when it has
 ```ts
 const tmj = exportMap(generated, {
   tilesetSources: { dungeon: 'tilesets/dungeon.tsj' },
-  encoding: 'base64', // default 'csv' writes a plain GID array
+  encoding: 'base64', // 'csv' writes a plain GID array; default: each layer's own encoding
 });
+```
+
+Each tile layer remembers whether it was base64 and how it was compressed, and `createTileLayer` accepts the same `encoding` / `compression` options. `exportMap` keeps the encoding but cannot compress; `exportMapAsync` also writes gzip or zlib through the Compression Streams API, so its output parses back with `parseMapAsync` to exactly the same map:
+
+```ts
+import { exportMapAsync } from 'pixi-tiledmap';
+
+const kept = await exportMapAsync(parsed); // each layer keeps its compression
+const gzipped = await exportMapAsync(generated, { compression: 'gzip' }); // or pick one; null for none
 ```
 
 `exportTileset` writes a tileset the same way. By default it produces embedded map data; `{ standalone: true }` produces a `.tsj` file, which carries `type: 'tileset'` and no `firstgid` — the first global id belongs to the map that references the tileset, not to the file:
@@ -321,7 +333,9 @@ const map = parseMap(tmj, { externalTilesets: new Map([['tilesets/dungeon.tsj', 
 Two caveats worth knowing, since both are silent:
 
 - `ResolvedTile.alpha` is a runtime render property with no place in the Tiled format, so it is not written. A GID carries no opacity.
-- Compressed output is not supported. The Compression Streams API has no synchronous form, so it would make `exportMap` async; both parsers read the uncompressed output either way.
+- `exportMap` writes compressed layers as uncompressed base64, since the Compression Streams API has no synchronous form. Use `exportMapAsync` to keep the compression. zstd is neither read nor written.
+
+`nextlayerid` and `nextobjectid` are kept from the parsed map and only ever raised, so ids of layers and objects deleted in Tiled are not handed out again.
 
 ## Inspecting a Map Without Rendering It
 
@@ -338,7 +352,7 @@ const local = map.toLocal(event.global);
 const cell = tileAt(mapData, local.x, local.y); // null outside the map, never clamped
 ```
 
-`tileAt` supports all four orientations. Note that isometric maps extend to the left of the origin, so valid points there have negative x.
+`tileAt` supports every orientation. Note that isometric maps extend to the left of the origin, so valid points there have negative x; `TiledMap`'s bounds start there too.
 
 `tileAt` only returns cells inside the map's `width` x `height` grid. Infinite maps can have chunks outside that range, including negative coordinates; use `pixelToTile`, which is unbounded, for those.
 
@@ -350,6 +364,7 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | --------------------- | ---------------------------------------------------------------- |
 | `tiledMapLoader`      | PixiJS `LoadParser` extension - register with `extensions.add()` |
 | `loadTiledMapAsset(url, options?)` | Load, resolve, texture, and render a TMJ/TMX map with optional renderer settings |
+| `loadMapBlendModes(map)` | Load PixiJS' advanced blend modes if the map's layers use any; resolves at once otherwise |
 | `TiledMapAsset`       | Loaded `mapData` plus a `TiledMap` container, rebuilt after `destroy` |
 | `TiledMap`            | `Container` subclass that renders a resolved map                 |
 | `TileLayerRenderer`   | Packed mesh-backed `Container` for a single tile layer           |
@@ -358,6 +373,7 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `GroupLayerRenderer`  | `Container` for a group layer (recursive)                        |
 | `PackedTileLayerRenderer` | Packed mesh base used by `TileLayerRenderer`, with a low-level `addTextureRect()` seam |
 | `TileSetRenderer`     | Texture manager for a tileset                                    |
+| `createLayerRenderer(layer, tilesets, ctx, imageTextures, ...)` | Build the renderer for one resolved layer, as `TiledMap` does |
 | `createMap(options)`  | Create a resolved map procedurally                               |
 | `createTileset(options)` | Create a resolved tileset                                     |
 | `createTileLayer(options, tilesets?)` | Create a resolved tile layer                    |
@@ -369,15 +385,19 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `parseTmx(xml)`       | Parse TMX XML string → `TiledMap` data (same shape as JSON)      |
 | `parseTsx(xml)`       | Parse TSX XML string → `TiledTileset` data (`firstgid` is `0`; the map's reference supplies the real value) |
 | `parseTx(xml)`        | Parse TX XML string → `TiledObjectTemplate` data                 |
+| `decodeLayerData(data, encoding?, compression?)` | Decode CSV or uncompressed base64 tile data into raw GIDs |
+| `decodeLayerDataAsync(data, encoding?, compression?)` | Async variant that also decodes gzip/zlib |
 | `decodeGid(raw)`      | Decode a raw GID into tile ID + flip flags                       |
 | `encodeGid(tile)`     | Pack a resolved tile back into a raw GID - the inverse of `decodeGid` |
-| `exportMap(map, options?)` | Resolved IR → Tiled JSON - the inverse of `parseMap`        |
+| `exportMap(map, options?)` | Resolved IR → Tiled JSON - the inverse of `parseMap`; keeps each layer's encoding but never compresses |
+| `exportMapAsync(map, options?)` | Like `exportMap`, and also writes gzip/zlib compressed tile data - the inverse of `parseMapAsync` |
 | `exportTileset(tileset, options?)` | Resolved tileset → embedded tileset data, or a standalone `.tsj` with `{ standalone: true }` |
 | `findLayer(map, name)` | Find a resolved layer by name, including inside group layers    |
 | `findLayerById(map, id)` | Find a resolved layer by its Tiled id                         |
 | `walkLayers(map)`     | Iterate the layer tree depth-first, group layers included        |
 | `getProperty(holder, name, type?)` | Read a Tiled custom property off a map, layer, object, or tileset; pass the Tiled type to narrow the result |
 | `tileAt(map, x, y)`   | Map-space point → tile cell, or `null` outside the map           |
+| `tileToPixel(col, row, ctx)` | Tile cell → map-space position of its image box, for every orientation |
 | `pixelToTile(x, y, ctx)` | Unbounded map-space point → tile cell - the inverse of `tileToPixel` |
 
 #### XML parsing outside the browser
@@ -399,6 +419,10 @@ Most applications should use `TiledMap` and `TileLayerRenderer`; the low-level s
 ### `TiledMap` Container
 
 ```ts
+// Only needed for advanced blend modes (overlay, darken, ...); the asset
+// loader does this itself. Without it the first frames blend normally.
+await loadMapBlendModes(resolvedMap);
+
 const map = new TiledMap(resolvedMap, {
   tilesetTextures, // Map<imagePath, Texture>
   imageLayerTextures, // Map<imagePath, Texture>
@@ -408,9 +432,10 @@ const map = new TiledMap(resolvedMap, {
   layerFilter, // optional (layer) => boolean, for rendering selected layers
   tileSpritePadding, // optional, defaults to 0.01 to hide fractional-scale seams
   tileMeshBatchSize, // optional, defaults to 16000 quads per packed mesh
+  objectStyle, // optional, how object layers draw shapes, labels and text (below)
 });
 
-map.orientation; // 'orthogonal' | 'isometric' | 'staggered' | 'hexagonal'
+map.orientation; // 'orthogonal' | 'isometric' | 'staggered' | 'hexagonal' | 'oblique'
 map.mapWidth; // tile columns
 map.mapHeight; // tile rows
 map.tileWidth; // tile pixel width
@@ -430,6 +455,22 @@ map.clearTile('ground', 12, 8);
 // multiplicatively with its children.
 map.applyParallax(camera.x, camera.y);
 ```
+
+Object layers draw shapes the way the Tiled editor does. `objectStyle` tunes that:
+
+```ts
+const map = new TiledMap(resolvedMap, {
+  objectStyle: {
+    fillAlpha: 0, // outlines only; defaults to the editor's 50/255
+    showLabels: false, // hide name tags above named shapes
+    defaultColor: '#ff8800', // for layers without their own color
+    screenSpace: true, // one-device-pixel outlines at any zoom (default)
+    clipText: false, // skip the per-object mask that clips text to its box
+  },
+});
+```
+
+Text objects with `kerning` turned off in Tiled render without kerning: the library switches the canvas `fontKerning` off while PixiJS measures and draws those texts.
 
 To split a map around a player sprite, render the same resolved map twice with
 different layer filters:
@@ -467,12 +508,16 @@ templates.set('sign.tx', parseTx(await (await fetch('sign.tx')).text()));
 const mapData = parseMap(data, { externalTilesets, templates });
 ```
 
-Template-instance merging follows Tiled semantics: the template's object
-fields are the base, and the instance overrides any field it explicitly
-sets (name, type, size, properties, text, gid, and shape). If the template carries
-an external-tileset reference whose `source` also exists in the map,
-`gid` is translated from the template firstgid-space to the map
-firstgid-space, preserving flip flags.
+Template-instance merging follows Tiled semantics. Tiled writes a field on an
+instance only when the instance changed it, so every field the instance
+carries wins - even an empty name or a zero rotation - and every other field
+(name, size, rotation, opacity, visibility, text, gid, and shape) comes from
+the template. An instance shape replaces the template shape as a whole, and
+custom properties merge by name, the instance winning. If the template carries
+an external-tileset reference to a tileset the map also uses, `gid` is
+translated from the template firstgid-space to the map firstgid-space,
+preserving flip flags. The tileset paths are compared normalized, and a source
+still relative to the template file is resolved against the template's key.
 
 ## Migration from v1
 

@@ -55,7 +55,8 @@ Each editing benchmark includes building its layer, so results drop with layer s
 - Packed meshes default to `16000` quads each (`tileMeshBatchSize`), which stays below 16-bit index limits while keeping render object count low. Lower it only for a renderer or device profile that measurably prefers smaller meshes.
 - Quad indices are cached by quad count and shared across mesh instances.
 - Interleaved custom geometry is not used, because PixiJS v8 only batches `MeshGeometry` instances through its built-in mesh batcher.
-- Animated tiles and GIF tiles are object-backed visuals rather than packed quads, which is why the animated construction benchmark is much slower. There is no shader-based atlas animation.
+- Animated tiles, GIF tiles, and tiles a hexagonal map turns by 60 or 120 degrees are object-backed visuals rather than packed quads; no quad corner order can express those turns. Object-backed tiles are why the animated construction benchmark is much slower. There is no shader-based atlas animation.
+- A tile's quad covers the box Tiled's cell renderer draws into: its own size, or for `tilerendersize: 'grid'` the grid cell with the fitted image centered and the tile offset scaled with it; a diagonally flipped non-square tile gets the transposed box. The packed renderer computes the common case, a tile at its own size that is not diagonally flipped, inline and calls the shared box function only for the rest.
 
 ## Runtime Editing
 
@@ -84,7 +85,7 @@ Inside a mesh, slot order decides draw order. An incremental insert can only app
 | insert with `tileSpritePadding` above `0.125`px | the padding becomes visible overlap |
 | existing tile changes texture source or alpha group | a quad cannot move between batches in place |
 | existing tile changes its quad size or position while any quad overhangs its cell | the quad would keep a draw position that no longer matches its overlaps |
-| packed tile <-> animated or GIF tile | the sprite child must be created or removed |
+| packed tile <-> animated, GIF, or turned hexagonal tile | the sprite child must be created or removed |
 | tileset texture unavailable | nothing can be packed |
 
 A rebuild reconstructs the tile layer's own meshes and sprites, including its sprite-backed tiles; children added by the caller stay in place. Repeatedly inserting animated tiles is therefore the most expensive editing pattern.
