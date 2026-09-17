@@ -184,7 +184,8 @@ describe('mergeTemplate', () => {
       })
       const result = mergeTemplate(makeInstance(), template, [])
       expect(result.properties).toEqual(template.object.properties)
-      expect(result.text).toBe(template.object.text)
+      // Equal, not the same object: see the copying tests further down.
+      expect(result.text).toEqual(template.object.text)
       expect(result.ellipse).toBe(true)
     })
 
@@ -332,5 +333,59 @@ describe('mergeTemplate', () => {
       // localId = 2 - 1 = 1, remapped = 200 + 1 = 201
       expect(result.gid).toBe(201)
     })
+  })
+})
+
+describe('the merged object shares nothing with the template', () => {
+  /**
+   * Tiled writes one template and many instances of it. Sharing the template's
+   * shape and property objects would make editing one instance move all of its
+   * siblings, and the template with them, with nothing to point at the cause.
+   */
+  it('gives each instance its own polygon, text and properties', () => {
+    const template = makeTemplate({
+      polygon: [
+        { x: 0, y: 0 },
+        { x: 8, y: 0 }
+      ],
+      text: { text: 'hi', wrap: true },
+      properties: [{ name: 'hp', type: 'int', value: 3 }]
+    })
+
+    const first = mergeTemplate(makeInstance(), template, [])
+    const second = mergeTemplate(makeInstance(), template, [])
+
+    expect(first).toEqual(second)
+    for (const key of ['polygon', 'text', 'properties'] as const) {
+      expect(first[key]).not.toBe(second[key])
+      expect(first[key]).not.toBe(template.object[key])
+    }
+    expect(first.polygon?.[0]).not.toBe(template.object.polygon?.[0])
+    expect(first.properties?.[0]).not.toBe(template.object.properties?.[0])
+  })
+
+  it('keeps an edit to one instance out of the other and the template', () => {
+    const template = makeTemplate({
+      polygon: [
+        { x: 0, y: 0 },
+        { x: 8, y: 0 }
+      ]
+    })
+    const first = mergeTemplate(makeInstance(), template, [])
+    const second = mergeTemplate(makeInstance({ id: 2 }), template, [])
+
+    first.polygon![1]!.x = 99
+
+    expect(second.polygon![1]!.x).toBe(8)
+    expect(template.object.polygon![1]!.x).toBe(8)
+  })
+
+  it('copies the template properties an instance does not override', () => {
+    const template = makeTemplate({ properties: [{ name: 'hp', type: 'int', value: 3 }] })
+
+    const merged = mergeTemplate(makeInstance(), template, [])
+
+    expect(merged.properties).toEqual(template.object.properties)
+    expect(merged.properties).not.toBe(template.object.properties)
   })
 })

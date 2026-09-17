@@ -6,6 +6,7 @@ import type {
   TiledTemplateInstance
 } from '../types'
 import { GID_MASK } from '../types'
+import { cloneJson } from './cloneJson.js'
 import { dirname, joinRelativePath, normalizeRelativePath } from './relativePath.js'
 
 /**
@@ -21,7 +22,9 @@ import { dirname, joinRelativePath, normalizeRelativePath } from './relativePath
  * shape entirely. Custom properties merge by name, the instance winning.
  *
  * After merging, a GID that originated from the template is remapped from the
- * template's firstgid space into the map's firstgid space.
+ * template's firstgid space into the map's firstgid space. Nothing in the
+ * result is shared with the template, so two instances of one template can be
+ * edited independently.
  *
  * `templatePath` is the key the instance references the template by; it lets a
  * template tileset source that is still relative to the template file match the
@@ -33,7 +36,10 @@ export function mergeTemplate(
   tilesets: ResolvedTileset[],
   templatePath?: string
 ): TiledObject {
-  const base: TiledObject = { ...template.object, id: obj.id, x: obj.x, y: obj.y }
+  // Copied, not shared: every instance of a template would otherwise draw from
+  // the same polygon, text and property objects, and editing one would move
+  // its siblings and the template with it.
+  const base: TiledObject = { ...cloneJson(template.object), id: obj.id, x: obj.x, y: obj.y }
 
   for (const key of INSTANCE_OVERRIDES) copyIfPresent(base, obj, key)
   // Tiled resolves an empty name and class to the template's.
@@ -51,7 +57,9 @@ export function mergeTemplate(
     }
   }
 
-  const properties = mergeProperties(template.object.properties, obj.properties)
+  // From `base`, so an instance without overrides keeps the copy rather than
+  // the template's own array.
+  const properties = mergeProperties(base.properties, obj.properties)
   if (properties) base.properties = properties
   else delete base.properties
 
