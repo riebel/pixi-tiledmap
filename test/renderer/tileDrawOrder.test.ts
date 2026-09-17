@@ -131,8 +131,7 @@ describe('packed tile draw order', () => {
         staggeraxis: 'y',
         staggerindex: 'odd'
       }
-    ],
-    ['padded orthogonal', { ...ctx, tileSpritePadding: 0.5 }]
+    ]
   ] satisfies [string, MapContext][])(
     'keeps one mesh per tileset for grid-sized %s tiles',
     (_name, mapCtx) => {
@@ -157,6 +156,45 @@ describe('packed tile draw order', () => {
       expect(renderer.children).toHaveLength(2)
     }
   )
+
+  it('keeps a visible seam overhang in render order', () => {
+    const left = makeTileset(32)
+    const middle = makeTileset(32)
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({
+        width: 3,
+        height: 1,
+        tiles: [tileFrom(0), tileFrom(1), tileFrom(0)]
+      }),
+      [left, middle],
+      { ...ctx, tileSpritePadding: 4 }
+    )
+
+    const order = drawnVisuals(renderer).map((visual) => visual.x)
+    expect(order).toEqual([0, 32, 64])
+  })
+
+  it('draws a tile over a turned hexagonal tile before it', () => {
+    const hexCtx: MapContext = {
+      ...ctx,
+      orientation: 'hexagonal',
+      hexsidelength: 16,
+      staggeraxis: 'x',
+      staggerindex: 'odd'
+    }
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({
+        width: 3,
+        height: 1,
+        tiles: [tileFrom(0), makeResolvedTile({ tilesetIndex: 1, diagonalFlip: true }), tileFrom(0)]
+      }),
+      [makeTileset(32), makeTileset(32)],
+      hexCtx
+    )
+
+    const visuals = drawnVisuals(renderer)
+    expect(visuals.map((visual) => visual.sprite)).toEqual([false, true, false])
+  })
 
   it('draws an oversized isometric tile over a grid-sized tile it covers', () => {
     const isoCtx: MapContext = { ...ctx, orientation: 'isometric', tilewidth: 64 }

@@ -169,7 +169,7 @@ export class PackedTileLayerRenderer extends Container {
       if (!sprite) return null
       const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
       if (rect) this._trackConfinement(rect, x, y, ctx)
-      this._addSprite(sprite, rect, rect !== null && isRectInOwnCellShape(rect, x, y, ctx))
+      this._addSprite(sprite, rect, rect !== null && isTileInOwnCellShape(tile, rect, x, y, ctx))
       return null
     }
 
@@ -177,7 +177,7 @@ export class PackedTileLayerRenderer extends Container {
     if (!rect) return null
 
     this._trackConfinement(rect, x, y, ctx)
-    return this._addRect(rect, isRectInOwnCellShape(rect, x, y, ctx))
+    return this._addRect(rect, isTileInOwnCellShape(tile, rect, x, y, ctx))
   }
 
   /**
@@ -844,14 +844,16 @@ function isRectWithinCell(
  * Whether a tile's visible content stays inside its own cell shape, so it
  * cannot overlap the content of another tile that does the same.
  *
- * Orthogonal cells are rectangles, and seam padding is an intentional
- * overdraw whose order does not matter. Isometric, staggered and hexagonal
- * cells are diamonds and hexagons whose bounding boxes overlap their
- * neighbours'; a tile drawn exactly over that box is taken to fill the cell
- * shape, as grid-sized tile art for those maps does. Oblique cells are
- * sheared, so no tile is assumed to fit one.
+ * Orthogonal cells are rectangles; seam padding only counts up to
+ * `MAX_CONFINED_OVERHANG`, since a wider overhang is visible and its order
+ * matters. Isometric, staggered and hexagonal cells are diamonds and hexagons
+ * whose bounding boxes overlap their neighbours'; a tile drawn exactly over
+ * that box is taken to fill the cell shape, as grid-sized tile art for those
+ * maps does. A hexagonal tile turned by 60 or 120 degrees no longer fits its
+ * hexagon, and oblique cells are sheared, so neither is assumed to fit.
  */
-function isRectInOwnCellShape(
+function isTileInOwnCellShape(
+  tile: ResolvedTile,
   rect: PackedTextureRect,
   cellX: number,
   cellY: number,
@@ -859,13 +861,25 @@ function isRectInOwnCellShape(
 ): boolean {
   switch (ctx.orientation) {
     case 'orthogonal':
-      return isRectWithinCell(rect, cellX, cellY, ctx, ctx.tileSpritePadding ?? 0)
+      return isRectConfinedToCell(rect, cellX, cellY, ctx)
     case 'oblique':
       return false
+    case 'hexagonal':
+      if (tile.diagonalFlip || tile.rotatedHex120 === true) return false
+      return isRectOnCellBox(rect, cellX, cellY, ctx)
     default:
-      // A grid-sized tile without offset fills exactly the cell's box.
-      return isRectWithinCell(rect, cellX, cellY, ctx, 0) && isRectCellSized(rect, ctx)
+      return isRectOnCellBox(rect, cellX, cellY, ctx)
   }
+}
+
+/** Whether a tile is drawn exactly over its cell's box: grid-sized, without offset. */
+function isRectOnCellBox(
+  rect: PackedTextureRect,
+  cellX: number,
+  cellY: number,
+  ctx: MapContext
+): boolean {
+  return isRectWithinCell(rect, cellX, cellY, ctx, 0) && isRectCellSized(rect, ctx)
 }
 
 function isRectCellSized(rect: PackedTextureRect, ctx: MapContext): boolean {
