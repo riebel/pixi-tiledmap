@@ -51,6 +51,7 @@ Each editing benchmark includes building its layer, so results drop with layer s
 ## Packed Tile Layers
 
 - Static map tiles are packed into batchable PixiJS `Mesh` children, grouped by texture source and alpha.
+- Grouping never changes what is drawn on top. A tile joins the newest mesh for its texture and alpha only if nothing it overlaps is drawn above that mesh; otherwise it starts a new mesh on top. A grid of map-sized cells records the highest draw position covering each cell. Tiles confined to their own cell overlap nothing, so an ordinary layer still gets one mesh per texture and alpha, and a layer that never needs a second mesh records nothing. Animated and GIF tile sprites take their place in the same draw order.
 - Packed meshes default to `16000` quads each (`tileMeshBatchSize`), which stays below 16-bit index limits while keeping render object count low. Lower it only for a renderer or device profile that measurably prefers smaller meshes.
 - Quad indices are cached by quad count and shared across mesh instances.
 - Interleaved custom geometry is not used, because PixiJS v8 only batches `MeshGeometry` instances through its built-in mesh batcher.
@@ -79,9 +80,10 @@ Inside a mesh, slot order decides draw order. An incremental insert can only app
 | Case | Reason |
 | --- | --- |
 | insert into an isometric, staggered, or hexagonal map | quads overlap, so slot order is visible |
-| insert where a tile overhangs its cell (`tileoffset`, oversized tile) | same |
+| insert where a tile or tile sprite overhangs its cell (`tileoffset`, oversized tile) | same |
 | insert with `tileSpritePadding` above `0.125`px | the padding becomes visible overlap |
 | existing tile changes texture source or alpha group | a quad cannot move between batches in place |
+| existing tile changes its quad size or position while any quad overhangs its cell | the quad would keep a draw position that no longer matches its overlaps |
 | packed tile <-> animated or GIF tile | the sprite child must be created or removed |
 | tileset texture unavailable | nothing can be packed |
 

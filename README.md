@@ -12,7 +12,7 @@ The library ships its own Tiled JSON and TMX XML parser with no runtime dependen
 - **All orientations** - orthogonal, isometric, staggered, hexagonal
 - **Render order** - right-down, right-up, left-down, left-up
 - **Infinite maps** - chunk-based tile layer rendering
-- **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source and alpha, with large source-inspired batches and no external tilemap dependency
+- **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source and alpha without changing draw order, with large source-inspired batches and no external tilemap dependency
 - **Incremental tile edits** - runtime tile edits update packed mesh buffers in place, and painting into empty cells reuses freed quad slots or grows batch capacity; edits that cannot be written in place rebuild the affected tile layer
 - **Tile features** - animated tiles, flip/rotation flags, image-collection tilesets, tint color, tile offset, runtime tile alpha, `tilerendersize` / `fillmode`
 - **Object rendering** - rectangles, ellipses, polygons, polylines, points, text (with underline/strikeout), tile objects

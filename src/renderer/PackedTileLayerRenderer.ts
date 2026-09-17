@@ -34,6 +34,8 @@ const UV_ORDERS: readonly (readonly [number, number, number, number])[] = [
 ]
 
 interface PackedTileBatch {
+  /** Position of this batch's mesh among the renderer's draw items. */
+  order: number
   texture: Texture
   alpha: number
   positions: Float32Array
@@ -93,6 +95,21 @@ export class PackedTileLayerRenderer extends Container {
 
   private readonly _batches = new Map<TextureSource, Map<number, PackedTileBatch[]>>()
   /**
+   * Batches and tile sprites in draw order. Finalizing adds children in this
+   * order; an item's index is its draw `order`.
+   */
+  private readonly _drawItems: (PackedTileBatch | Container)[] = []
+  /**
+   * Highest draw order covering each coverage cell. A quad must be drawn after
+   * every earlier quad it overlaps, so it may only join a batch whose order is
+   * at least the highest order under its footprint. Missing cells read as
+   * order 0, so a layer that never leaves its first batch records nothing.
+   */
+  private readonly _coverage = new Map<number, number>()
+  private _coverageCellWidth = 0
+  private _coverageCellHeight = 0
+  private _coverageSlack = 0
+  /**
    * Meshes and tile sprites this renderer created. Anything else among
    * `children` belongs to the caller and must survive a rebuild in place.
    */
@@ -132,9 +149,14 @@ export class PackedTileLayerRenderer extends Container {
     y: number,
     ctx: MapContext
   ): PackedTileRenderHandle | null {
+    this._useCoverageGrid(ctx)
+
     if (this._needsSpriteTile(tile, tsRenderer)) {
       const sprite = createTileSprite(tile, tsRenderer, x, y, ctx)
-      if (sprite) this._addOwnChild(sprite)
+      if (!sprite) return null
+      const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
+      if (rect) this._trackConfinement(rect, x, y, ctx)
+      this._addSprite(sprite, rect)
       return null
     }
 
@@ -172,12 +194,9 @@ export class PackedTileLayerRenderer extends Container {
   }
 
   finalize(): void {
-    for (const batchesByAlpha of this._batches.values()) {
-      for (const batches of batchesByAlpha.values()) {
-        for (const batch of batches) {
-          this._materializeBatch(batch)
-        }
-      }
+    for (const item of this._drawItems) {
+      if (item instanceof Container) this._addOwnChild(item)
+      else this._materializeBatch(item)
     }
     this._finalized = true
   }
@@ -193,21 +212,18 @@ export class PackedTileLayerRenderer extends Container {
     if (!handle.mesh || this._needsSpriteTile(tile, tsRenderer)) return false
 
     const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
-    if (!rect || rect.texture.source !== handle.textureSource) return false
-    if ((rect.alpha ?? 1) !== handle.alpha) return false
+    if (!rect || !isSameBatchGroup(rect, handle)) return false
 
-    this._trackConfinement(rect, x, y, ctx)
+    const rectChanged = !isSameRect(rect, handle)
+    // A quad moved or resized in place keeps its draw position, which is only
+    // safe while no quad can overlap another.
+    if (rectChanged && !this._canMoveInPlace(rect, x, y, ctx)) return false
 
     const geometry = handle.mesh.geometry
     const stats = this[packedTileStatsSymbol]
     let changed = false
 
-    if (
-      rect.x !== handle.x ||
-      rect.y !== handle.y ||
-      rect.width !== handle.width ||
-      rect.height !== handle.height
-    ) {
+    if (rectChanged) {
       writeRectPositions(
         geometry.positions,
         handle.positionOffset,
@@ -235,6 +251,10 @@ export class PackedTileLayerRenderer extends Container {
 
     if (changed) stats.partialUpdates++
     return true
+  }
+
+  private _canMoveInPlace(rect: PackedTextureRect, x: number, y: number, ctx: MapContext): boolean {
+    return this._quadsConfined && isRectConfinedToCell(rect, x, y, ctx)
   }
 
   addTextureRect(rect: PackedTextureRect): PackedTileRenderHandle {
@@ -286,6 +306,17 @@ export class PackedTileLayerRenderer extends Container {
     this._quadsConfined = true
   }
 
+  /**
+   * Places a sprite-backed tile above everything added so far. Before the layer
+   * is finalized it only takes its place in the draw order.
+   */
+  private _addSprite(sprite: Container, rect: PackedTextureRect | null): void {
+    const order = this._drawItems.length
+    this._drawItems.push(sprite)
+    if (rect) this._recordCoverage(rect, order)
+    if (this._finalized) this._addOwnChild(sprite)
+  }
+
   override destroy(options?: Parameters<Container['destroy']>[0]): void {
     // Container.destroy only destroys children when `options.children` is set;
     // otherwise it detaches them and the caller may keep them alive. Those
@@ -302,7 +333,8 @@ export class PackedTileLayerRenderer extends Container {
 
   private _addRect(rect: PackedTextureRect): InternalTileRenderHandle {
     const alpha = rect.alpha ?? 1
-    const batch = this._getBatch(rect.texture, alpha)
+    const batch = this._getBatch(rect.texture, alpha, this._coveredOrder(rect))
+    this._recordCoverage(rect, batch.order)
     const slot = this._allocSlot(batch)
     const offset = slot * 8
 
@@ -337,7 +369,9 @@ export class PackedTileLayerRenderer extends Container {
     const stats = this[packedTileStatsSymbol]
 
     // The initial build never releases slots, so only live edits can recycle.
-    if (this._finalized) {
+    // A recycled slot sits between older quads, which only quads that cannot
+    // overlap anything tolerate.
+    if (this._finalized && this._quadsConfined) {
       const recycled = batch.freeSlots.pop()
       if (recycled !== undefined) {
         stats.insertsIntoFreeSlot++
@@ -497,7 +531,18 @@ export class PackedTileLayerRenderer extends Container {
     batch.tileCapacity = batch.tileCount
   }
 
-  private _getBatch(texture: Texture, alpha: number): PackedTileBatch {
+  /** A batch with a freed slot, while slots may be recycled at all. */
+  private _findRecyclableBatch(batches: PackedTileBatch[]): PackedTileBatch | undefined {
+    if (!this._finalized || !this._quadsConfined) return undefined
+    return batches.find((candidate) => candidate.freeSlots.length > 0)
+  }
+
+  private _hasRoom(batch: PackedTileBatch): boolean {
+    return batch.tileCount < batch.tileCapacity || batch.tileCapacity < this._maxTilesPerMesh
+  }
+
+  /** Returns a batch for the texture and alpha whose draw order is at least `minOrder`. */
+  private _getBatch(texture: Texture, alpha: number, minOrder: number): PackedTileBatch {
     const source = texture.source
     let batchesByAlpha = this._batches.get(source)
     if (!batchesByAlpha) {
@@ -511,18 +556,14 @@ export class PackedTileLayerRenderer extends Container {
       batchesByAlpha.set(alpha, batches)
     }
 
-    if (this._finalized) {
-      for (const candidate of batches) {
-        if (candidate.freeSlots.length > 0) return candidate
-      }
-    }
+    const recyclable = this._findRecyclableBatch(batches)
+    if (recyclable) return recyclable
 
     const last = batches[batches.length - 1]
-    if (last && (last.tileCount < last.tileCapacity || last.tileCapacity < this._maxTilesPerMesh)) {
-      return last
-    }
+    if (last && last.order >= minOrder && this._hasRoom(last)) return last
 
     const batch: PackedTileBatch = {
+      order: this._drawItems.length,
       texture: new Texture({ source }),
       alpha,
       positions: new Float32Array(this._initialTileCapacity * 8),
@@ -535,6 +576,7 @@ export class PackedTileLayerRenderer extends Container {
       mesh: null
     }
     batches.push(batch)
+    this._drawItems.push(batch)
     this[packedTileStatsSymbol].batchesCreated++
     return batch
   }
@@ -553,6 +595,78 @@ export class PackedTileLayerRenderer extends Container {
       }
     }
     this._batches.clear()
+    this._drawItems.length = 0
+    this._coverage.clear()
+  }
+
+  /**
+   * Sizes coverage cells to the map grid on first use. The size never changes
+   * afterwards, so every recorded footprint stays comparable.
+   */
+  private _useCoverageGrid(ctx: MapContext): void {
+    if (this._coverageCellWidth > 0) return
+    this._coverageCellWidth = ctx.tilewidth > 0 ? ctx.tilewidth : DEFAULT_COVERAGE_CELL
+    this._coverageCellHeight = ctx.tileheight > 0 ? ctx.tileheight : DEFAULT_COVERAGE_CELL
+    // Seam padding overlaps a neighbour by a sub-pixel strip no sample lands in.
+    this._coverageSlack =
+      ctx.orientation === 'orthogonal'
+        ? Math.min(ctx.tileSpritePadding ?? 0, MAX_CONFINED_OVERHANG)
+        : 0
+  }
+
+  /**
+   * Highest draw order among the quads and sprites under `rect`. While every
+   * visual is confined to its cell nothing can be under it, and cells cleared
+   * by edits still hold their old order, so the grid is not consulted.
+   */
+  private _coveredOrder(rect: PackedTextureRect): number {
+    if (this._quadsConfined || this._coverage.size === 0) return 0
+    if (!this._setCoverageBounds(rect)) return 0
+
+    const { left, top, right, bottom } = _coverageBounds
+    let order = 0
+    for (let row = top; row <= bottom; row++) {
+      for (let col = left; col <= right; col++) {
+        const covered = this._coverage.get(coverageKey(col, row))
+        if (covered !== undefined && covered > order) order = covered
+      }
+    }
+    return order
+  }
+
+  private _recordCoverage(rect: PackedTextureRect, order: number): void {
+    if (order === 0 || !this._setCoverageBounds(rect)) return
+
+    const { left, top, right, bottom } = _coverageBounds
+    for (let row = top; row <= bottom; row++) {
+      for (let col = left; col <= right; col++) {
+        const key = coverageKey(col, row)
+        const covered = this._coverage.get(key)
+        if (covered === undefined || covered < order) this._coverage.set(key, order)
+      }
+    }
+  }
+
+  /** Writes the coverage cells under `rect` to `_coverageBounds`; false when it covers none. */
+  private _setCoverageBounds(rect: PackedTextureRect): boolean {
+    if (this._coverageCellWidth === 0) {
+      // Raw rectangles added before any tile: pick a grid and keep it.
+      this._coverageCellWidth = DEFAULT_COVERAGE_CELL
+      this._coverageCellHeight = DEFAULT_COVERAGE_CELL
+    }
+
+    const inset = this._coverageSlack + CONFINEMENT_EPSILON
+    const left = rect.x + CONFINEMENT_EPSILON
+    const top = rect.y + CONFINEMENT_EPSILON
+    const right = rect.x + rect.width - inset
+    const bottom = rect.y + rect.height - inset
+    if (right <= left || bottom <= top) return false
+
+    _coverageBounds.left = Math.floor(left / this._coverageCellWidth)
+    _coverageBounds.top = Math.floor(top / this._coverageCellHeight)
+    _coverageBounds.right = Math.floor(right / this._coverageCellWidth)
+    _coverageBounds.bottom = Math.floor(bottom / this._coverageCellHeight)
+    return true
   }
 
   private _asInternalHandle(handle: PackedTileRenderHandle): InternalTileRenderHandle | null {
@@ -577,6 +691,18 @@ export class PackedTileLayerRenderer extends Container {
     if (animation && animation.length > 1) return true
     return !!tsRenderer.getGifSource(tile.localId)
   }
+}
+
+const DEFAULT_COVERAGE_CELL = 32
+const COVERAGE_KEY_OFFSET = 2 ** 20
+const COVERAGE_KEY_SPAN = 2 ** 21
+
+// Reusable coverage cell range; callers read it before the next bounds query.
+const _coverageBounds = { left: 0, top: 0, right: 0, bottom: 0 }
+
+/** Packs a coverage cell into one safe integer; cells stay within +-2^20. */
+function coverageKey(col: number, row: number): number {
+  return (col + COVERAGE_KEY_OFFSET) * COVERAGE_KEY_SPAN + (row + COVERAGE_KEY_OFFSET)
 }
 
 // Reusable output rect - avoids allocating one per packed tile. Safe because
@@ -663,6 +789,19 @@ function isRectConfinedToCell(
     rect.y >= cellY - CONFINEMENT_EPSILON &&
     rect.x + rect.width <= cellX + ctx.tilewidth + tolerance &&
     rect.y + rect.height <= cellY + ctx.tileheight + tolerance
+  )
+}
+
+function isSameBatchGroup(rect: PackedTextureRect, handle: PackedTileRenderHandle): boolean {
+  return rect.texture.source === handle.textureSource && (rect.alpha ?? 1) === handle.alpha
+}
+
+function isSameRect(rect: PackedTextureRect, handle: PackedTileRenderHandle): boolean {
+  return (
+    rect.x === handle.x &&
+    rect.y === handle.y &&
+    rect.width === handle.width &&
+    rect.height === handle.height
   )
 }
 
