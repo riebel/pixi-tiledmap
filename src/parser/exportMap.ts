@@ -6,6 +6,7 @@ import type {
   ResolvedTile,
   ResolvedTileLayer,
   ResolvedTileset,
+  TiledDataCompression,
   TiledEncoding,
   TiledLayer,
   TiledMap,
@@ -30,14 +31,36 @@ export interface ExportMapOptions {
    */
   tilesetSources?: Map<string, string> | Record<string, string>
   /**
-   * How to write tile layer data. `'csv'` (the default) writes a plain GID
-   * array; `'base64'` writes uncompressed base64. Both are readable by the
-   * synchronous `parseMap`.
+   * How to write tile layer data: `'csv'` writes a plain GID array, `'base64'`
+   * writes base64. By default each layer keeps the encoding it was parsed or
+   * created with, and CSV otherwise.
    *
-   * Compressed output is deliberately unsupported: it would make `exportMap`
-   * async, since the Compression Streams API has no synchronous form.
+   * `exportMap` never compresses, since the Compression Streams API has no
+   * synchronous form; a compressed layer is written as uncompressed base64.
+   * Use `exportMapAsync` to keep or choose a compression.
    */
   encoding?: TiledEncoding
+}
+
+export interface ExportMapAsyncOptions extends ExportMapOptions {
+  /**
+   * How to compress base64 tile data. By default each layer keeps the
+   * compression it was parsed or created with; `null` writes every layer
+   * uncompressed. A compressed layer is always written as base64.
+   */
+  compression?: TiledDataCompression | null
+}
+
+/** Where a compressed layer's data goes once it is compressed. */
+interface PendingCompression {
+  target: { data?: number[] | string }
+  gids: number[]
+  compression: TiledDataCompression
+}
+
+interface DataFormat {
+  encoding: TiledEncoding
+  compression?: TiledDataCompression
 }
 
 /**
@@ -52,8 +75,50 @@ export interface ExportMapOptions {
  * any state the parser itself drops, such as an object's originating template.
  */
 export function exportMap(map: ResolvedMap, options?: ExportMapOptions): TiledMap {
-  const encoding = options?.encoding ?? 'csv'
+  return exportMapWith(map, options, (layer) => ({
+    encoding: options?.encoding ?? layer.encoding ?? 'csv'
+  }))
+}
+
+/**
+ * `exportMap` that can also compress tile layer data with gzip or zlib,
+ * through the Compression Streams API. Re-parsing the result with
+ * `parseMapAsync` yields a map deep-equal to the input, compression included.
+ */
+export async function exportMapAsync(
+  map: ResolvedMap,
+  options?: ExportMapAsyncOptions
+): Promise<TiledMap> {
+  const pending: PendingCompression[] = []
+  const tmj = exportMapWith(
+    map,
+    options,
+    (layer) => {
+      const compression =
+        options?.compression === undefined ? layer.compression : (options.compression ?? undefined)
+      if (compression) return { encoding: 'base64', compression }
+      return { encoding: options?.encoding ?? layer.encoding ?? 'csv' }
+    },
+    pending
+  )
+  await Promise.all(
+    pending.map(async ({ target, gids, compression }) => {
+      target.data = bytesToBase64(await compressBytes(gidsToBytes(gids), compression))
+    })
+  )
+  return tmj
+}
+
+type DataFormatFor = (layer: ResolvedTileLayer) => DataFormat
+
+function exportMapWith(
+  map: ResolvedMap,
+  options: ExportMapOptions | undefined,
+  formatFor: DataFormatFor,
+  pending?: PendingCompression[]
+): TiledMap {
   const sources = normalizeTilesetSources(options?.tilesetSources)
+  const writeLayer = (layer: ResolvedLayer) => exportLayer(layer, formatFor, pending)
 
   return {
     type: 'map',
@@ -79,7 +144,7 @@ export function exportMap(map: ResolvedMap, options?: ExportMapOptions): TiledMa
     ...omitDefault('parallaxoriginy', map.parallaxoriginy, 0),
     ...properties(map.properties),
     tilesets: map.tilesets.map((tileset) => exportMapTileset(tileset, sources)),
-    layers: map.layers.map((layer) => exportLayer(layer, encoding))
+    layers: map.layers.map(writeLayer)
   }
 }
 
@@ -171,18 +236,21 @@ function exportTileDefinitions(tiles: Map<number, TiledTileDefinition>): TiledTi
   return [...tiles.values()].sort((a, b) => a.id - b.id)
 }
 
-function exportLayer(layer: ResolvedLayer, encoding: TiledEncoding): TiledLayer {
+function exportLayer(
+  layer: ResolvedLayer,
+  formatFor: DataFormatFor,
+  pending: PendingCompression[] | undefined
+): TiledLayer {
   const common = exportLayerCommon(layer)
 
   switch (layer.type) {
     case 'tilelayer':
-      return {
-        ...common,
-        type: 'tilelayer',
-        width: layer.width,
-        height: layer.height,
-        ...exportTileLayerData(layer, encoding)
-      }
+      return writeTileLayerData(
+        { ...common, type: 'tilelayer', width: layer.width, height: layer.height },
+        layer,
+        formatFor(layer),
+        pending
+      )
     case 'imagelayer':
       return {
         ...common,
@@ -206,7 +274,7 @@ function exportLayer(layer: ResolvedLayer, encoding: TiledEncoding): TiledLayer 
       return {
         ...common,
         type: 'group',
-        layers: layer.layers.map((child) => exportLayer(child, encoding))
+        layers: layer.layers.map((child) => exportLayer(child, formatFor, pending))
       }
   }
 }
@@ -233,27 +301,40 @@ function exportLayerCommon(layer: ResolvedLayer) {
   }
 }
 
-function exportTileLayerData(
+/** Adds the tile data fields to `target`, the exported layer itself. */
+function writeTileLayerData(
+  target: TiledLayer,
   layer: ResolvedTileLayer,
-  encoding: TiledEncoding
-): Pick<TiledLayer, 'data' | 'chunks' | 'encoding'> {
+  format: DataFormat,
+  pending: PendingCompression[] | undefined
+): TiledLayer {
+  // A compression only exists where something will carry it out.
+  const compression = pending ? format.compression : undefined
+  const encoding = compression ? 'base64' : format.encoding
   // A GID array needs no `encoding` field; that is how Tiled writes CSV to JSON.
-  const encodingField = encoding === 'base64' ? { encoding } : {}
-
-  if (layer.infinite) {
-    return {
-      ...encodingField,
-      chunks: (layer.chunks ?? []).map((chunk) => ({
-        x: chunk.x,
-        y: chunk.y,
-        width: chunk.width,
-        height: chunk.height,
-        data: encodeTiles(chunk.tiles, encoding)
-      }))
-    }
+  const fields = {
+    ...(encoding === 'base64' ? { encoding } : {}),
+    ...(compression ? { compression } : {})
   }
 
-  return { ...encodingField, data: encodeTiles(layer.tiles, encoding) }
+  // Compression happens later, so remember the object whose `data` it replaces.
+  const withData = <T extends object>(target: T, tiles: readonly (ResolvedTile | null)[]) => {
+    const written = Object.assign(target, { data: encodeTiles(tiles, encoding) })
+    if (compression && pending) {
+      pending.push({ target: written, gids: tiles.map((tile) => encodeGid(tile)), compression })
+    }
+    return written
+  }
+
+  Object.assign(target, fields)
+  if (layer.infinite) {
+    target.chunks = (layer.chunks ?? []).map((chunk) =>
+      withData({ x: chunk.x, y: chunk.y, width: chunk.width, height: chunk.height }, chunk.tiles)
+    )
+    return target
+  }
+
+  return withData(target, layer.tiles)
 }
 
 function encodeTiles(
@@ -261,16 +342,19 @@ function encodeTiles(
   encoding: TiledEncoding
 ): number[] | string {
   const gids = tiles.map((tile) => encodeGid(tile))
-  return encoding === 'base64' ? gidsToBase64(gids) : gids
+  return encoding === 'base64' ? bytesToBase64(gidsToBytes(gids)) : gids
 }
 
-function gidsToBase64(gids: number[]): string {
+function gidsToBytes(gids: number[]): Uint8Array {
   const bytes = new Uint8Array(gids.length * 4)
   const view = new DataView(bytes.buffer)
   for (let i = 0; i < gids.length; i++) {
     view.setUint32(i * 4, gids[i] ?? 0, true)
   }
+  return bytes
+}
 
+function bytesToBase64(bytes: Uint8Array): string {
   // Chunked, because String.fromCharCode(...) blows the argument limit on the
   // large layers this is most useful for.
   let binary = ''
@@ -279,6 +363,35 @@ function gidsToBase64(gids: number[]): string {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
   }
   return globalThis.btoa(binary)
+}
+
+/** Tiled's `zlib` is the zlib-wrapped deflate the Compression Streams API calls `deflate`. */
+async function compressBytes(
+  bytes: Uint8Array,
+  compression: TiledDataCompression
+): Promise<Uint8Array> {
+  const stream = new CompressionStream(compression === 'gzip' ? 'gzip' : 'deflate')
+  const writer = stream.writable.getWriter()
+  const written = writer.write(bytes as Uint8Array<ArrayBuffer>).then(() => writer.close())
+
+  const reader = stream.readable.getReader()
+  const chunks: Uint8Array[] = []
+  let length = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    length += value.byteLength
+  }
+  await written
+
+  const result = new Uint8Array(length)
+  let offset = 0
+  for (const chunk of chunks) {
+    result.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return result
 }
 
 function exportObject(object: ResolvedObject): TiledObject {

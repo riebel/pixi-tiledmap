@@ -164,8 +164,21 @@ function resolveTileLayerBase(layer: TiledLayer) {
     type: 'tilelayer' as const,
     ...layerDefaults(layer),
     width: layer.width ?? 0,
-    height: layer.height ?? 0
+    height: layer.height ?? 0,
+    ...storedDataFormat(layer)
   }
+}
+
+/**
+ * The data format worth keeping for export. CSV is the default form and
+ * zstd cannot be read, so only base64 and its gzip/zlib compression remain.
+ */
+function storedDataFormat(layer: TiledLayer): Pick<ResolvedTileLayer, 'encoding' | 'compression'> {
+  if (layer.encoding !== 'base64') return {}
+  const { compression } = layer
+  return compression === 'gzip' || compression === 'zlib'
+    ? { encoding: 'base64', compression }
+    : { encoding: 'base64' }
 }
 
 // ─── Resolve layers (sync) ──────────────────────────────────────────────────

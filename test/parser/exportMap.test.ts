@@ -5,13 +5,16 @@ import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { exportMap, exportTileset } from '../../src/parser/exportMap.js'
+import { exportMap, exportMapAsync, exportTileset } from '../../src/parser/exportMap.js'
 import { parseTmx } from '../../src/parser/parseTmx.js'
 import { parseMap, parseMapAsync } from '../../src/parser/resolveMap.js'
+import { createMap } from '../../src/procedural.js'
 import type {
   ParseOptions,
+  ResolvedLayer,
   ResolvedMap,
   ResolvedObjectLayer,
+  ResolvedTileLayer,
   TiledMap,
   TiledObject,
   TiledTileset,
@@ -507,7 +510,10 @@ describe('exportMap', () => {
     const exported = exportMap(map, { encoding: 'base64' })
     expect(exported.layers[0]!.encoding).toBe('base64')
     expect(typeof exported.layers[0]!.data).toBe('string')
-    expect(parseMap(exported)).toEqual(map)
+    // Parsed base64 remembers its encoding, so the next export keeps it.
+    expect(parseMap(exported)).toEqual(
+      mapTileLayers(map, (layer) => ({ ...layer, encoding: 'base64' }))
+    )
   })
 })
 
@@ -607,14 +613,120 @@ describe('exportTileset', () => {
   })
 })
 
+function mapTileLayers(map: ResolvedMap, change: (layer: ResolvedTileLayer) => ResolvedTileLayer) {
+  const visit = (layer: ResolvedLayer): ResolvedLayer => {
+    if (layer.type === 'tilelayer') return change(layer)
+    if (layer.type === 'group') return { ...layer, layers: layer.layers.map(visit) }
+    return layer
+  }
+  return { ...map, layers: map.layers.map(visit) }
+}
+
+function withoutCompression(map: ResolvedMap): ResolvedMap {
+  return mapTileLayers(map, ({ compression: _dropped, ...layer }) => layer)
+}
+
+function withoutDataFormat(map: ResolvedMap): ResolvedMap {
+  return mapTileLayers(map, ({ compression: _c, encoding: _e, ...layer }) => layer)
+}
+
+describe('tile data encoding and compression', () => {
+  const tiles = (layer: TiledMap['layers'][number]) => ({
+    id: 1,
+    name: 'ground',
+    type: 'tilelayer' as const,
+    x: 0,
+    y: 0,
+    opacity: 1,
+    visible: true,
+    width: 2,
+    height: 2,
+    ...layer
+  })
+  const csvMap = () =>
+    baseMap({ layers: [tiles({ data: [3, 0, 4, 3] } as TiledMap['layers'][number])] })
+
+  it('keeps a base64 layer base64 unless the caller picks an encoding', () => {
+    const map = parseMap(exportMap(parseMap(csvMap()), { encoding: 'base64' }))
+    expect(map.layers[0]).toMatchObject({ encoding: 'base64' })
+
+    expect(exportMap(map).layers[0]!.encoding).toBe('base64')
+    expect(exportMap(map, { encoding: 'csv' }).layers[0]!.data).toEqual([3, 0, 4, 3])
+    expectRoundTrip(map)
+  })
+
+  it('does not record CSV, which is the default form', () => {
+    expect(parseMap(csvMap()).layers[0]).not.toHaveProperty('encoding')
+  })
+
+  it.each(['gzip', 'zlib'] as const)(
+    'compresses %s layers and chunks in exportMapAsync',
+    async (compression) => {
+      const map = parseMap(
+        baseMap({
+          infinite: true,
+          layers: [
+            tiles({
+              chunks: [
+                { x: 0, y: 0, width: 2, height: 1, data: [3, 4] },
+                { x: 2, y: 0, width: 2, height: 1, data: [0, 5] }
+              ]
+            } as TiledMap['layers'][number])
+          ]
+        })
+      )
+
+      const exported = await exportMapAsync(map, { compression })
+      const layer = exported.layers[0]!
+      expect(layer).toMatchObject({ encoding: 'base64', compression })
+      expect(typeof layer.chunks![1]!.data).toBe('string')
+
+      const reparsed = await parseMapAsync(exported)
+      expect(reparsed.layers[0]).toMatchObject({ encoding: 'base64', compression })
+      expect(withoutDataFormat(reparsed)).toEqual(withoutDataFormat(map))
+    }
+  )
+
+  it('writes every layer uncompressed when compression is null', async () => {
+    const map = await parseMapAsync(
+      await exportMapAsync(parseMap(csvMap()), { compression: 'gzip' })
+    )
+    const exported = await exportMapAsync(map, { compression: null })
+    expect(exported.layers[0]).not.toHaveProperty('compression')
+    expect(exported.layers[0]!.encoding).toBe('base64')
+  })
+
+  it('lets createTileLayer choose how the layer is written', async () => {
+    const map = createMap({
+      width: 2,
+      height: 1,
+      tilewidth: 16,
+      tileheight: 16,
+      tilesets: [{ name: 't', tilewidth: 16, tileheight: 16, tilecount: 2 }],
+      layers: [{ name: 'packed', tiles: [1, 2], compression: 'zlib' }]
+    })
+    expect(map.layers[0]).toMatchObject({ encoding: 'base64', compression: 'zlib' })
+    const exported = await exportMapAsync(map)
+    expect(exported.layers[0]).toMatchObject({ encoding: 'base64', compression: 'zlib' })
+    expect(await parseMapAsync(exported)).toEqual(map)
+  })
+})
+
 describe('exportMap on the MagicLand fixture', () => {
   it('round-trips a real TMX map', async () => {
     const tmx = readFileSync(join(fixtureDir, 'MagicLand.tmx'), 'utf-8')
     const map = await parseMapAsync(parseTmx(tmx))
 
-    // The fixture's layer data is gzipped, so it only parses through the async
-    // entry point; the export is plain CSV and parses either way.
-    expect(await parseMapAsync(exportMap(map))).toEqual(map)
-    expect(parseMap(exportMap(map))).toEqual(map)
+    // The fixture's layer data is gzipped base64. The async export keeps that
+    // exactly; the sync export cannot compress, so it writes plain base64.
+    expect(map.layers[0]).toMatchObject({ encoding: 'base64', compression: 'gzip' })
+    const compressed = await exportMapAsync(map)
+    expect(compressed.layers[0]).toMatchObject({ encoding: 'base64', compression: 'gzip' })
+    expect(await parseMapAsync(compressed)).toEqual(map)
+
+    const uncompressed = exportMap(map)
+    expect(uncompressed.layers[0]).not.toHaveProperty('compression')
+    expect(parseMap(uncompressed)).toEqual(withoutCompression(map))
+    expect(parseMap(exportMap(map, { encoding: 'csv' }))).toEqual(withoutDataFormat(map))
   })
 })

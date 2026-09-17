@@ -119,6 +119,10 @@ export interface CreateTileLayerOptions extends CreateLayerBaseOptions {
   type?: 'tilelayer'
   width?: number
   height?: number
+  /** How `exportMap` writes this layer's data unless told otherwise. */
+  encoding?: ResolvedTileLayer['encoding']
+  /** How `exportMapAsync` compresses this layer's data unless told otherwise. */
+  compression?: ResolvedTileLayer['compression']
   tiles?: TiledTileInput[]
   chunks?: CreateChunkOptions[]
 }
@@ -228,7 +232,11 @@ export function createTileLayer(
     type: 'tilelayer' as const,
     ...layerDefaults(options, options.id ?? 1),
     width,
-    height
+    height,
+    ...(options.encoding ? { encoding: options.encoding } : {}),
+    ...(options.compression
+      ? { encoding: 'base64' as const, compression: options.compression }
+      : {})
   }
 
   if (options.chunks) {

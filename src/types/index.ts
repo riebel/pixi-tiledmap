@@ -479,7 +479,17 @@ export interface ResolvedTileLayer {
   infinite: boolean
   tiles: (ResolvedTile | null)[]
   chunks?: ResolvedChunk[]
+  /**
+   * How the source stored the tile data, kept for export: `'base64'`, or
+   * absent for CSV and XML tile lists.
+   */
+  encoding?: 'base64'
+  /** How the source compressed its base64 tile data, kept for `exportMapAsync`. */
+  compression?: TiledDataCompression
 }
+
+/** The tile data compressions this library reads and writes. */
+export type TiledDataCompression = 'zlib' | 'gzip'
 
 export interface ResolvedImageLayer {
   type: 'imagelayer'
