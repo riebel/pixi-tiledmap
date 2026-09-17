@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import pixelmatch from 'pixelmatch'
 import { PNG } from 'pngjs'
 import { describe, expect, it } from 'vitest'
+import { collectPixiValueImports } from '../helpers/pixiImports'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const fixtureDir = join(root, 'test', 'fixtures', 'magicland')
@@ -18,6 +19,13 @@ const chromeProfileDir = join(outputDir, 'chrome-profile')
 const viewport = process.env.MAGICLAND_VIEWPORT ?? '1000,700'
 const { width: viewportWidth, height: viewportHeight } = parseViewport(viewport)
 const maxDiffPixels = Number(process.env.MAGICLAND_MAX_DIFF_PIXELS ?? '3500')
+
+// The page loads PixiJS as UMD globals and maps each specifier to a generated shim.
+const pixiShimRoutes = {
+  'pixi.js': '/shims/pixi.mjs',
+  'pixi.js/gif': '/shims/pixi-gif.mjs'
+}
+const fixturePagePixiImports = ['Application', 'Assets', 'extensions']
 
 describe('MagicLand visual render', () => {
   it('matches the checked-in visual reference headlessly', async () => {
@@ -107,6 +115,7 @@ function runChromeCapture(url: string): Promise<void> {
 }
 
 function startFixtureServer(): Promise<{ instance: Server; port: number }> {
+  const pixiShims = renderPixiShims()
   const instance = createServer((request, response) => {
     try {
       const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1')
@@ -117,15 +126,10 @@ function startFixtureServer(): Promise<{ instance: Server; port: number }> {
         return
       }
 
-      if (requestUrl.pathname === '/shims/pixi.mjs') {
+      const shim = pixiShims.get(requestUrl.pathname)
+      if (shim !== undefined) {
         response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' })
-        response.end(renderPixiShim())
-        return
-      }
-
-      if (requestUrl.pathname === '/shims/pixi-gif.mjs') {
-        response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' })
-        response.end(renderPixiGifShim())
+        response.end(shim)
         return
       }
 
@@ -166,18 +170,11 @@ function renderFixturePage(): string {
     </style>
     <script src="/node_modules/pixi.js/dist/pixi.js"></script>
     <script src="/node_modules/pixi.js/dist/packages/gif.js"></script>
-    <script type="importmap">
-      {
-        "imports": {
-          "pixi.js": "/shims/pixi.mjs",
-          "pixi.js/gif": "/shims/pixi-gif.mjs"
-        }
-      }
-    </script>
+    <script type="importmap">${JSON.stringify({ imports: pixiShimRoutes })}</script>
   </head>
   <body>
     <script type="module">
-      import { Application, Assets, extensions } from 'pixi.js';
+      import { ${fixturePagePixiImports.join(', ')} } from 'pixi.js';
       import { tiledMapLoader } from '/dist/index.mjs';
 
       extensions.add(tiledMapLoader);
@@ -201,35 +198,33 @@ function parseViewport(value: string): { width: number; height: number } {
   return { width: rawWidth, height: rawHeight }
 }
 
-function renderPixiShim(): string {
-  return `const PIXI = globalThis.PIXI;
-export const AnimatedSprite = PIXI.AnimatedSprite;
-export const Application = PIXI.Application;
-export const Assets = PIXI.Assets;
-export const CanvasSource = PIXI.CanvasSource;
-export const CanvasTextGenerator = PIXI.CanvasTextGenerator;
-export const CanvasTextMetrics = PIXI.CanvasTextMetrics;
-export const Container = PIXI.Container;
-export const DOMAdapter = PIXI.DOMAdapter;
-export const ExtensionType = PIXI.ExtensionType;
-export const Graphics = PIXI.Graphics;
-export const Matrix = PIXI.Matrix;
-export const Mesh = PIXI.Mesh;
-export const MeshGeometry = PIXI.MeshGeometry;
-export const Rectangle = PIXI.Rectangle;
-export const Sprite = PIXI.Sprite;
-export const Text = PIXI.Text;
-export const Texture = PIXI.Texture;
-export const TilingSprite = PIXI.TilingSprite;
-export const extensions = PIXI.extensions;
-export const path = PIXI.path;`
-}
+/**
+ * Serves each `pixi.js` entry the page and `dist/` import as a module that
+ * re-exports the matching name from the UMD globals loaded by the page.
+ */
+function renderPixiShims(): Map<string, string> {
+  const imports = collectPixiValueImports(join(root, 'dist'), '.mjs')
+  const pageNames = imports.get('pixi.js') ?? new Map<string, string[]>()
+  for (const name of fixturePagePixiImports) pageNames.set(name, ['fixture page'])
+  imports.set('pixi.js', pageNames)
 
-function renderPixiGifShim(): string {
-  return `const PIXI = globalThis.PIXI;
-export const GifAsset = PIXI.GifAsset;
-export const GifSource = PIXI.GifSource;
-export const GifSprite = PIXI.GifSprite;`
+  const shims = new Map<string, string>()
+  for (const [specifier, names] of imports) {
+    if (!(specifier in pixiShimRoutes)) {
+      throw new Error(
+        `dist/ imports ${specifier}; add it to pixiShimRoutes and the page import map`
+      )
+    }
+    const lines = ['const PIXI = globalThis.PIXI;']
+    for (const name of [...names.keys()].sort()) {
+      if (!/^[A-Za-z_$][\w$]*$/.test(name)) {
+        throw new Error(`The PixiJS shim cannot serve the ${name} binding of ${specifier}`)
+      }
+      lines.push(`export const ${name} = PIXI.${name};`)
+    }
+    shims.set(pixiShimRoutes[specifier as keyof typeof pixiShimRoutes], lines.join('\n'))
+  }
+  return shims
 }
 
 function resolveStaticPath(pathname: string): string | null {
