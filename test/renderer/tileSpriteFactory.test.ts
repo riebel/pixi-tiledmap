@@ -3,10 +3,17 @@
  */
 import { AnimatedSprite, Sprite, Texture } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
+import { TileLayerRenderer } from '../../src/renderer/TileLayerRenderer.js'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
+import { needsMapTileVisual } from '../../src/renderer/tileDrawPlan.js'
 import { createTileSprite } from '../../src/renderer/tileSpriteFactory.js'
 import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../../src/types/index.js'
-import { makeResolvedTile, makeResolvedTileset, makeTileSetRenderer } from '../helpers/resolved.js'
+import {
+  makeResolvedTile,
+  makeResolvedTileLayer,
+  makeResolvedTileset,
+  makeTileSetRenderer
+} from '../helpers/resolved.js'
 
 const SIZE = 32
 
@@ -187,5 +194,71 @@ describe('createTileSprite', () => {
     // tileid 99 has no texture set → factory returns null
     const sprite = createTileSprite(makeResolvedTile(), ts, 0, 0, ctx)
     expect(sprite).toBeNull()
+  })
+})
+
+describe('hexagonal tile turns', () => {
+  const hex: MapContext = { ...ctx, orientation: 'hexagonal', hexsidelength: 16 }
+
+  it('turns a diagonally flipped tile by 60 degrees around its center', () => {
+    const sprite = createTileSprite(
+      makeResolvedTile({ diagonalFlip: true }),
+      makeTileset(),
+      64,
+      96,
+      hex
+    )
+    expect(sprite!.anchor).toMatchObject({ x: 0.5, y: 0.5 })
+    expect(sprite!.angle).toBeCloseTo(60)
+    expect(sprite!.position).toMatchObject({ x: 80, y: 112 })
+    expect(sprite!.scale).toMatchObject({ x: SIZE, y: SIZE })
+  })
+
+  it('adds 120 degrees for the hexagonal rotation bit and mirrors before turning', () => {
+    const sprite = createTileSprite(
+      makeResolvedTile({ diagonalFlip: true, rotatedHex120: true, horizontalFlip: true }),
+      makeTileset(),
+      0,
+      0,
+      hex
+    )
+    expect(sprite!.angle).toBeCloseTo(180)
+    expect(sprite!.scale).toMatchObject({ x: -SIZE, y: SIZE })
+  })
+
+  it('leaves the rotation bit alone on other orientations', () => {
+    const sprite = createTileSprite(
+      makeResolvedTile({ rotatedHex120: true }),
+      makeTileset(),
+      0,
+      0,
+      ctx
+    )
+    expect(sprite!.angle).toBe(0)
+    expect(sprite!.anchor).toMatchObject({ x: 0, y: 0 })
+  })
+
+  it('routes turned hexagonal tiles to sprites and keeps the rest packed', () => {
+    const ts = makeTileset()
+    expect(needsMapTileVisual(makeResolvedTile({ diagonalFlip: true }), ts, hex)).toBe(true)
+    expect(needsMapTileVisual(makeResolvedTile({ rotatedHex120: true }), ts, hex)).toBe(true)
+    expect(needsMapTileVisual(makeResolvedTile({ horizontalFlip: true }), ts, hex)).toBe(false)
+    expect(needsMapTileVisual(makeResolvedTile({ diagonalFlip: true }), ts, ctx)).toBe(false)
+  })
+
+  it('renders a turned hexagonal map tile as a sprite inside the tile layer', () => {
+    const layer = new TileLayerRenderer(
+      makeResolvedTileLayer({
+        width: 2,
+        height: 1,
+        tiles: [makeResolvedTile({ rotatedHex120: true }), makeResolvedTile()]
+      }),
+      [makeTileset()],
+      hex
+    )
+    const sprites = layer.children.filter((child) => child instanceof Sprite)
+    expect(sprites).toHaveLength(1)
+    expect((sprites[0] as Sprite).angle).toBeCloseTo(120)
+    layer.destroy({ children: true })
   })
 })

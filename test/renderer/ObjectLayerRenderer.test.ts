@@ -497,6 +497,18 @@ describe('ObjectLayerRenderer placement like Tiled', () => {
     })
   })
 
+  it('turns a diagonally flipped tile object by 60 degrees on hexagonal maps', () => {
+    const hexagonal: MapContext = { ...orthogonal, orientation: 'hexagonal', hexsidelength: 16 }
+    const tile = { ...tileObject({}).tile!, diagonalFlip: true }
+    const sprite = renderOne(tileObject({ tile }), { ctx: hexagonal }) as Sprite
+    // The 32x64 box sits above its bottom-left origin (100, 200); it turns
+    // around its center (116, 168).
+    expect(sprite.anchor).toMatchObject({ x: 0.5, y: 0.5 })
+    expect(sprite.angle).toBeCloseTo(60)
+    expect(sprite.x).toBeCloseTo(116)
+    expect(sprite.y).toBeCloseTo(168)
+  })
+
   it('draws rectangles as diamonds on isometric maps', () => {
     const node = renderOne(makeShape({ x: 0, y: 0, width: 16, height: 16 }), { ctx: isometric })
     // Object-space corners project onto the isometric grid.

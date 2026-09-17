@@ -47,9 +47,14 @@ export function createTileSprite(
   if (!sprite) return null
 
   const rect = getMapTileDrawRect(tile, tsRenderer, px, py, ctx)
-  sprite.position.set(rect.x, rect.y)
   sprite.alpha = rect.alpha
-  applyFlip(sprite, tile, rect.width, rect.height)
+  if (hexTurnDegrees(tile, ctx.orientation) !== 0) {
+    sprite.position.set(rect.x + rect.width / 2, rect.y + rect.height / 2)
+    applyHexTurn(sprite, tile, rect.width, rect.height)
+  } else {
+    sprite.position.set(rect.x, rect.y)
+    applyFlip(sprite, tile, rect.width, rect.height)
+  }
   return sprite
 }
 
@@ -86,6 +91,7 @@ export function createObjectTileSprite(
     placement.orientation
   )
   const offset = tsRenderer.tileset.tileoffset
+  const hexTurn = hexTurnDegrees(tile, placement.orientation) !== 0
   let centerX = (0.5 - alignX) * boxW + offset.x * scaleX
   let centerY = (0.5 - alignY) * boxH + offset.y * scaleY
   let width = drawW
@@ -98,10 +104,10 @@ export function createObjectTileSprite(
     height = drawW
   }
 
-  // Top-left of the drawn box relative to the object origin, then rotated
-  // around that origin.
-  const localX = centerX - width / 2
-  const localY = centerY - height / 2
+  // The sprite's anchor point relative to the object origin - the box center
+  // for a hexagonal turn, else its top-left - rotated around that origin.
+  const localX = hexTurn ? centerX : centerX - width / 2
+  const localY = hexTurn ? centerY : centerY - height / 2
   const rad = (placement.rotation * Math.PI) / 180
   const cos = Math.cos(rad)
   const sin = Math.sin(rad)
@@ -112,8 +118,35 @@ export function createObjectTileSprite(
   sprite.angle = placement.rotation
   sprite.visible = placement.visible
   sprite.alpha = (tile.alpha ?? 1) * (placement.opacity ?? 1)
-  applyFlip(sprite, tile, width, height)
+  if (hexTurn) applyHexTurn(sprite, tile, width, height)
+  else applyFlip(sprite, tile, width, height)
   return sprite
+}
+
+/**
+ * How far Tiled turns a tile on a hexagonal map: its diagonal-flip bit means
+ * 60 degrees there, and the extra hexagonal bit 120 more. Zero elsewhere.
+ */
+function hexTurnDegrees(
+  tile: ResolvedTile,
+  orientation: MapContext['orientation'] | undefined
+): number {
+  if (orientation !== 'hexagonal') return 0
+  return (tile.diagonalFlip ? 60 : 0) + (tile.rotatedHex120 ? 120 : 0)
+}
+
+/**
+ * Draws a hexagonal-map tile turned around the center of its `width` x
+ * `height` box, which is the sprite's position, as Tiled's `CellRenderer`
+ * does: the flips mirror the image first, then the turn applies.
+ */
+function applyHexTurn(sprite: Sprite, tile: ResolvedTile, width: number, height: number): void {
+  sprite.anchor.set(0.5, 0.5)
+  sprite.angle += hexTurnDegrees(tile, 'hexagonal')
+  sprite.scale.set(
+    ((tile.horizontalFlip ? -1 : 1) * width) / (sprite.texture.width || 1),
+    ((tile.verticalFlip ? -1 : 1) * height) / (sprite.texture.height || 1)
+  )
 }
 
 /** An animated, GIF or static sprite for a tile, before placement and sizing. */

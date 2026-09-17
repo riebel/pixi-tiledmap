@@ -414,7 +414,9 @@ export interface ResolvedTile {
    * Tiled's 120° hexagonal rotation bit, preserved so a decoded tile can be
    * encoded back to its exact GID. Set only when the bit is present.
    *
-   * The renderer does not apply this rotation yet.
+   * On hexagonal maps the renderer turns such a tile by 120 degrees, and a
+   * `diagonalFlip` tile by 60 degrees, as Tiled does. Other orientations
+   * ignore this bit.
    */
   rotatedHex120?: boolean
   /**

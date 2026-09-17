@@ -113,7 +113,17 @@ function scaleOf(drawn: number, intrinsic: number): number {
   return intrinsic > 0 ? drawn / intrinsic : 1
 }
 
-export function needsMapTileVisual(tile: ResolvedTile, tsRenderer: TileSetRenderer): boolean {
+/**
+ * Whether a map tile needs a sprite instead of a packed quad: animated and GIF
+ * tiles do, and so does a tile a hexagonal map turns by 60 or 120 degrees,
+ * which no quad corner permutation can express.
+ */
+export function needsMapTileVisual(
+  tile: ResolvedTile,
+  tsRenderer: TileSetRenderer,
+  ctx?: Pick<MapContext, 'orientation'>
+): boolean {
+  if (ctx?.orientation === 'hexagonal' && (tile.diagonalFlip || tile.rotatedHex120)) return true
   const animation = tsRenderer.getAnimationFrames(tile.localId)
   if (animation && animation.length > 1) return true
   return !!tsRenderer.getGifSource(tile.localId)

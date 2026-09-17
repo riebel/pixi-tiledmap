@@ -152,7 +152,7 @@ export class PackedTileLayerRenderer extends Container {
   ): PackedTileRenderHandle | null {
     this._useCoverageGrid(ctx)
 
-    if (this._needsSpriteTile(tile, tsRenderer)) {
+    if (this._needsSpriteTile(tile, tsRenderer, ctx)) {
       const sprite = createTileSprite(tile, tsRenderer, x, y, ctx)
       if (!sprite) return null
       const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
@@ -185,7 +185,7 @@ export class PackedTileLayerRenderer extends Container {
     ctx: MapContext
   ): PackedTileRenderHandle | null {
     if (!this._quadsConfined) return null
-    if (this._needsSpriteTile(tile, tsRenderer)) return null
+    if (this._needsSpriteTile(tile, tsRenderer, ctx)) return null
 
     const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
     if (!rect) return null
@@ -210,7 +210,7 @@ export class PackedTileLayerRenderer extends Container {
     y: number,
     ctx: MapContext
   ): boolean {
-    if (!handle.mesh || this._needsSpriteTile(tile, tsRenderer)) return false
+    if (!handle.mesh || this._needsSpriteTile(tile, tsRenderer, ctx)) return false
 
     const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
     if (!rect || !isSameBatchGroup(rect, handle)) return false
@@ -687,10 +687,16 @@ export class PackedTileLayerRenderer extends Container {
     if (!isRectConfinedToCell(rect, cellX, cellY, ctx)) this._quadsConfined = false
   }
 
-  private _needsSpriteTile(tile: ResolvedTile, tsRenderer: TileSetRenderer): boolean {
+  /** Mirrors `needsMapTileVisual`, kept a method for the hot path. */
+  private _needsSpriteTile(
+    tile: ResolvedTile,
+    tsRenderer: TileSetRenderer,
+    ctx: MapContext
+  ): boolean {
     const animation = tsRenderer.getAnimationFrames(tile.localId)
     if (animation && animation.length > 1) return true
-    return !!tsRenderer.getGifSource(tile.localId)
+    if (tsRenderer.getGifSource(tile.localId)) return true
+    return ctx.orientation === 'hexagonal' && (tile.diagonalFlip || tile.rotatedHex120 === true)
   }
 }
 
