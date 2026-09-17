@@ -186,18 +186,13 @@ export class TileSetRenderer {
   }
 
   /**
-   * Destroys the textures this renderer made. Pass `keepTextures` while
-   * visuals built from them outlive the renderer, such as tile layers detached
-   * from a destroyed map; the textures are then left to them, and a
-   * color-keyed atlas stays cached for as long as its original image lives.
-   * Later calls do nothing more.
+   * Destroys the textures this renderer made and releases its color-keyed
+   * atlas. Later calls release nothing more.
    */
-  destroy(keepTextures = false): void {
-    if (!keepTextures) {
-      for (const tex of this._ownedTextures.values()) tex.destroy()
-      for (const tex of this._subTextures.values()) tex.destroy()
-      if (this._keyedBaseTexture) releaseColorKeyedTexture(this._keyedBaseTexture)
-    }
+  destroy(): void {
+    for (const tex of this._ownedTextures.values()) tex.destroy()
+    for (const tex of this._subTextures.values()) tex.destroy()
+    if (this._keyedBaseTexture) releaseColorKeyedTexture(this._keyedBaseTexture)
     this._keyedBaseTexture = null
     this._ownedTextures.clear()
     this._subTextures.clear()

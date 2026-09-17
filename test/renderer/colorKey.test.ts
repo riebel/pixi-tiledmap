@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { CanvasSource, DOMAdapter, Rectangle, Texture } from 'pixi.js'
+import { CanvasSource, DOMAdapter, Rectangle, type Sprite, Texture } from 'pixi.js'
 import { describe, expect, it, vi } from 'vitest'
 import { acquireColorKeyedTexture, releaseColorKeyedTexture } from '../../src/renderer/colorKey.js'
 import { ImageLayerRenderer } from '../../src/renderer/ImageLayerRenderer.js'
@@ -144,6 +144,21 @@ describe('transparentcolor in renderers', () => {
     expect(texture.destroyed).toBe(false)
   })
 
+  it('releases a tileset atlas only once however often it is destroyed', () => {
+    const { texture } = stubPixels([255, 0, 255, 255, 0, 0, 0, 255])
+    const tileset = makeResolvedTileset({ transparentcolor: '#ff00ff' })
+    const other = acquireColorKeyedTexture(texture, '#ff00ff')!
+    const renderer = new TileSetRenderer(tileset, texture)
+
+    renderer.destroy()
+    renderer.destroy()
+
+    expect(renderer.baseTexture!.source).toBe(other.source)
+    expect(other.source.destroyed).toBe(false)
+    releaseColorKeyedTexture(other)
+    expect(other.source.destroyed).toBe(true)
+  })
+
   it('keeps the keyed atlas for tile layers a map destroy only detaches', () => {
     const { texture } = stubPixels([255, 0, 255, 255, 0, 0, 0, 255])
     const tileset = makeResolvedTileset({ transparentcolor: '#ff00ff', image: 'atlas.png' })
@@ -169,6 +184,30 @@ describe('transparentcolor in renderers', () => {
     // Assets.unload destroys the map with its children, after the fact.
     detached.destroy({ children: true })
     expect(keyedSource.destroyed).toBe(false)
+
+    // The detached layer releases the atlas once it goes down itself.
+    layer.destroy({ children: true })
+    expect(keyedSource.destroyed).toBe(true)
+  })
+
+  it('releases the keyed atlas after the last of several detached layers', () => {
+    const { texture } = stubPixels([255, 0, 255, 255, 0, 0, 0, 255])
+    const tile = () => makeResolvedTileLayer({ width: 1, height: 1, tiles: [makeResolvedTile()] })
+    const map = new TiledMap(
+      makeResolvedMap({
+        tilesets: [makeResolvedTileset({ transparentcolor: '#ff00ff', image: 'atlas.png' })],
+        layers: [tile(), { ...tile(), id: 2, name: 'second' }]
+      }),
+      { tilesetTextures: new Map([['atlas.png', texture]]) }
+    )
+    const keyedSource = map.tileSetRenderers[0]!.baseTexture!.source
+    const [first, second] = map.children
+
+    map.destroy()
+    first!.destroy()
+    expect(keyedSource.destroyed).toBe(false)
+    second!.destroy()
+    expect(keyedSource.destroyed).toBe(true)
   })
 
   it('keys an image layer image', () => {
@@ -196,7 +235,11 @@ describe('transparentcolor in renderers', () => {
 
     layer.destroy()
 
+    const keyedSource = sprite.texture.source
     expect(sprite.texture.destroyed).toBe(false)
-    expect(sprite.texture.source.destroyed).toBe(false)
+    expect(keyedSource.destroyed).toBe(false)
+
+    ;(sprite as unknown as Sprite).destroy()
+    expect(keyedSource.destroyed).toBe(true)
   })
 })

@@ -19,7 +19,7 @@ import {
 import { applyParallaxToLayerTree, renderLayerTree } from './layerTreeRenderer.js'
 import { computeMapBounds, type MapBounds } from './mapGeometry.js'
 import { parseColorWithAlpha } from './parseColor.js'
-import { destroysChildren } from './renderableLayer.js'
+import { destroysChildren, isRenderableLayer, releaseWhenDestroyed } from './renderableLayer.js'
 import type { TileLayerRenderer } from './TileLayerRenderer.js'
 import { TileSetRenderer } from './TileSetRenderer.js'
 
@@ -189,9 +189,10 @@ export class TiledMap extends Container {
   }
 
   /**
-   * Destroys the map. Tileset textures are destroyed with it only when its
-   * layers are (`{ children: true }`); layers that are merely detached keep
-   * drawing them. Destroying an already destroyed map does nothing.
+   * Destroys the map. Tileset textures are destroyed with it when its layers
+   * are (`{ children: true }`). Layers that are merely detached keep drawing
+   * them, so the textures are destroyed once every detached layer has been
+   * destroyed. Destroying an already destroyed map does nothing.
    */
   override destroy(options?: Parameters<Container['destroy']>[0]): void {
     if (this.destroyed) return
@@ -199,10 +200,11 @@ export class TiledMap extends Container {
     this._tileLayerIndex = null
     this._lastHitIndex = null
     this._lastHitLayer = null
+    const detachedLayers = destroysChildren(options) ? [] : this.children.filter(isRenderableLayer)
     super.destroy(options)
-    // Layers detached rather than destroyed keep drawing the tileset textures.
-    const keepTextures = !destroysChildren(options)
-    for (const ts of this.tileSetRenderers) ts.destroy(keepTextures)
+    releaseWhenDestroyed(detachedLayers, () => {
+      for (const ts of this.tileSetRenderers) ts.destroy()
+    })
   }
 }
 

@@ -23,6 +23,23 @@ export function destroysChildren(options: Parameters<Container['destroy']>[0]): 
   return typeof options === 'boolean' ? options : (options?.children ?? false)
 }
 
+/**
+ * Runs `release` once every container in `holders` has been destroyed, or at
+ * once when there are none. Used to hand shared textures over to children a
+ * `destroy()` only detached, which keep drawing them.
+ */
+export function releaseWhenDestroyed(holders: readonly Container[], release: () => void): void {
+  let pending = holders.length
+  if (pending === 0) {
+    release()
+    return
+  }
+  const onDestroyed = (): void => {
+    if (--pending === 0) release()
+  }
+  for (const holder of holders) holder.once('destroyed', onDestroyed)
+}
+
 export interface RenderableLayer extends Container {
   readonly layerBaseOffsetX: number
   readonly layerBaseOffsetY: number

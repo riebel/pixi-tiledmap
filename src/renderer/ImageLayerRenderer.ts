@@ -3,7 +3,12 @@ import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedImageLayer } from '../types'
 import { acquireColorKeyedTexture, releaseColorKeyedTexture } from './colorKey.js'
 import { getScreenOrigin } from './mapGeometry.js'
-import { applyLayerState, destroysChildren, type RenderableLayer } from './renderableLayer.js'
+import {
+  applyLayerState,
+  destroysChildren,
+  type RenderableLayer,
+  releaseWhenDestroyed
+} from './renderableLayer.js'
 import { createGifSprite } from './tileSpriteFactory.js'
 
 export class ImageLayerRenderer extends Container {
@@ -34,12 +39,12 @@ export class ImageLayerRenderer extends Container {
   }
 
   override destroy(options?: Parameters<Container['destroy']>[0]): void {
-    super.destroy(options)
-    // A sprite detached rather than destroyed still draws the keyed copy.
-    if (this._keyedTexture && destroysChildren(options)) {
-      releaseColorKeyedTexture(this._keyedTexture)
-    }
+    const keyed = this._keyedTexture
     this._keyedTexture = null
+    // A sprite detached rather than destroyed still draws the keyed copy.
+    const detached = keyed && !destroysChildren(options) ? [...this.children] : []
+    super.destroy(options)
+    if (keyed) releaseWhenDestroyed(detached, () => releaseColorKeyedTexture(keyed))
   }
 
   private _buildImage(texture: Texture, ctx?: MapContext, gifSource?: GifSource | null): void {
