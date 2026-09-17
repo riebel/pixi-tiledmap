@@ -698,7 +698,9 @@ export interface TiledObjectStyle {
   /**
    * Draw each named shape object's name centered above it, as the Tiled
    * editor does. Each label is a PixiJS `Text` with its own texture, grouped
-   * in an `objectLabels` child above the objects. Defaults to `false`.
+   * in an `objectLabels` child above the objects. Defaults to `true`, as in
+   * the Tiled editor; set to `false` for layers with many named objects, such
+   * as collision layers, that do not need the labels.
    */
   showLabels?: boolean
   /** Object color for layers without their own `color`. Defaults to `#a0a0a4`. */

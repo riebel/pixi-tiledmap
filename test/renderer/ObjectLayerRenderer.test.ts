@@ -309,7 +309,8 @@ describe('ObjectLayerRenderer shape style', () => {
         makeShape({ id: 5, name: 'hidden', visible: false })
       ]
     })
-    const renderer = new ObjectLayerRenderer(layer, [], { showLabels: true })
+    // Labels are on by default, as in the Tiled editor.
+    const renderer = new ObjectLayerRenderer(layer, [])
 
     const labels = renderer.labels
     expect(labels).toBeInstanceOf(Container)
@@ -412,12 +413,9 @@ describe('ObjectLayerRenderer shape style', () => {
     expect(new ObjectLayerRenderer(layer, []).onRender).toBeNull()
   })
 
-  it.each([
-    ['by default', undefined],
-    ['when showLabels is false', { showLabels: false }]
-  ])('omits labels %s', (_name, style) => {
+  it('omits labels when showLabels is false', () => {
     const layer = makeResolvedObjectLayer({ objects: [makeShape({ name: 'zone' })] })
-    const renderer = new ObjectLayerRenderer(layer, [], style)
+    const renderer = new ObjectLayerRenderer(layer, [], { showLabels: false })
 
     expect(renderer.labels).toBeNull()
     expect(renderer.children).toHaveLength(1)
@@ -594,11 +592,11 @@ describe('createLayerRenderer', () => {
     } as const
 
     const styled = createLayerRenderer(layer, [], ctx, new Map(), undefined, undefined, {
-      showLabels: true
+      showLabels: false
     })
     const plain = createLayerRenderer(layer, [], ctx, new Map())
 
-    expect((styled as ObjectLayerRenderer).labels).toBeInstanceOf(Container)
-    expect((plain as ObjectLayerRenderer).labels).toBeNull()
+    expect((styled as ObjectLayerRenderer).labels).toBeNull()
+    expect((plain as ObjectLayerRenderer).labels).toBeInstanceOf(Container)
   })
 })
