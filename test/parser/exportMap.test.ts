@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { exportMap, exportMapAsync, exportTileset } from '../../src/parser/exportMap.js'
 import { parseTmx } from '../../src/parser/parseTmx.js'
 import { parseMap, parseMapAsync } from '../../src/parser/resolveMap.js'
-import { createMap } from '../../src/procedural.js'
+import { createMap, createObjectLayer, createTileset } from '../../src/procedural.js'
 import type {
   ParseOptions,
   ResolvedLayer,
@@ -728,5 +728,98 @@ describe('exportMap on the MagicLand fixture', () => {
     expect(uncompressed.layers[0]).not.toHaveProperty('compression')
     expect(parseMap(uncompressed)).toEqual(withoutCompression(map))
     expect(parseMap(exportMap(map, { encoding: 'csv' }))).toEqual(withoutDataFormat(map))
+  })
+})
+
+describe('the exported map shares nothing with the resolved map', () => {
+  /**
+   * An export is a document the caller goes on to edit before writing it out.
+   * Handing out the renderer's own arrays would let that editing reach a map
+   * being drawn, and round-tripping cannot show it: a shared object is
+   * deep-equal to itself.
+   */
+  function mapWithNestedData(): ResolvedMap {
+    return createMap({
+      width: 1,
+      height: 1,
+      tilewidth: 16,
+      tileheight: 16,
+      properties: [{ name: 'cls', type: 'class', value: { n: 1 } }],
+      tilesets: [
+        createTileset({
+          firstgid: 1,
+          name: 'ts',
+          tilewidth: 16,
+          tileheight: 16,
+          columns: 1,
+          tilecount: 1,
+          grid: { orientation: 'orthogonal', width: 16, height: 16 },
+          wangsets: [{ name: 'w', type: 'corner', tile: -1, colors: [], wangtiles: [] }],
+          tiles: [{ id: 0, properties: [{ name: 'solid', type: 'bool', value: true }] }]
+        })
+      ],
+      layers: [
+        createObjectLayer({
+          type: 'objectgroup',
+          name: 'shapes',
+          objects: [
+            {
+              id: 1,
+              name: 'poly',
+              polygon: [
+                { x: 0, y: 0 },
+                { x: 8, y: 8 }
+              ],
+              text: { text: 'hi' },
+              properties: [{ name: 'p', type: 'string', value: 'v' }]
+            }
+          ]
+        })
+      ]
+    })
+  }
+
+  it('copies map properties, tileset metadata and tile definitions', () => {
+    const map = mapWithNestedData()
+    const resolvedTileset = map.tilesets[0]!
+
+    const tmj = exportMap(map)
+    const tileset = tmj.tilesets[0] as TiledTileset
+
+    expect(tmj.properties?.[0]).toEqual(map.properties[0])
+    expect(tmj.properties?.[0]).not.toBe(map.properties[0])
+    expect(tmj.properties?.[0]?.value).not.toBe(map.properties[0]?.value)
+
+    expect(tileset.wangsets).toEqual(resolvedTileset.wangsets)
+    expect(tileset.wangsets).not.toBe(resolvedTileset.wangsets)
+    expect(tileset.wangsets?.[0]).not.toBe(resolvedTileset.wangsets?.[0])
+    expect(tileset.grid).not.toBe(resolvedTileset.grid)
+    expect(tileset.tiles?.[0]).toEqual(resolvedTileset.tiles.get(0))
+    expect(tileset.tiles?.[0]).not.toBe(resolvedTileset.tiles.get(0))
+  })
+
+  it('copies object shapes, text and properties', () => {
+    const map = mapWithNestedData()
+    const source = (map.layers.at(-1) as ResolvedObjectLayer).objects[0]!
+
+    const exported = exportMap(map).layers.at(-1) as { objects: TiledObject[] }
+    const object = exported.objects[0]!
+
+    expect(object.polygon).toEqual(source.polygon)
+    expect(object.polygon).not.toBe(source.polygon)
+    expect(object.polygon?.[0]).not.toBe(source.polygon?.[0])
+    expect(object.text).not.toBe(source.text)
+    expect(object.properties?.[0]).not.toBe(source.properties?.[0])
+  })
+
+  it('leaves the resolved map untouched when the export is edited', () => {
+    const map = mapWithNestedData()
+
+    const tileset = exportMap(map).tilesets[0] as TiledTileset
+    tileset.wangsets![0]!.name = 'edited'
+    ;(exportMap(map).layers.at(-1) as { objects: TiledObject[] }).objects[0]!.polygon![0]!.x = 99
+
+    expect(map.tilesets[0]!.wangsets?.[0]?.name).toBe('w')
+    expect((map.layers.at(-1) as ResolvedObjectLayer).objects[0]?.polygon?.[0]?.x).toBe(0)
   })
 })

@@ -18,6 +18,7 @@ import type {
   TiledTilesetFile,
   TiledTilesetRef
 } from '../types'
+import { cloneJson } from './cloneJson.js'
 import { encodeGid } from './encodeGid.js'
 
 export interface ExportMapOptions {
@@ -66,9 +67,10 @@ interface DataFormat {
 /**
  * Writes a `ResolvedMap` back out as Tiled JSON: the inverse of `parseMap`.
  *
- * The result is a plain, JSON-serializable `TiledMap`. Re-parsing it yields a
- * map deep-equal to the input, provided any external tilesets it references are
- * passed back through `ParseOptions.externalTilesets`.
+ * The result is a plain, JSON-serializable `TiledMap`, and shares no object
+ * with `map`: editing the export never reaches the map a renderer is drawing.
+ * Re-parsing it yields a map deep-equal to the input, provided any external
+ * tilesets it references are passed back through `ParseOptions.externalTilesets`.
  *
  * Two things a `ResolvedMap` can hold have no place in the Tiled format and are
  * therefore not written: `ResolvedTile.alpha` (a runtime render property) and
@@ -220,10 +222,10 @@ function exportTilesetBody(tileset: ResolvedTileset): TiledTilesetFile {
     ...omitDefault('fillmode', tileset.fillmode, 'stretch'),
     ...(tileset.tiles.size > 0 ? { tiles: exportTileDefinitions(tileset.tiles) } : {}),
     ...properties(tileset.properties),
-    ...optional('transformations', tileset.transformations),
-    ...optional('grid', tileset.grid),
-    ...optional('wangsets', tileset.wangsets),
-    ...optional('terrains', tileset.terrains)
+    ...optionalCopy('transformations', tileset.transformations),
+    ...optionalCopy('grid', tileset.grid),
+    ...optionalCopy('wangsets', tileset.wangsets),
+    ...optionalCopy('terrains', tileset.terrains)
   }
 }
 
@@ -237,7 +239,7 @@ function exportMapTileset(
 }
 
 function exportTileDefinitions(tiles: Map<number, TiledTileDefinition>): TiledTileDefinition[] {
-  return [...tiles.values()].sort((a, b) => a.id - b.id)
+  return [...tiles.values()].sort((a, b) => a.id - b.id).map(cloneJson)
 }
 
 function exportLayer(
@@ -409,14 +411,14 @@ function exportObject(object: ResolvedObject): TiledObject {
     rotation: object.rotation,
     visible: object.visible,
     ...(object.tile ? { gid: encodeGid(object.tile) } : {}),
-    ...optional('properties', object.properties && [...object.properties]),
-    ...optional('text', object.text),
+    ...optionalCopy('properties', object.properties),
+    ...optionalCopy('text', object.text),
     ...optional('opacity', object.opacity),
     ...optional('capsule', object.capsule),
     ...optional('ellipse', object.ellipse),
     ...optional('point', object.point),
-    ...optional('polygon', object.polygon),
-    ...optional('polyline', object.polyline)
+    ...optionalCopy('polygon', object.polygon),
+    ...optionalCopy('polyline', object.polyline)
   }
 }
 
@@ -432,12 +434,18 @@ function isZeroOffset(offset: TiledTileOffset): boolean {
 }
 
 function properties(list: readonly TiledProperty[]) {
-  return list.length > 0 ? { properties: [...list] } : {}
+  // Class and list values are nested objects, so the entries are copied too.
+  return list.length > 0 ? { properties: list.map(cloneJson) } : {}
 }
 
 /** Emits `key` only when the value is present, keeping the output free of holes. */
 function optional<K extends string, V>(key: K, value: V | undefined) {
   return (value === undefined ? {} : { [key]: value }) as { [P in K]?: V }
+}
+
+/** `optional` for a value the export must not share with the resolved map. */
+function optionalCopy<K extends string, V>(key: K, value: V | undefined) {
+  return (value === undefined ? {} : { [key]: cloneJson(value) }) as { [P in K]?: V }
 }
 
 /**
