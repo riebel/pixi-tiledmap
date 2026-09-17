@@ -21,7 +21,18 @@ import type {
 } from '../types'
 import { computeTilesetColumns } from './tilesetHelpers.js'
 import { parseProperties } from './tmxProperties.js'
-import { bool, child, children, float, int, optFloat, optInt, optStr, str } from './xmlHelpers.js'
+import {
+  bool,
+  child,
+  children,
+  elementChildren,
+  float,
+  int,
+  optFloat,
+  optInt,
+  optStr,
+  str
+} from './xmlHelpers.js'
 
 export interface ImageInfo {
   image?: string
@@ -137,31 +148,72 @@ function parseTerrains(el: Element): TiledTerrain[] | undefined {
 function parseWangSets(el: Element): TiledWangSet[] | undefined {
   const wsEl = child(el, 'wangsets')
   if (!wsEl) return undefined
+  return children(wsEl, 'wangset').map(parseWangSet)
+}
 
-  return children(wsEl, 'wangset').map((ws) => {
-    const colors: TiledWangColor[] = children(ws, 'wangcolor').map((wc) => ({
+const WANG_COLOR_TAGS = new Set(['wangcolor', 'wangcornercolor', 'wangedgecolor'])
+
+function parseWangSet(ws: Element): TiledWangSet {
+  // TMX before Tiled 1.5 kept separate corner and edge colors. Tiled reads
+  // them into one color list and remaps the tile ids onto it.
+  const colors: TiledWangColor[] = []
+  const cornerColors: number[] = []
+  const edgeColors: number[] = []
+  for (const wc of elementChildren(ws)) {
+    if (!WANG_COLOR_TAGS.has(wc.tagName)) continue
+    colors.push({
       class: optStr(wc, 'class'),
       color: str(wc, 'color'),
       name: str(wc, 'name'),
       probability: float(wc, 'probability'),
       tile: int(wc, 'tile'),
       properties: parseProperties(wc)
-    }))
+    })
+    if (wc.tagName === 'wangcornercolor') cornerColors.push(colors.length)
+    if (wc.tagName === 'wangedgecolor') edgeColors.push(colors.length)
+  }
 
-    const tiles: TiledWangTile[] = children(ws, 'wangtile').map((wt) => ({
-      tileid: int(wt, 'tileid'),
-      wangid: str(wt, 'wangid').split(',').map(Number)
-    }))
+  const tiles: TiledWangTile[] = children(ws, 'wangtile').map((wt) => ({
+    tileid: int(wt, 'tileid'),
+    wangid: remapLegacyWangId(parseWangId(str(wt, 'wangid')), cornerColors, edgeColors)
+  }))
 
-    return {
-      class: optStr(ws, 'class'),
-      colors,
-      name: str(ws, 'name'),
-      properties: parseProperties(ws),
-      tile: int(ws, 'tile'),
-      type: str(ws, 'type', 'corner') as TiledWangSetType,
-      wangtiles: tiles
-    } satisfies TiledWangSet
+  let type = str(ws, 'type', 'corner') as TiledWangSetType
+  if (cornerColors.length === 0 && edgeColors.length > 0) type = 'edge'
+  if (edgeColors.length === 0 && cornerColors.length > 0) type = 'corner'
+
+  return {
+    class: optStr(ws, 'class'),
+    colors,
+    name: str(ws, 'name'),
+    properties: parseProperties(ws),
+    tile: int(ws, 'tile'),
+    type,
+    wangtiles: tiles
+  } satisfies TiledWangSet
+}
+
+const WANG_INDEXES = 8
+
+/** A comma list since Tiled 1.5; before that one hex number, four bits per index. */
+function parseWangId(value: string): number[] {
+  if (value.includes(',')) return value.split(',').map(Number)
+  const packed = parseInt(value, 16) >>> 0
+  const wangid: number[] = []
+  for (let i = 0; i < WANG_INDEXES; i++) wangid.push((packed >>> (i * 4)) & 0xf)
+  return wangid
+}
+
+/** Edges sit at even indexes, corners at odd ones. */
+function remapLegacyWangId(
+  wangid: number[],
+  cornerColors: number[],
+  edgeColors: number[]
+): number[] {
+  if (cornerColors.length === 0 && edgeColors.length === 0) return wangid
+  return wangid.map((color, index) => {
+    const legacy = index % 2 === 0 ? edgeColors : cornerColors
+    return color > 0 && color <= legacy.length ? legacy[color - 1]! : color
   })
 }
 

@@ -560,11 +560,44 @@ describe('parseTsx', () => {
   })
 })
 
-describe('parseTsx versions', () => {
+describe('parseTsx versions and legacy Wang sets', () => {
   it('reads the format and editor version of a TSX file', () => {
     const ts = parseTsx(`<tileset version="1.10" tiledversion="1.11.2" name="t"
       tilewidth="16" tileheight="16" tilecount="1" columns="1"/>`)
     expect(ts).toMatchObject({ version: '1.10', tiledversion: '1.11.2' })
+  })
+
+  it('reads a pre-1.5 Wang set with hex ids and separate corner colors', () => {
+    const ts = parseTsx(`<tileset name="t" tilewidth="16" tileheight="16" tilecount="2" columns="2">
+  <wangsets>
+    <wangset name="paths" tile="-1">
+      <wangcornercolor name="grass" color="#00ff00" tile="-1" probability="1"/>
+      <wangcornercolor name="sand" color="#ffff00" tile="-1" probability="1"/>
+      <wangtile tileid="0" wangid="0x20101010"/>
+    </wangset>
+  </wangsets>
+</tileset>`)
+
+    const wangset = ts.wangsets![0]!
+    expect(wangset.type).toBe('corner')
+    expect(wangset.colors.map((color) => color.name)).toEqual(['grass', 'sand'])
+    // Nibbles, lowest first: edges 0, corners 1 1 1 2.
+    expect(wangset.wangtiles[0]!.wangid).toEqual([0, 1, 0, 1, 0, 1, 0, 2])
+  })
+
+  it('maps legacy edge colors after corner colors onto the unified list', () => {
+    const ts = parseTsx(`<tileset name="t" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+  <wangsets>
+    <wangset name="mixed" tile="-1">
+      <wangcornercolor name="c" color="#000000" tile="-1" probability="1"/>
+      <wangedgecolor name="e" color="#ffffff" tile="-1" probability="1"/>
+      <wangtile tileid="0" wangid="0x11"/>
+    </wangset>
+  </wangsets>
+</tileset>`)
+
+    // Edge color 1 is the second color overall; corner color 1 the first.
+    expect(ts.wangsets![0]!.wangtiles[0]!.wangid).toEqual([2, 1, 0, 0, 0, 0, 0, 0])
   })
 })
 
