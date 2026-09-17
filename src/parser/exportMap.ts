@@ -323,11 +323,14 @@ function writeTileLayerData(
 
   // Compression happens later, so remember the object whose `data` it replaces.
   const withData = <T extends object>(target: T, tiles: readonly (ResolvedTile | null)[]) => {
-    const written = Object.assign(target, { data: encodeTiles(tiles, encoding) })
+    const gids = tiles.map((tile) => encodeGid(tile))
     if (compression && pending) {
-      pending.push({ target: written, gids: tiles.map((tile) => encodeGid(tile)), compression })
+      // The compressed text replaces `data` later; no plain base64 is needed.
+      const written = Object.assign(target, { data: '' })
+      pending.push({ target: written, gids, compression })
+      return written
     }
-    return written
+    return Object.assign(target, { data: encodeGids(gids, encoding) })
   }
 
   Object.assign(target, fields)
@@ -341,11 +344,7 @@ function writeTileLayerData(
   return withData(target, layer.tiles)
 }
 
-function encodeTiles(
-  tiles: readonly (ResolvedTile | null)[],
-  encoding: TiledEncoding
-): number[] | string {
-  const gids = tiles.map((tile) => encodeGid(tile))
+function encodeGids(gids: number[], encoding: TiledEncoding): number[] | string {
   return encoding === 'base64' ? bytesToBase64(gidsToBytes(gids)) : gids
 }
 
