@@ -1,4 +1,10 @@
-import type { ResolvedTileset, TiledObject, TiledObjectTemplate, TiledProperty } from '../types'
+import type {
+  ResolvedTileset,
+  TiledObject,
+  TiledObjectTemplate,
+  TiledProperty,
+  TiledTemplateInstance
+} from '../types'
 import { GID_MASK } from '../types'
 import { dirname, joinRelativePath, normalizeRelativePath } from './relativePath.js'
 
@@ -20,7 +26,7 @@ import { dirname, joinRelativePath, normalizeRelativePath } from './relativePath
  * map's tileset.
  */
 export function mergeTemplate(
-  obj: TiledObject,
+  obj: TiledObject | TiledTemplateInstance,
   template: TiledObjectTemplate,
   tilesets: ResolvedTileset[],
   templatePath?: string
@@ -69,12 +75,13 @@ const SHAPE_KEYS = [
   'text'
 ] as const satisfies readonly (keyof TiledObject)[]
 
-function copyIfPresent<K extends keyof TiledObject>(
+function copyIfPresent<K extends (typeof INSTANCE_OVERRIDES | typeof SHAPE_KEYS)[number]>(
   target: TiledObject,
-  source: TiledObject,
+  source: TiledObject | TiledTemplateInstance,
   key: K
 ): void {
-  if (source[key] !== undefined) target[key] = source[key]
+  const value = source[key]
+  if (value !== undefined) target[key] = value as TiledObject[K]
 }
 
 function mergeProperties(

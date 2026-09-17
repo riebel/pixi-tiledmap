@@ -25,6 +25,7 @@ const ESM_CONSUMER = `import {
   parseTsx,
   TiledMap,
   type TiledMapAsset,
+  type TiledTemplateInstance,
   type TiledTileset,
   type TileCell,
   tileAt,
@@ -49,8 +50,11 @@ parseMap(42)
 const wrongTheme: number | undefined = getProperty(reparsed, 'theme', 'string')
 // @ts-expect-error the container is a TiledMap, not any
 const wrongView: string = asset.container
+const instance: TiledTemplateInstance = { id: 1, x: 0, y: 0, template: 'enemy.tj' }
+// @ts-expect-error a template instance may leave its name to the template
+const instanceName: string = instance.name
 
-export { cell, loaderName, theme, tileset, wrongTheme, wrongView }
+export { cell, instanceName, loaderName, theme, tileset, wrongTheme, wrongView }
 `
 
 const CJS_CONSUMER = `import tiled = require('pixi-tiledmap')

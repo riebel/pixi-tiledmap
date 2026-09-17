@@ -1,10 +1,22 @@
-import type { TiledHAlign, TiledObject, TiledPoint, TiledText, TiledVAlign } from '../types'
+import type {
+  TiledHAlign,
+  TiledObject,
+  TiledPoint,
+  TiledTemplateInstance,
+  TiledText,
+  TiledVAlign
+} from '../types'
 import { parseProperties } from './tmxProperties.js'
 import { bool, child, float, int, optFloat, optInt, optStr, str } from './xmlHelpers.js'
 
+/**
+ * Parses a map object. A template instance keeps only the fields it sets,
+ * like its TMJ form, although the declared type is `TiledObject`; see
+ * `TiledTemplateInstance`.
+ */
 export function parseObject(el: Element): TiledObject {
   const template = optStr(el, 'template')
-  const obj = template
+  const obj: TiledObject | TiledTemplateInstance = template
     ? parseTemplateInstanceFields(el, template)
     : ({
         id: int(el, 'id'),
@@ -44,15 +56,15 @@ export function parseObject(el: Element): TiledObject {
     obj.text = parseTextObject(textEl)
   }
 
-  return obj
+  return obj as TiledObject
 }
 
 /**
  * Tiled writes a field on a template instance only when the instance changed
  * it. Leave the others absent, so the template can supply them.
  */
-function parseTemplateInstanceFields(el: Element, template: string): TiledObject {
-  const obj: Record<string, unknown> = {
+function parseTemplateInstanceFields(el: Element, template: string): TiledTemplateInstance {
+  const obj: TiledTemplateInstance = {
     id: int(el, 'id'),
     template,
     type: str(el, 'type') || str(el, 'class'),
@@ -66,7 +78,7 @@ function parseTemplateInstanceFields(el: Element, template: string): TiledObject
   if (el.hasAttribute('visible')) obj.visible = bool(el, 'visible', true)
   const properties = parseProperties(el)
   if (properties) obj.properties = properties
-  return obj as unknown as TiledObject
+  return obj
 }
 
 function parsePoints(pointStr: string): TiledPoint[] {

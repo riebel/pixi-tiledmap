@@ -104,6 +104,7 @@ export type {
   TiledRenderOrder,
   TiledStaggerAxis,
   TiledStaggerIndex,
+  TiledTemplateInstance,
   TiledTerrain,
   TiledText,
   TiledTileDefinition,

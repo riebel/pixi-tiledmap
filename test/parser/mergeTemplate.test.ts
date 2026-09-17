@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { mergeTemplate } from '../../src/parser/mergeTemplate.js'
-import type { ResolvedTileset, TiledObject, TiledObjectTemplate } from '../../src/types/index.js'
+import type {
+  ResolvedTileset,
+  TiledObject,
+  TiledObjectTemplate,
+  TiledTemplateInstance
+} from '../../src/types/index.js'
 import { FLIPPED_HORIZONTALLY_FLAG, FLIPPED_VERTICALLY_FLAG } from '../../src/types/index.js'
 
 /** A template instance as Tiled writes it: only the fields it overrides. */
-function makeInstance(overrides: Partial<TiledObject> = {}): TiledObject {
-  return { id: 1, type: '', x: 10, y: 20, ...overrides } as TiledObject
+function makeInstance(overrides: Partial<TiledObject> = {}): TiledTemplateInstance {
+  return { id: 1, type: '', x: 10, y: 20, template: 'enemy.tj', ...overrides }
 }
 
 function makeTemplate(

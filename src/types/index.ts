@@ -129,8 +129,13 @@ export interface TiledText {
 // ─── Object ──────────────────────────────────────────────────────────────────
 
 /**
- * A map object. A template instance (`template` set) carries only the fields
- * it overrides, as Tiled writes it, so any other field may be absent there.
+ * A map object.
+ *
+ * A template instance (`template` set) carries only the fields it overrides,
+ * as Tiled writes it to TMX and TMJ alike, so `name`, `width`, `height`,
+ * `rotation`, `visible` and `type` may be absent there even though this type
+ * declares them; `TiledTemplateInstance` describes that shape. `parseMap`
+ * merges the template in, so resolved objects always carry every field.
  */
 export interface TiledObject {
   /** Tiled 1.12: a capsule (stadium) shape spanning the object's size. */
@@ -157,6 +162,13 @@ export interface TiledObject {
   x: number
   y: number
 }
+
+/**
+ * A template instance as Tiled writes it: an id, a position, the template
+ * path, and only the fields the instance overrides.
+ */
+export type TiledTemplateInstance = Pick<TiledObject, 'id' | 'x' | 'y'> &
+  Partial<Omit<TiledObject, 'id' | 'x' | 'y' | 'template'>> & { template: string }
 
 // ─── Chunk (infinite maps) ───────────────────────────────────────────────────
 
