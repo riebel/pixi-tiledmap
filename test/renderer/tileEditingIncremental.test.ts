@@ -604,6 +604,63 @@ describe('infinite layers', () => {
     expect(renderer.getTile(far + 1, -far)).toMatchObject({ gid: 1 })
   })
 
+  /** Chunks enough to index: a 6x6 grid of 2x2 chunks around the origin. */
+  function griddedChunks(chunkSize: number) {
+    const chunks = []
+    for (let row = -3; row < 3; row++) {
+      for (let col = -3; col < 3; col++) {
+        chunks.push(
+          makeResolvedChunk({
+            x: col * chunkSize,
+            y: row * chunkSize,
+            width: chunkSize,
+            height: chunkSize,
+            tiles: new Array(chunkSize * chunkSize).fill(null)
+          })
+        )
+      }
+    }
+    return chunks
+  }
+
+  it('finds cells through the chunk grid once a layer has enough chunks', () => {
+    const chunks = griddedChunks(2)
+    const layerData = makeResolvedTileLayer({ infinite: true, chunks })
+    const renderer = new TileLayerRenderer(layerData, [atlasTileset()], ctx)
+
+    renderer.setTile(-6, -6, makeResolvedTile())
+    renderer.setTile(5, 5, makeResolvedTile({ gid: 2, localId: 1 }))
+    renderer.setTile(-1, 3, makeResolvedTile({ gid: 3, localId: 2 }))
+
+    expect(readPackedTileStats(renderer).fullRebuilds).toBe(0)
+    // The corners of the indexed grid and a cell inside a negative chunk.
+    expect(chunks[0]?.tiles[0]).toMatchObject({ gid: 1 })
+    expect(chunks.at(-1)?.tiles[3]).toMatchObject({ gid: 2 })
+    expect(renderer.getTile(-1, 3)).toMatchObject({ gid: 3 })
+    expect(renderer.getTile(0, 0)).toBeNull()
+    expect(() => renderer.setTile(6, 0, makeResolvedTile())).toThrow(RangeError)
+  })
+
+  it('walks chunks that do not tile a grid, however many there are', () => {
+    // One odd chunk is enough: the others no longer describe the layout.
+    const chunks = griddedChunks(2)
+    chunks.push(
+      makeResolvedChunk({ x: 101, y: 7, width: 3, height: 1, tiles: new Array(3).fill(null) })
+    )
+    const renderer = new TileLayerRenderer(
+      makeResolvedTileLayer({ infinite: true, chunks }),
+      [atlasTileset()],
+      ctx
+    )
+
+    renderer.setTile(102, 7, makeResolvedTile())
+    renderer.setTile(-6, -6, makeResolvedTile({ gid: 2, localId: 1 }))
+
+    expect(readPackedTileStats(renderer).fullRebuilds).toBe(0)
+    expect(chunks.at(-1)?.tiles[1]).toMatchObject({ gid: 1 })
+    expect(chunks[0]?.tiles[0]).toMatchObject({ gid: 2 })
+  })
+
   it('rejects coordinates outside existing chunks', () => {
     const layerData = makeResolvedTileLayer({
       infinite: true,

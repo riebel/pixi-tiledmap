@@ -51,7 +51,9 @@ The two-tileset case guards the draw-order bookkeeping, which must stay free for
 | `100` inserts into a `256x256` empty layer | `2,078 hz` |
 | `10000` inserts into a `256x256` empty layer | `154 hz` |
 | `10000` clear/set cycles in a `64x64` dense layer | `106 hz` |
-| `1000` inserts into a `16`-chunk infinite layer | `1,866 hz` |
+| `1000` inserts into a `16`-chunk infinite layer | `1,796 hz` |
+| `1000` `getTile` in a `16`-chunk infinite layer | `47,954 hz` |
+| `1000` `getTile` in a `1024`-chunk infinite layer | `25,899 hz` |
 | `10000` compatible updates in a `256x256` dense layer | `29 hz` |
 | `1000` alpha group changes in a `64x64` dense layer | `604 hz` |
 
@@ -127,6 +129,8 @@ behind an option rather than in the default path.
 A freshly built layer has right-sized batch geometry; before the first edit, editing support only costs one render handle per packed tile.
 
 Inside a mesh, slot order decides draw order. An incremental insert can only append or recycle a slot, so it is used only while every tile quad stays inside its own grid cell, where quads cannot overlap. `tileSpritePadding` widens grid-sized quads to close seams; that overlap is tolerated up to `0.125`px (default `0.01`), where no rasterisation sample falls inside it. Larger padding is visible overlap and makes inserts rebuild.
+
+An infinite layer resolves a coordinate to its chunk through a grid of chunk columns and rows, built once per layer, so a lookup does not walk every chunk: at `1024` chunks that is about `32`ns instead of `780`ns. The grid only forms when all chunks share a size and sit on multiples of it, which is how Tiled writes infinite maps; ragged or overlapping chunks keep the scan, whose first match the grid reproduces. Below `32` chunks the scan is faster, so no grid is built.
 
 `TiledMap` resolves tile layers through a cached index, so an edit does not walk the render children of other layers. Repeated `getTile`, `setTile`, and `clearTile` calls for the same layer reuse the last index hit while the index is current; any child added to or removed from the map or one of its group layers drops both. Lookups that fall back to walking the layer tree, such as duplicate layer names, are never cached, because reordering children emits no event.
 

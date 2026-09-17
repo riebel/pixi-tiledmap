@@ -184,6 +184,42 @@ benchGroup('occupancy variants', (bench) => {
   })
 })
 
+/** A square of 16x16 chunks around the origin, as Tiled writes infinite maps. */
+function chunkedLayer(side: number) {
+  const chunks: ResolvedChunk[] = []
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      chunks.push(
+        makeResolvedChunk({
+          x: x * 16,
+          y: y * 16,
+          width: 16,
+          height: 16,
+          tiles: new Array(256).fill(null)
+        })
+      )
+    }
+  }
+  return makeResolvedTileLayer({ infinite: true, tiles: [], chunks })
+}
+
+benchGroup('infinite chunk lookup', (bench) => {
+  // Built once: this measures the lookup, not the layer.
+  for (const side of [4, 32]) {
+    const span = side * 16
+    const renderer = new TileLayerRenderer(chunkedLayer(side), [tileset], ctx)
+    const rng = makeRng(0xc0de)
+    const cells = Array.from({ length: 1000 }, () => [
+      Math.floor(rng() * span),
+      Math.floor(rng() * span)
+    ])
+
+    bench(`1000 getTile in a ${side * side}-chunk infinite layer`, () => {
+      for (const [col, row] of cells) renderer.getTile(col!, row!)
+    })
+  }
+})
+
 benchGroup('infinite layers', (bench) => {
   function infiniteLayer() {
     const chunks: ResolvedChunk[] = []
