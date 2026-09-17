@@ -48,6 +48,7 @@
     "check": "biome check src/ test/",
     "check:fix": "biome check --write src/ test/",
     "bench": "vitest bench --run --reporter=verbose",
+    "measure:animated": "node scripts/measureAnimatedTiles.mjs",
     "fallow": "fallow --score",
     "fallow:report": "fallow --score",
     "fallow:baseline": "node scripts/updateFallowBaselines.mjs",

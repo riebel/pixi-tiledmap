@@ -8,7 +8,7 @@ npm run bench
 
 The benchmarks are intentionally not part of `npm test`: local CPU, background load, and jsdom/PixiJS startup noise make strict pass/fail thresholds brittle. Treat them as a comparison tool before and after a performance-sensitive change.
 
-- `test/renderer/TileLayerRenderer.bench.ts` covers initial layer construction.
+- `test/renderer/TileLayerRenderer.bench.ts` covers initial layer construction and one ticker update of an animated layer.
 - `test/renderer/tileEditing.bench.ts` covers runtime editing across map sizes, occupancy, and operation mixes.
 
 `npm run bench` runs `vitest bench --run --reporter=verbose`; the result tables are only printed by the verbose reporter. Benchmarks use the Vitest 5 API through `benchGroup` from `test/helpers/bench.ts`: each group registers its benchmarks and runs them as one comparison inside a single test, with a generous timeout because a group can take over a minute.
@@ -23,33 +23,82 @@ Vitest runs the benchmarks through Vite's module runner, which turns every impor
 
 ## Current Smoke Baseline
 
-Recorded on September 17, 2026 for `2.10.0` with PixiJS `8.20.1` and Vitest `5.0.1`, jsdom, on the local development machine. Higher is better. Every result is within 10% of `2.9.0`, which is inside this machine's run-to-run noise.
+Recorded on September 17, 2026 after `2.10.0` with PixiJS `8.20.1` and Vitest `5.0.1`, jsdom, on the local development machine. Higher is better. Against `2.10.0`, construction and dense editing gained 30-70% from dropping per-tile allocations (string cell keys, UV corner arrays), alpha or texture group changes no longer rebuild the layer, and building an animated layer is about 7x faster now that a layer drives its animated tile visuals from one ticker listener; empty-layer inserts are unchanged within noise. Run-to-run spread on this machine reaches 20% for the dense editing cases, so compare a change against a fresh baseline rather than against this table.
 
 ### Layer construction
 
 | Benchmark | Result |
 | --- | ---: |
-| finite `64x64` tile layer | `640 hz` |
-| finite `64x64` tile layer, `tileMeshBatchSize: 2000` | `607 hz` |
-| infinite `16` chunks of `16x16` tiles | `605 hz` |
-| animated finite `64x64` tile layer | `15 hz` |
-| finite `256x256` tile layer from two alternating tilesets | `27 hz` |
+| finite `64x64` tile layer | `1,040 hz` |
+| finite `64x64` tile layer, `tileMeshBatchSize: 2000` | `925 hz` |
+| infinite `16` chunks of `16x16` tiles | `998 hz` |
+| animated finite `64x64` tile layer | `109 hz` |
+| finite `256x256` tile layer from two alternating tilesets | `35 hz` |
 
 The two-tileset case guards the draw-order bookkeeping, which must stay free for layers whose tiles all keep to their cells.
+
+### Animated tile ticks
+
+| Benchmark | Result |
+| --- | ---: |
+| one shared ticker update of an animated `64x64` layer | `10,273 hz` |
 
 ### Runtime editing
 
 | Benchmark | Result |
 | --- | ---: |
-| `1` insert into a `256x256` empty layer | `2,443 hz` |
-| `100` inserts into a `256x256` empty layer | `2,006 hz` |
-| `10000` inserts into a `256x256` empty layer | `116 hz` |
-| `10000` clear/set cycles in a `64x64` dense layer | `91 hz` |
-| `1000` inserts into a `16`-chunk infinite layer | `1,646 hz` |
-| `10000` compatible updates in a `256x256` dense layer | `19 hz` |
-| `1000` alpha updates in a `64x64` dense layer (rebuild) | `1.5 hz` |
+| `1` insert into a `256x256` empty layer | `2,312 hz` |
+| `100` inserts into a `256x256` empty layer | `2,078 hz` |
+| `10000` inserts into a `256x256` empty layer | `154 hz` |
+| `10000` clear/set cycles in a `64x64` dense layer | `106 hz` |
+| `1000` inserts into a `16`-chunk infinite layer | `1,866 hz` |
+| `10000` compatible updates in a `256x256` dense layer | `29 hz` |
+| `1000` alpha group changes in a `64x64` dense layer | `604 hz` |
 
-Each editing benchmark includes building its layer, so results drop with layer size even for a single insert (`102,307 hz` at `32x32`, `593 hz` at `512x512`). Compare editing cases of the same layer size.
+Each editing benchmark includes building its layer, so results drop with layer size even for a single insert (`89,218 hz` at `32x32`, `566 hz` at `512x512`), and dense `256x256` cases are dominated by the build. Compare editing cases of the same layer size.
+
+## Animated Tiles in a Real Browser
+
+The Vitest benchmarks run in jsdom without a renderer, so they cannot price
+what animated tiles cost once they are on screen. `scripts/measureAnimatedTiles.mjs`
+serves a page to headless Chrome that builds the same tiles as one
+`AnimatedSprite` each, as one batched `Mesh` of quads whose UVs are rewritten
+on a frame change, and without animation at all, then times
+`render()` plus a `gl.finish()` sync point:
+
+```sh
+MEASURE_GPU=1 npm run measure:animated
+```
+
+It is configured through the environment, like the MagicLand visual test:
+`MEASURE_TILES` (default `4096`), `MEASURE_FRAMES` (`300`), `MEASURE_ANIMATED`
+(all tiles), and `MEASURE_GPU=1`. It measures PixiJS primitives, not this
+package, so it answers a design question rather than guarding this renderer.
+Without `MEASURE_GPU` Chrome rasterises in software, where a buffer upload
+costs orders of magnitude more than on a GPU; the reported GL renderer string
+is part of the result.
+
+Measured on an RTX 3080, ms per frame, every tile animated unless noted:
+
+| Animated tiles | one sprite each | packed quads |
+| --- | ---: | ---: |
+| `512` of `4096` | `0.090` | `0.051` |
+| `4096` | `0.245` | `0.071` |
+| `16384` | `1.513` | `0.181` |
+
+Static tiles of either shape cost about `0.01`ms, so the whole difference is
+the animation. Packed quads move the work into the frames where the animation
+frame actually changes: at `16384` tiles a change frame costs `0.96`ms while a
+steady frame costs `0.03`ms, against `2.1`ms and `1.4`ms for sprites.
+
+This is why animated tiles are still sprites. Below about a thousand animated
+tiles the difference is a rounding error in a 16ms frame; it only reaches 8% of
+a frame budget at `16384` simultaneously animated tiles. Packing them would
+cost the `AnimatedSprite` children and their per-tile playback control, a batch
+per animation so a frame change does not re-upload a whole layer, and a sprite
+fallback for animations whose frames live in different texture sources. If a
+map with thousands of animated tiles makes that trade worth it, it belongs
+behind an option rather than in the default path.
 
 ## Packed Tile Layers
 
@@ -59,6 +108,7 @@ Each editing benchmark includes building its layer, so results drop with layer s
 - Quad indices are cached by quad count and shared across mesh instances.
 - Interleaved custom geometry is not used, because PixiJS v8 only batches `MeshGeometry` instances through its built-in mesh batcher.
 - Animated tiles, GIF tiles, and tiles a hexagonal map turns by 60 or 120 degrees are object-backed visuals rather than packed quads; no quad corner order can express those turns. Object-backed tiles are why the animated construction benchmark is much slower. There is no shader-based atlas animation.
+- A tile layer advances all of its animated tile visuals from one `Ticker.shared` listener (`tileAnimationTicker.ts`), because PixiJS' `autoUpdate` connects each sprite on its own: connecting `4096` of them cost more than creating them, about 55ms of the 64ms an animated `64x64` layer took to build. The frame list an animated tile hands to `AnimatedSprite` is built once per tileset tile, not once per instance. Advancing the sprites is still one `update()` call each, so a tick costs about the same as before; only the listener count and the build changed. A sprite the caller reconnects by setting `autoUpdate` back to `true` is skipped by the layer, so it is never advanced twice per frame.
 - A tile's quad covers the box Tiled's cell renderer draws into: its own size, or for `tilerendersize: 'grid'` the grid cell with the fitted image centered and the tile offset scaled with it; a diagonally flipped non-square tile gets the transposed box. The packed renderer computes the common case, a tile at its own size that is not diagonally flipped, inline and calls the shared box function only for the rest.
 
 ## Runtime Editing
@@ -66,6 +116,7 @@ Each editing benchmark includes building its layer, so results drop with layer s
 `TileLayerRenderer` keeps a render handle for every packed cell and the batch state alive after the layer is built.
 
 - **Updating an existing tile** that keeps its texture source and alpha group rewrites that quad in place. Unchanged positions or UVs skip the buffer upload.
+- **Changing an existing tile's texture source or alpha group** clears its quad and inserts it into a batch of the new group, under the same conditions as painting into an empty cell. The old batch keeps the freed slot, so its mesh stays even when every slot is free.
 - **Clearing a tile** zeroes its quad, which degenerates it so it renders nothing, and returns the slot to its batch.
 - **Painting into an empty cell** takes the first available of:
   1. a slot freed by an earlier clear (per-batch LIFO free list);
@@ -86,7 +137,7 @@ Inside a mesh, slot order decides draw order. An incremental insert can only app
 | insert into an isometric, staggered, or hexagonal map | quads overlap, so slot order is visible |
 | insert where a tile or tile sprite overhangs its cell (`tileoffset`, oversized tile) | same |
 | insert with `tileSpritePadding` above `0.125`px | the padding becomes visible overlap |
-| existing tile changes texture source or alpha group | a quad cannot move between batches in place |
+| existing tile changes texture source or alpha group, in a layer where inserts rebuild | the moved quad is an insert |
 | existing tile changes its quad size or position while any quad overhangs its cell | the quad would keep a draw position that no longer matches its overlaps |
 | packed tile <-> animated, GIF, or turned hexagonal tile | the sprite child must be created or removed |
 | tileset texture unavailable | nothing can be packed |
