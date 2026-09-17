@@ -84,18 +84,25 @@ export async function fetchMapDependencies(
   templates: Map<string, TiledObjectTemplate>
 }> {
   const externalTilesets = new Map<string, TiledTilesetFile>()
+  const tilesetSources = new Set<string>()
   for (const ts of data.tilesets) {
-    if (!isTilesetRef(ts)) continue
-    const tsUrl = resolveAssetUrl(basePath, ts.source)
-    const tsResponse = await fetchFn(tsUrl)
-    assertSuccessfulResponse(tsResponse, tsUrl)
-    const tsExt = pixiPath.extname(ts.source).toLowerCase()
-    const tileset =
-      tsExt === '.tsx'
-        ? parseTsx(await tsResponse.text())
-        : ((await tsResponse.json()) as TiledTilesetFile)
-    externalTilesets.set(ts.source, rebaseTilesetImages(tileset, pixiPath.dirname(ts.source)))
+    if (isTilesetRef(ts)) tilesetSources.add(ts.source)
   }
+  const loadedTilesets = await Promise.all(
+    Array.from(tilesetSources).map(async (src) => {
+      const tsUrl = resolveAssetUrl(basePath, src)
+      const tsResponse = await fetchFn(tsUrl)
+      assertSuccessfulResponse(tsResponse, tsUrl)
+      const tsExt = pixiPath.extname(src).toLowerCase()
+      const tileset =
+        tsExt === '.tsx'
+          ? parseTsx(await tsResponse.text())
+          : ((await tsResponse.json()) as TiledTilesetFile)
+      return [src, rebaseTilesetImages(tileset, pixiPath.dirname(src))] as const
+    })
+  )
+  // Keep the map's tileset order, whatever order the fetches finish in.
+  for (const [src, tileset] of loadedTilesets) externalTilesets.set(src, tileset)
 
   const templates = new Map<string, TiledObjectTemplate>()
   const templateSources = new Set<string>()
