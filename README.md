@@ -373,7 +373,7 @@ const cell = tileAt(mapData, local.x, local.y); // null outside the map, never c
 | `GroupLayerRenderer`  | `Container` for a group layer (recursive)                        |
 | `PackedTileLayerRenderer` | Packed mesh base used by `TileLayerRenderer`, with a low-level `addTextureRect()` seam |
 | `TileSetRenderer`     | Texture manager for a tileset                                    |
-| `createLayerRenderer(layer, tilesets, ctx, imageTextures, ...)` | Build the renderer for one resolved layer, as `TiledMap` does |
+| `createLayerRenderer(layer, tilesets, ctx, imageTextures, imageGifSources?, layerFilter?, objectStyle?)` | Build the renderer for one resolved layer, as `TiledMap` does when `ctx` carries `mapHeight` and the map's pixel size |
 | `createMap(options)`  | Create a resolved map procedurally                               |
 | `createTileset(options)` | Create a resolved tileset                                     |
 | `createTileLayer(options, tilesets?)` | Create a resolved tile layer                    |

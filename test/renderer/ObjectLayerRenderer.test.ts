@@ -3,6 +3,7 @@
  */
 import { AnimatedSprite, Container, Graphics, type Sprite, Text, Texture } from 'pixi.js'
 import { describe, expect, it, vi } from 'vitest'
+import { createLayerRenderer } from '../../src/renderer/createLayerRenderer.js'
 import { ObjectLayerRenderer } from '../../src/renderer/ObjectLayerRenderer.js'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
 import type {
@@ -579,5 +580,25 @@ describe('ObjectLayerRenderer placement like Tiled', () => {
     const node = renderOne(makeShape({ capsule: true, opacity: 0.25 }))
     expect(node).toBeInstanceOf(Graphics)
     expect(node.alpha).toBe(0.25)
+  })
+})
+
+describe('createLayerRenderer', () => {
+  it('passes the object style to object layers', () => {
+    const layer = makeResolvedObjectLayer({ objects: [makeShape({ name: 'zone' })] })
+    const ctx = {
+      orientation: 'orthogonal',
+      renderorder: 'right-down',
+      tilewidth: 32,
+      tileheight: 32
+    } as const
+
+    const styled = createLayerRenderer(layer, [], ctx, new Map(), undefined, undefined, {
+      showLabels: true
+    })
+    const plain = createLayerRenderer(layer, [], ctx, new Map())
+
+    expect((styled as ObjectLayerRenderer).labels).toBeInstanceOf(Container)
+    expect((plain as ObjectLayerRenderer).labels).toBeNull()
   })
 })
