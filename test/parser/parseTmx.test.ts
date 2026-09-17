@@ -681,7 +681,8 @@ describe('parseTx', () => {
         { name: 'b', value: 'B' }
       ]
     })
-    expect(layer.objects[1]).toMatchObject({ name: '', rotation: 0, visible: true })
+    // Tiled reads an empty name as unchanged; a zero rotation still overrides.
+    expect(layer.objects[1]).toMatchObject({ name: 'rock', rotation: 0, visible: true })
   })
 })
 

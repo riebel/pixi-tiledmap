@@ -13,10 +13,12 @@ import { dirname, joinRelativePath, normalizeRelativePath } from './relativePath
  * `MapObject::syncWithTemplate` does.
  *
  * Tiled writes a field on an instance only when the instance changed it, so a
- * field the instance carries wins - even an empty name or a zero rotation - and
- * every other field comes from the template. The shape is one unit: an
- * instance that sets any shape replaces the template's shape entirely. Custom
- * properties merge by name, the instance winning.
+ * field the instance carries wins - even a zero rotation or a hidden flag - and
+ * every other field comes from the template. Name and size are the exception:
+ * Tiled reads an empty name, and a size with a width or height of 0, as
+ * unchanged, and takes the template's. Width and height count as one size. The
+ * shape is one unit: an instance that sets any shape replaces the template's
+ * shape entirely. Custom properties merge by name, the instance winning.
  *
  * After merging, a GID that originated from the template is remapped from the
  * template's firstgid space into the map's firstgid space.
@@ -34,8 +36,13 @@ export function mergeTemplate(
   const base: TiledObject = { ...template.object, id: obj.id, x: obj.x, y: obj.y }
 
   for (const key of INSTANCE_OVERRIDES) copyIfPresent(base, obj, key)
-  // Tiled resolves an empty class to the template's class.
+  // Tiled resolves an empty name and class to the template's.
+  if (obj.name) base.name = obj.name
   if (obj.type) base.type = obj.type
+  if (hasSize(obj)) {
+    base.width = obj.width
+    base.height = obj.height
+  }
 
   if (SHAPE_KEYS.some((key) => obj[key] !== undefined)) {
     for (const key of SHAPE_KEYS) {
@@ -58,9 +65,6 @@ export function mergeTemplate(
 }
 
 const INSTANCE_OVERRIDES = [
-  'name',
-  'width',
-  'height',
   'rotation',
   'opacity',
   'visible'
@@ -74,6 +78,13 @@ const SHAPE_KEYS = [
   'polyline',
   'text'
 ] as const satisfies readonly (keyof TiledObject)[]
+
+/** Whether the instance sets a size Tiled counts as changed: `QSizeF::isEmpty` is false. */
+function hasSize(
+  obj: TiledObject | TiledTemplateInstance
+): obj is (TiledObject | TiledTemplateInstance) & { width: number; height: number } {
+  return (obj.width ?? 0) > 0 && (obj.height ?? 0) > 0
+}
 
 function copyIfPresent<K extends (typeof INSTANCE_OVERRIDES | typeof SHAPE_KEYS)[number]>(
   target: TiledObject,

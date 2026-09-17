@@ -510,9 +510,10 @@ const mapData = parseMap(data, { externalTilesets, templates });
 
 Template-instance merging follows Tiled semantics. Tiled writes a field on an
 instance only when the instance changed it, so every field the instance
-carries wins - even an empty name or a zero rotation - and every other field
-(name, size, rotation, opacity, visibility, text, gid, and shape) comes from
-the template. An instance shape replaces the template shape as a whole, and
+carries wins - even a zero rotation - and every other field (name, size,
+rotation, opacity, visibility, text, gid, and shape) comes from the template.
+As in Tiled, an empty name and a size with a zero width or height count as
+unchanged and take the template's. An instance shape replaces the template shape as a whole, and
 custom properties merge by name, the instance winning. If the template carries
 an external-tileset reference to a tileset the map also uses, `gid` is
 translated from the template firstgid-space to the map firstgid-space,

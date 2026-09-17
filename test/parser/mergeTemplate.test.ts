@@ -76,9 +76,18 @@ describe('mergeTemplate', () => {
       expect(result.type).toBe('enemy')
     })
 
-    it('an instance name that was cleared stays empty', () => {
+    it('an empty instance name takes the template name, as in Tiled', () => {
       const result = mergeTemplate(makeInstance({ name: '' }), makeTemplate({}), [])
-      expect(result.name).toBe('')
+      expect(result.name).toBe('from-template')
+    })
+
+    it.each([
+      ['a zero width', { width: 0, height: 48 }],
+      ['a zero height', { width: 32, height: 0 }],
+      ['only a width', { width: 32 }]
+    ])('an instance size with %s takes the template size, as in Tiled', (_name, size) => {
+      const result = mergeTemplate(makeInstance(size), makeTemplate({}), [])
+      expect(result).toMatchObject({ width: 16, height: 16 })
     })
 
     it('template rotation and visibility apply when the instance omits them', () => {
