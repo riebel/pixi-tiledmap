@@ -63,7 +63,9 @@ describe('tree shaking of the built package', () => {
   it('keeps the GIF loader registration with the asset loader', async () => {
     const code = await bundleImport(['tiledMapLoader'])
 
-    expect(pixiImports(code)).toEqual(['pixi.js', 'pixi.js/gif'])
+    // Advanced blend modes are a dynamic import, loaded only for maps that use them.
+    expect(pixiImports(code)).toEqual(['pixi.js', 'pixi.js/advanced-blend-modes', 'pixi.js/gif'])
+    expect(code).toMatch(/import\(\s*["']pixi\.js\/advanced-blend-modes["']\s*\)/)
     // Match the call shape rather than exact local names, which a bundler may rename.
     expect(code).toMatch(/\.add\(\s*[\w$]*GifAsset[\w$]*\s*\)/)
   })

@@ -212,4 +212,12 @@ describe('TiledMap map-space layout like Tiled', () => {
 
     expect(map.getLayer('sky')!.position).toMatchObject({ x: -43, y: 0 })
   })
+
+  it('applies a layer blend mode', () => {
+    const map = new TiledMap(
+      makeResolvedMap({ layers: [makeResolvedTileLayer({ name: 'glow', mode: 'add' })] })
+    )
+
+    expect(map.getLayer('glow')!.blendMode).toBe('add')
+  })
 })

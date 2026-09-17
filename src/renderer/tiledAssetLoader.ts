@@ -22,6 +22,7 @@ import type {
   TiledObjectTemplate,
   TiledTilesetFile
 } from '../types'
+import { loadMapBlendModes } from './blendModes.js'
 import { TiledMap } from './TiledMap.js'
 
 extensions.add(GifAsset)
@@ -167,6 +168,7 @@ export async function loadTiledMapAsset(
   const textures = await loadTextureManifest(collectTextureManifest(mapData, basePath), loadAsset)
   const scaleMode = options?.scaleMode === undefined ? 'nearest' : options.scaleMode
   if (scaleMode) applyScaleMode(textures, scaleMode)
+  await loadMapBlendModes(mapData)
   const mapOptions: TiledMapOptions = {
     ...options?.mapOptions,
     tilesetTextures: textures.tilesetTextures,

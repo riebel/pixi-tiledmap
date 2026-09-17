@@ -26,6 +26,9 @@ export interface RenderableLayer extends Container {
 /**
  * Applies a layer's shared state to its container. `origin` shifts the layer's
  * base position, for layers Tiled places in screen space.
+ *
+ * Blend modes other than `normal`, `add`, `multiply` and `screen` render once
+ * `loadMapBlendModes` has registered PixiJS' advanced blend modes.
  */
 export function applyLayerState(
   container: Container,
@@ -40,6 +43,9 @@ export function applyLayerState(
   container.position.set(baseX, baseY)
   if (layer.tintcolor) {
     container.tint = parseTintColor(layer.tintcolor)
+  }
+  if (layer.mode && layer.mode !== 'normal') {
+    container.blendMode = layer.mode
   }
 
   Object.defineProperties(container, {

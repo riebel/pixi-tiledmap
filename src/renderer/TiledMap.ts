@@ -8,6 +8,7 @@ import type {
   TiledTileInput,
   TiledTileLayerSelector
 } from '../types'
+import { loadMapBlendModes } from './blendModes.js'
 import {
   buildTileLayerIndex,
   findLayerByName,
@@ -68,6 +69,11 @@ export class TiledMap extends Container {
       objectStyle: options?.objectStyle
     })
     if (renderedLayers.length > 0) this.addChild(...renderedLayers)
+    // Layers already carry their blend mode; PixiJS picks up the advanced ones
+    // as soon as they are registered. Callers who await this first see no gap.
+    loadMapBlendModes(mapData).catch((error: unknown) => {
+      console.warn('pixi-tiledmap: could not load PixiJS advanced blend modes.', error)
+    })
 
     this._rebuildTileLayerIndex()
   }

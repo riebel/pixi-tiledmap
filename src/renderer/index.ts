@@ -1,3 +1,4 @@
+export { loadMapBlendModes } from './blendModes.js'
 export { createLayerRenderer } from './createLayerRenderer.js'
 export { GroupLayerRenderer } from './GroupLayerRenderer.js'
 export { ImageLayerRenderer } from './ImageLayerRenderer.js'

@@ -42,6 +42,7 @@ export {
   GroupLayerRenderer,
   ImageLayerRenderer,
   type LoadAssetFn,
+  loadMapBlendModes,
   loadTiledMapAsset,
   ObjectLayerRenderer,
   type PackedTextureRect,
