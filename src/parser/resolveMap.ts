@@ -1,3 +1,4 @@
+import { resolveIdCounters } from '../idCounters.js'
 import {
   resolvedLayerDefaults,
   resolvedMapDefaults,
@@ -37,7 +38,7 @@ function resolveTileset(raw: TiledTileset, source?: string): ResolvedTileset {
   const tiles = new Map<number, TiledTileDefinition>()
   if (raw.tiles) {
     for (const tile of raw.tiles) {
-      tiles.set(tile.id, tile)
+      tiles.set(tile.id, normalizeTileClass(tile))
     }
   }
   const defaults = resolvedTilesetDefaults({
@@ -55,8 +56,26 @@ function resolveTileset(raw: TiledTileset, source?: string): ResolvedTileset {
     transformations: raw.transformations,
     grid: raw.grid,
     wangsets: raw.wangsets,
-    terrains: raw.terrains
+    terrains: raw.terrains,
+    class: raw.class,
+    backgroundcolor: raw.backgroundcolor,
+    transparentcolor: normalizeHexColor(raw.transparentcolor),
+    version: raw.version === undefined ? undefined : String(raw.version),
+    tiledversion: raw.tiledversion
   }
+}
+
+/** Tiled 1.9 JSON called a tile's class `class`; later versions use `type`. */
+function normalizeTileClass(tile: TiledTileDefinition): TiledTileDefinition {
+  if (tile.class === undefined) return tile
+  const { class: className, ...rest } = tile
+  return { ...rest, type: tile.type || className }
+}
+
+/** TMX writes image colors without `#`; JSON writes them with it. */
+function normalizeHexColor(color: string | undefined): string | undefined {
+  if (!color) return undefined
+  return color.startsWith('#') ? color : `#${color}`
 }
 
 // ─── Resolve tile data ───────────────────────────────────────────────────────
@@ -122,7 +141,7 @@ function resolveImageLayer(layer: TiledLayer): ResolvedImageLayer {
     imageheight: layer.imageheight,
     repeatx: layer.repeatx ?? false,
     repeaty: layer.repeaty ?? false,
-    transparentcolor: layer.transparentcolor
+    transparentcolor: normalizeHexColor(layer.transparentcolor)
   }
 }
 
@@ -380,6 +399,7 @@ function buildResolvedMap(
 
   return {
     ...defaults,
+    ...resolveIdCounters({ layers }, data),
     backgroundcolor: data.backgroundcolor,
     tilesets,
     layers,

@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  type CreateTilesetOptions,
   createGroupLayer,
   createMap,
   createTileLayer,
@@ -117,6 +118,33 @@ describe('procedural map creation', () => {
 
     expect(tileset.columns).toBe(4)
     expect(layer.tiles.map((tile) => tile?.gid)).toEqual([100, 101])
+  })
+
+  it('passes tileset transformations, grid, Wang sets and terrains through and back', () => {
+    const extras = {
+      transformations: { hflip: true, vflip: false, rotate: true, preferuntransformed: false },
+      grid: { orientation: 'isometric', width: 32, height: 16 },
+      wangsets: [
+        {
+          name: 'paths',
+          type: 'edge',
+          tile: -1,
+          colors: [{ name: 'dirt', color: '#aa7700', probability: 1, tile: 0 }],
+          wangtiles: [{ tileid: 0, wangid: [1, 0, 1, 0, 1, 0, 1, 0] }]
+        }
+      ],
+      terrains: [{ name: 'grass', tile: 1 }]
+    } satisfies Partial<CreateTilesetOptions>
+    const map = createMap({
+      width: 1,
+      height: 1,
+      tilewidth: 16,
+      tileheight: 16,
+      tilesets: [{ name: 'decor', tilewidth: 16, tileheight: 16, tilecount: 2, ...extras }]
+    })
+
+    expect(map.tilesets[0]).toMatchObject(extras)
+    expect(parseMap(exportMap(map))).toEqual(map)
   })
 
   it('creates chunked infinite tile layers', () => {

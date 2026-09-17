@@ -89,6 +89,9 @@ export function parseTileset(
     tiles,
     tilewidth,
     transformations: parseTransformations(el),
+    // Only a standalone TSX root carries these.
+    version: optStr(el, 'version'),
+    tiledversion: optStr(el, 'tiledversion'),
     wangsets: parseWangSets(el),
     ...img
   } satisfies TiledTileset

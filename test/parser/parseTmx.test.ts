@@ -251,6 +251,21 @@ describe('parseTmx', () => {
     })
   })
 
+  it('normalizes a TMX image color key to the JSON form', () => {
+    const map = parseMap(
+      parseTmx(`<map version="1.10" orientation="orthogonal" width="1" height="1"
+     tilewidth="16" tileheight="16" nextlayerid="2" nextobjectid="1">
+  <tileset firstgid="1" name="t" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+    <image source="t.png" trans="ff00ff" width="16" height="16"/>
+  </tileset>
+  <imagelayer id="1" name="bg"><image source="bg.png" trans="00ff00"/></imagelayer>
+</map>`)
+    )
+
+    expect(map.tilesets[0]!.transparentcolor).toBe('#ff00ff')
+    expect(map.layers[0]).toMatchObject({ transparentcolor: '#00ff00' })
+  })
+
   describe('structured properties match the values Tiled writes to JSON', () => {
     function parseMapProperties(propertiesXml: string) {
       return parseTmx(`<map version="1.10" orientation="orthogonal" width="1" height="1"
@@ -526,6 +541,14 @@ describe('parseTsx', () => {
 
   it('throws on non-tileset root', () => {
     expect(() => parseTsx('<map/>')).toThrow('Expected root <tileset>')
+  })
+})
+
+describe('parseTsx versions', () => {
+  it('reads the format and editor version of a TSX file', () => {
+    const ts = parseTsx(`<tileset version="1.10" tiledversion="1.11.2" name="t"
+      tilewidth="16" tileheight="16" tilecount="1" columns="1"/>`)
+    expect(ts).toMatchObject({ version: '1.10', tiledversion: '1.11.2' })
   })
 })
 

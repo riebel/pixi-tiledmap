@@ -1,3 +1,4 @@
+import { resolveIdCounters } from './idCounters.js'
 import {
   type ResolvedObjectDefaultInput,
   resolvedLayerDefaults,
@@ -17,6 +18,7 @@ import type {
   ResolvedTile,
   ResolvedTileLayer,
   ResolvedTileset,
+  TiledBlendMode,
   TiledDrawOrder,
   TiledProperty,
   TiledRenderOrder,
@@ -42,12 +44,20 @@ export interface CreateMapOptions {
   staggeraxis?: TiledStaggerAxis
   /** Staggered and hexagonal maps only. */
   staggerindex?: TiledStaggerIndex
+  /** Oblique maps only: horizontal shift per tile row, in pixels. */
+  skewx?: number
+  /** Oblique maps only: vertical shift per tile column, in pixels. */
+  skewy?: number
   backgroundcolor?: string
   parallaxoriginx?: number
   parallaxoriginy?: number
   properties?: TiledProperty[]
   version?: string
   tiledversion?: string
+  class?: string
+  compressionlevel?: number
+  nextlayerid?: number
+  nextobjectid?: number
 }
 
 /** A `ResolvedTileset` with its defaultable fields optional; `tiles` also accepts an array. */
@@ -69,6 +79,15 @@ export interface CreateTilesetOptions
         | 'tilerendersize'
         | 'fillmode'
         | 'properties'
+        | 'transformations'
+        | 'grid'
+        | 'wangsets'
+        | 'terrains'
+        | 'class'
+        | 'backgroundcolor'
+        | 'transparentcolor'
+        | 'version'
+        | 'tiledversion'
       >
     > {
   tiles?: TiledTileDefinition[] | Map<number, TiledTileDefinition>
@@ -83,6 +102,8 @@ export type CreateLayerOptions =
 interface CreateLayerBaseOptions {
   id?: number
   name: string
+  class?: string
+  locked?: boolean
   opacity?: number
   visible?: boolean
   offsetx?: number
@@ -90,6 +111,7 @@ interface CreateLayerBaseOptions {
   parallaxx?: number
   parallaxy?: number
   tintcolor?: string
+  mode?: TiledBlendMode
   properties?: TiledProperty[]
 }
 
@@ -158,6 +180,7 @@ export function createMap(options: CreateMapOptions): ResolvedMap {
 
   return {
     ...resolvedMapDefaults(options, '1.10'),
+    ...resolveIdCounters({ layers }, options),
     backgroundcolor: options.backgroundcolor,
     tilesets,
     layers,
@@ -180,7 +203,16 @@ export function createTileset(options: CreateTilesetOptions): ResolvedTileset {
     image: options.image,
     imagewidth: options.imagewidth,
     imageheight: options.imageheight,
-    tiles
+    tiles,
+    transformations: options.transformations,
+    grid: options.grid,
+    wangsets: options.wangsets,
+    terrains: options.terrains,
+    class: options.class,
+    backgroundcolor: options.backgroundcolor,
+    transparentcolor: options.transparentcolor,
+    version: options.version,
+    tiledversion: options.tiledversion
   }
 }
 

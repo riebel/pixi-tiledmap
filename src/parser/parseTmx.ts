@@ -1,5 +1,6 @@
 import { DOMAdapter } from 'pixi.js'
 import type {
+  TiledBlendMode,
   TiledDrawOrder,
   TiledLayer,
   TiledLayerType,
@@ -44,6 +45,7 @@ function parseLayerCommon(el: Element): Partial<TiledLayer> {
     parallaxx: optFloat(el, 'parallaxx'),
     parallaxy: optFloat(el, 'parallaxy'),
     locked: el.hasAttribute('locked') ? bool(el, 'locked') : undefined,
+    mode: optStr(el, 'mode') as TiledBlendMode | undefined,
     properties: parseProperties(el),
     x: int(el, 'x'),
     y: int(el, 'y')
@@ -172,6 +174,8 @@ export function parseTmx(xml: string): TiledMap {
     parallaxoriginy: optFloat(mapEl, 'parallaxoriginy'),
     properties: parseProperties(mapEl),
     renderorder: optStr(mapEl, 'renderorder') as TiledRenderOrder | undefined,
+    skewx: optInt(mapEl, 'skewx'),
+    skewy: optInt(mapEl, 'skewy'),
     staggeraxis: optStr(mapEl, 'staggeraxis') as TiledStaggerAxis | undefined,
     staggerindex: optStr(mapEl, 'staggerindex') as TiledStaggerIndex | undefined,
     tiledversion: optStr(mapEl, 'tiledversion'),

@@ -15,6 +15,22 @@ export type TiledStaggerAxis = 'x' | 'y'
 
 export type TiledStaggerIndex = 'odd' | 'even'
 
+/** Tiled 1.12 layer blend modes. */
+export type TiledBlendMode =
+  | 'normal'
+  | 'add'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'darken'
+  | 'lighten'
+  | 'color-dodge'
+  | 'color-burn'
+  | 'hard-light'
+  | 'soft-light'
+  | 'difference'
+  | 'exclusion'
+
 export type TiledLayerType = 'tilelayer' | 'objectgroup' | 'imagelayer' | 'group'
 
 export type TiledDrawOrder = 'topdown' | 'index'
@@ -113,11 +129,17 @@ export interface TiledText {
 // ─── Object ──────────────────────────────────────────────────────────────────
 
 export interface TiledObject {
+  /** Tiled 1.12: a capsule (stadium) shape spanning the object's size. */
+  capsule?: boolean
+  /** Tiled 1.9 JSON wrote an object's class here instead of in `type`. */
+  class?: string
   ellipse?: boolean
   gid?: number
   height: number
   id: number
   name: string
+  /** Tiled 1.12: object opacity from 0 to 1. Absent means 1. */
+  opacity?: number
   point?: boolean
   polygon?: TiledPoint[]
   polyline?: TiledPoint[]
@@ -158,6 +180,8 @@ export interface TiledLayer {
   imagewidth?: number
   layers?: TiledLayer[]
   locked?: boolean
+  /** Tiled 1.12: blend mode. Absent means `'normal'`. */
+  mode?: TiledBlendMode
   name: string
   objects?: TiledObject[]
   offsetx?: number
@@ -252,6 +276,8 @@ export interface TiledWangSet {
 
 export interface TiledTileDefinition {
   animation?: TiledFrame[]
+  /** Tiled 1.9 JSON wrote a tile's class here; the parser moves it to `type`. */
+  class?: string
   id: number
   image?: string
   imageheight?: number
@@ -338,6 +364,10 @@ export interface TiledMap {
   parallaxoriginy?: number
   properties?: TiledProperty[]
   renderorder?: TiledRenderOrder
+  /** Oblique maps only (Tiled 1.12): horizontal shift per tile row, in pixels. */
+  skewx?: number
+  /** Oblique maps only (Tiled 1.12): vertical shift per tile column, in pixels. */
+  skewy?: number
   staggeraxis?: TiledStaggerAxis
   staggerindex?: TiledStaggerIndex
   tiledversion?: string
@@ -401,6 +431,10 @@ export interface ResolvedObject {
   properties?: TiledProperty[]
   tile?: ResolvedTile
   text?: TiledText
+  /** Tiled 1.12 object opacity; absent means 1. */
+  opacity?: number
+  /** Tiled 1.12 capsule shape. */
+  capsule?: boolean
   ellipse?: boolean
   point?: boolean
   polygon?: TiledPoint[]
@@ -419,6 +453,9 @@ export interface ResolvedTileLayer {
   type: 'tilelayer'
   id: number
   name: string
+  class?: string
+  /** Editor-only: the layer is locked against editing. */
+  locked?: boolean
   opacity: number
   visible: boolean
   offsetx: number
@@ -426,6 +463,8 @@ export interface ResolvedTileLayer {
   parallaxx: number
   parallaxy: number
   tintcolor?: string
+  /** Tiled 1.12 blend mode; absent means `'normal'`. */
+  mode?: TiledBlendMode
   properties: TiledProperty[]
   width: number
   height: number
@@ -438,6 +477,9 @@ export interface ResolvedImageLayer {
   type: 'imagelayer'
   id: number
   name: string
+  class?: string
+  /** Editor-only: the layer is locked against editing. */
+  locked?: boolean
   opacity: number
   visible: boolean
   offsetx: number
@@ -445,6 +487,8 @@ export interface ResolvedImageLayer {
   parallaxx: number
   parallaxy: number
   tintcolor?: string
+  /** Tiled 1.12 blend mode; absent means `'normal'`. */
+  mode?: TiledBlendMode
   properties: TiledProperty[]
   image: string
   imagewidth?: number
@@ -458,6 +502,9 @@ export interface ResolvedObjectLayer {
   type: 'objectgroup'
   id: number
   name: string
+  class?: string
+  /** Editor-only: the layer is locked against editing. */
+  locked?: boolean
   opacity: number
   visible: boolean
   offsetx: number
@@ -465,6 +512,8 @@ export interface ResolvedObjectLayer {
   parallaxx: number
   parallaxy: number
   tintcolor?: string
+  /** Tiled 1.12 blend mode; absent means `'normal'`. */
+  mode?: TiledBlendMode
   properties: TiledProperty[]
   draworder: TiledDrawOrder
   objects: ResolvedObject[]
@@ -474,6 +523,9 @@ export interface ResolvedGroupLayer {
   type: 'group'
   id: number
   name: string
+  class?: string
+  /** Editor-only: the layer is locked against editing. */
+  locked?: boolean
   opacity: number
   visible: boolean
   offsetx: number
@@ -481,6 +533,8 @@ export interface ResolvedGroupLayer {
   parallaxx: number
   parallaxy: number
   tintcolor?: string
+  /** Tiled 1.12 blend mode; absent means `'normal'`. */
+  mode?: TiledBlendMode
   properties: TiledProperty[]
   layers: ResolvedLayer[]
 }
@@ -494,6 +548,7 @@ export type ResolvedLayer =
 export interface ResolvedTileset {
   firstgid: number
   name: string
+  class?: string
   source?: string
   tilewidth: number
   tileheight: number
@@ -514,9 +569,17 @@ export interface ResolvedTileset {
   grid?: TiledGrid
   wangsets?: TiledWangSet[]
   terrains?: TiledTerrain[]
+  backgroundcolor?: string
+  /** The color keyed out of the tileset image, as `#RRGGBB`. */
+  transparentcolor?: string
+  /** Format version of a standalone tileset file. */
+  version?: string
+  /** Editor version of a standalone tileset file. */
+  tiledversion?: string
 }
 
 export interface ResolvedMap {
+  class?: string
   orientation: TiledOrientation
   renderorder: TiledRenderOrder
   width: number
@@ -528,6 +591,8 @@ export interface ResolvedMap {
   hexsidelength?: number
   staggeraxis?: TiledStaggerAxis
   staggerindex?: TiledStaggerIndex
+  skewx?: number
+  skewy?: number
   parallaxoriginx: number
   parallaxoriginy: number
   properties: TiledProperty[]
@@ -535,6 +600,14 @@ export interface ResolvedMap {
   layers: ResolvedLayer[]
   version: string
   tiledversion?: string
+  compressionlevel?: number
+  /**
+   * The id Tiled gives the next new layer. `exportMap` never writes less than
+   * the highest layer id plus one, so ids of deleted layers stay retired.
+   */
+  nextlayerid?: number
+  /** The id Tiled gives the next new object; see `nextlayerid`. */
+  nextobjectid?: number
 }
 
 // ─── Parser options ──────────────────────────────────────────────────────────

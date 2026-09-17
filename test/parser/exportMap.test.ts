@@ -11,7 +11,9 @@ import { parseMap, parseMapAsync } from '../../src/parser/resolveMap.js'
 import type {
   ParseOptions,
   ResolvedMap,
+  ResolvedObjectLayer,
   TiledMap,
+  TiledObject,
   TiledTileset,
   TiledTilesetFile
 } from '../../src/types/index.js'
@@ -363,6 +365,115 @@ describe('exportMap', () => {
     expect(exported.nextobjectid).toBe(42)
   })
 
+  it('keeps a stored id counter above the highest id in use', () => {
+    const map = parseMap(baseMap({ nextlayerid: 50, nextobjectid: 70 }))
+    expect(map).toMatchObject({ nextlayerid: 50, nextobjectid: 70 })
+    expect(expectRoundTrip(map)).toMatchObject({ nextlayerid: 50, nextobjectid: 70 })
+  })
+
+  it('carries class, lock, blend mode, skew and tileset metadata through and back', () => {
+    const raw = baseMap({
+      class: 'Level',
+      compressionlevel: 5,
+      orientation: 'oblique',
+      skewx: 4,
+      skewy: -2,
+      tilesets: [
+        {
+          ...gridTileset,
+          class: 'Terrain',
+          backgroundcolor: '#102030',
+          transparentcolor: '#ff00ff'
+        }
+      ],
+      layers: [
+        {
+          id: 1,
+          name: 'ground',
+          class: 'Floor',
+          locked: true,
+          mode: 'multiply',
+          type: 'tilelayer',
+          x: 0,
+          y: 0,
+          opacity: 1,
+          visible: true,
+          width: 2,
+          height: 2,
+          data: [3, 0, 0, 3]
+        },
+        {
+          id: 2,
+          name: 'things',
+          type: 'objectgroup',
+          x: 0,
+          y: 0,
+          opacity: 1,
+          visible: true,
+          objects: [
+            {
+              id: 1,
+              name: 'pill',
+              type: 'Pickup',
+              x: 1,
+              y: 2,
+              width: 8,
+              height: 4,
+              rotation: 0,
+              visible: true,
+              opacity: 0.5,
+              capsule: true
+            }
+          ]
+        }
+      ]
+    })
+
+    const map = parseMap(raw)
+    expect(map).toMatchObject({ class: 'Level', compressionlevel: 5, skewx: 4, skewy: -2 })
+    expect(map.tilesets[0]).toMatchObject({
+      class: 'Terrain',
+      backgroundcolor: '#102030',
+      transparentcolor: '#ff00ff'
+    })
+    expect(map.layers[0]).toMatchObject({ class: 'Floor', locked: true, mode: 'multiply' })
+    expect((map.layers[1] as ResolvedObjectLayer).objects[0]).toMatchObject({
+      opacity: 0.5,
+      capsule: true
+    })
+
+    const exported = expectRoundTrip(map)
+    expect(exported).toMatchObject({ class: 'Level', compressionlevel: 5, skewx: 4, skewy: -2 })
+    expect(exported.tilesets[0]).toMatchObject({ class: 'Terrain', transparentcolor: '#ff00ff' })
+    expect(exported.layers[0]).toMatchObject({ class: 'Floor', locked: true, mode: 'multiply' })
+    expect(exported.layers[1]!.objects![0]).toMatchObject({ opacity: 0.5, capsule: true })
+  })
+
+  it('reads Tiled 1.9 JSON classes and a numeric format version', () => {
+    const map = parseMap(
+      baseMap({
+        version: 1.9 as unknown as string,
+        tilesets: [{ ...gridTileset, tiles: [{ id: 0, class: 'Wall' }] }],
+        layers: [
+          {
+            id: 1,
+            name: 'things',
+            type: 'objectgroup',
+            x: 0,
+            y: 0,
+            opacity: 1,
+            visible: true,
+            objects: [{ id: 1, name: '', class: 'Door', x: 0, y: 0 } as unknown as TiledObject]
+          }
+        ]
+      })
+    )
+
+    expect(map.version).toBe('1.9')
+    expect(map.tilesets[0]!.tiles.get(0)).toEqual({ id: 0, type: 'Wall' })
+    expect((map.layers[0] as ResolvedObjectLayer).objects[0]!.type).toBe('Door')
+  })
+
   it('omits fields the parser would default anyway', () => {
     const exported = exportMap(parseMap(baseMap()))
 
@@ -477,8 +588,9 @@ describe('exportTileset standalone', () => {
       }
     )
 
-    // Identical to the embedded tileset apart from the path it now came from.
-    expect(viaFile.tilesets[1]).toEqual({ ...map.tilesets[1]!, source: 'g.tsj' })
+    // Identical to the embedded tileset apart from the path it now came from
+    // and the format version a standalone file carries.
+    expect(viaFile.tilesets[1]).toEqual({ ...map.tilesets[1]!, source: 'g.tsj', version: '1.10' })
   })
 })
 

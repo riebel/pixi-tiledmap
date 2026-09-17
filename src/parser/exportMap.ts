@@ -1,4 +1,4 @@
-import { walkLayers } from '../mapLookup.js'
+import { resolveIdCounters } from '../idCounters.js'
 import type {
   ResolvedLayer,
   ResolvedMap,
@@ -66,12 +66,15 @@ export function exportMap(map: ResolvedMap, options?: ExportMapOptions): TiledMa
     tilewidth: map.tilewidth,
     tileheight: map.tileheight,
     infinite: map.infinite,
-    nextlayerid: nextLayerId(map),
-    nextobjectid: nextObjectId(map),
+    ...optional('class', map.class),
+    ...optional('compressionlevel', map.compressionlevel),
+    ...resolveIdCounters(map, map),
     ...optional('backgroundcolor', map.backgroundcolor),
     ...optional('hexsidelength', map.hexsidelength),
     ...optional('staggeraxis', map.staggeraxis),
     ...optional('staggerindex', map.staggerindex),
+    ...optional('skewx', map.skewx),
+    ...optional('skewy', map.skewy),
     ...omitDefault('parallaxoriginx', map.parallaxoriginx, 0),
     ...omitDefault('parallaxoriginy', map.parallaxoriginy, 0),
     ...properties(map.properties),
@@ -87,9 +90,9 @@ export interface ExportTilesetOptions {
    * referencing map rather than to the tileset file.
    */
   standalone?: boolean
-  /** Format version for a standalone file. Defaults to `'1.10'`. */
+  /** Format version for a standalone file. Defaults to the tileset's own, else `'1.10'`. */
   version?: string
-  /** Editor version for a standalone file. Omitted when not given. */
+  /** Editor version for a standalone file. Defaults to the tileset's own, else omitted. */
   tiledversion?: string
 }
 
@@ -120,8 +123,8 @@ export function exportTileset(
 
   return {
     type: 'tileset',
-    version: options.version ?? '1.10',
-    ...optional('tiledversion', options.tiledversion),
+    version: options.version ?? tileset.version ?? '1.10',
+    ...optional('tiledversion', options.tiledversion ?? tileset.tiledversion),
     ...exportTilesetBody(tileset)
   }
 }
@@ -130,6 +133,7 @@ export function exportTileset(
 function exportTilesetBody(tileset: ResolvedTileset): TiledTilesetFile {
   return {
     name: tileset.name,
+    ...optional('class', tileset.class),
     tilewidth: tileset.tilewidth,
     tileheight: tileset.tileheight,
     columns: tileset.columns,
@@ -139,6 +143,8 @@ function exportTilesetBody(tileset: ResolvedTileset): TiledTilesetFile {
     ...optional('image', tileset.image),
     ...optional('imagewidth', tileset.imagewidth),
     ...optional('imageheight', tileset.imageheight),
+    ...optional('transparentcolor', tileset.transparentcolor),
+    ...optional('backgroundcolor', tileset.backgroundcolor),
     ...(isZeroOffset(tileset.tileoffset) ? {} : { tileoffset: { ...tileset.tileoffset } }),
     ...omitDefault('objectalignment', tileset.objectalignment, 'unspecified'),
     ...omitDefault('tilerendersize', tileset.tilerendersize, 'tile'),
@@ -208,6 +214,7 @@ function exportLayerCommon(layer: ResolvedLayer) {
   return {
     id: layer.id,
     name: layer.name,
+    ...optional('class', layer.class),
     // Tiled writes x/y on every layer and they are always 0; layer placement
     // travels through offsetx/offsety, which is what the parser reads.
     x: 0,
@@ -219,6 +226,8 @@ function exportLayerCommon(layer: ResolvedLayer) {
     ...omitDefault('parallaxx', layer.parallaxx, 1),
     ...omitDefault('parallaxy', layer.parallaxy, 1),
     ...optional('tintcolor', layer.tintcolor),
+    ...optional('mode', layer.mode),
+    ...optional('locked', layer.locked),
     ...properties(layer.properties)
   }
 }
@@ -285,30 +294,13 @@ function exportObject(object: ResolvedObject): TiledObject {
     ...(object.tile ? { gid: encodeGid(object.tile) } : {}),
     ...optional('properties', object.properties && [...object.properties]),
     ...optional('text', object.text),
+    ...optional('opacity', object.opacity),
+    ...optional('capsule', object.capsule),
     ...optional('ellipse', object.ellipse),
     ...optional('point', object.point),
     ...optional('polygon', object.polygon),
     ...optional('polyline', object.polyline)
   }
-}
-
-function nextLayerId(map: ResolvedMap): number {
-  let max = 0
-  for (const layer of walkLayers(map)) {
-    if (layer.id > max) max = layer.id
-  }
-  return max + 1
-}
-
-function nextObjectId(map: ResolvedMap): number {
-  let max = 0
-  for (const layer of walkLayers(map)) {
-    if (layer.type !== 'objectgroup') continue
-    for (const object of layer.objects) {
-      if (object.id > max) max = object.id
-    }
-  }
-  return max + 1
 }
 
 function normalizeTilesetSources(

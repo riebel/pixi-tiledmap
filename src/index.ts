@@ -71,6 +71,7 @@ export type {
   ResolvedTileLayer,
   ResolvedTileset,
   TileCell,
+  TiledBlendMode,
   TiledChunk,
   TiledClassValue,
   TiledCompression,

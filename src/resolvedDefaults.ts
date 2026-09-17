@@ -2,6 +2,7 @@ import type {
   ResolvedMap,
   ResolvedObject,
   ResolvedTileset,
+  TiledBlendMode,
   TiledFillMode,
   TiledObjectAlignment,
   TiledProperty,
@@ -13,6 +14,7 @@ import type {
 } from './types/index.js'
 
 export interface ResolvedMapDefaultInput {
+  class?: string
   orientation?: ResolvedMap['orientation']
   renderorder?: TiledRenderOrder
   width?: number
@@ -23,10 +25,15 @@ export interface ResolvedMapDefaultInput {
   hexsidelength?: number
   staggeraxis?: TiledStaggerAxis
   staggerindex?: TiledStaggerIndex
+  skewx?: number
+  skewy?: number
   parallaxoriginx?: number
   parallaxoriginy?: number
   properties?: TiledProperty[]
-  version?: string
+  version?: string | number
+  compressionlevel?: number
+  nextlayerid?: number
+  nextobjectid?: number
 }
 
 export function resolvedMapDefaults(
@@ -34,6 +41,7 @@ export function resolvedMapDefaults(
   versionFallback = '1.0'
 ): Pick<
   ResolvedMap,
+  | 'class'
   | 'orientation'
   | 'renderorder'
   | 'width'
@@ -44,12 +52,18 @@ export function resolvedMapDefaults(
   | 'hexsidelength'
   | 'staggeraxis'
   | 'staggerindex'
+  | 'skewx'
+  | 'skewy'
   | 'parallaxoriginx'
   | 'parallaxoriginy'
   | 'properties'
   | 'version'
+  | 'compressionlevel'
+  | 'nextlayerid'
+  | 'nextobjectid'
 > {
   return {
+    class: input.class,
     orientation: input.orientation ?? 'orthogonal',
     renderorder: input.renderorder ?? 'right-down',
     width: input.width ?? 0,
@@ -62,16 +76,24 @@ export function resolvedMapDefaults(
     hexsidelength: input.hexsidelength,
     staggeraxis: input.staggeraxis,
     staggerindex: input.staggerindex,
+    skewx: input.skewx,
+    skewy: input.skewy,
     parallaxoriginx: input.parallaxoriginx ?? 0,
     parallaxoriginy: input.parallaxoriginy ?? 0,
     properties: input.properties ?? [],
-    version: input.version ?? versionFallback
+    // Tiled's minimum-compatibility JSON writes the version as a number.
+    version: input.version === undefined ? versionFallback : String(input.version),
+    compressionlevel: input.compressionlevel,
+    nextlayerid: input.nextlayerid,
+    nextobjectid: input.nextobjectid
   }
 }
 
 export interface ResolvedLayerDefaultInput {
   id?: number
   name?: string
+  class?: string
+  locked?: boolean
   opacity?: number
   visible?: boolean
   offsetx?: number
@@ -79,6 +101,7 @@ export interface ResolvedLayerDefaultInput {
   parallaxx?: number
   parallaxy?: number
   tintcolor?: string
+  mode?: TiledBlendMode
   properties?: TiledProperty[]
 }
 
@@ -86,6 +109,8 @@ export function resolvedLayerDefaults(input: ResolvedLayerDefaultInput, idFallba
   return {
     id: input.id ?? idFallback,
     name: input.name ?? '',
+    class: input.class,
+    locked: input.locked,
     opacity: input.opacity ?? 1,
     visible: input.visible ?? true,
     offsetx: input.offsetx ?? 0,
@@ -93,6 +118,7 @@ export function resolvedLayerDefaults(input: ResolvedLayerDefaultInput, idFallba
     parallaxx: input.parallaxx ?? 1,
     parallaxy: input.parallaxy ?? 1,
     tintcolor: input.tintcolor,
+    mode: input.mode,
     properties: input.properties ?? []
   }
 }
@@ -101,6 +127,8 @@ export interface ResolvedObjectDefaultInput {
   id?: number
   name?: string
   type?: string
+  /** Tiled 1.9 JSON: the object class, used when `type` is empty. */
+  class?: string
   x?: number
   y?: number
   width?: number
@@ -109,6 +137,8 @@ export interface ResolvedObjectDefaultInput {
   visible?: boolean
   properties?: TiledProperty[]
   text?: ResolvedObject['text']
+  opacity?: number
+  capsule?: boolean
   ellipse?: boolean
   point?: boolean
   polygon?: ResolvedObject['polygon']
@@ -119,7 +149,7 @@ export function resolvedObjectDefaults(input: ResolvedObjectDefaultInput): Resol
   return {
     id: input.id ?? 0,
     name: input.name ?? '',
-    type: input.type ?? '',
+    type: input.type || input.class || '',
     x: input.x ?? 0,
     y: input.y ?? 0,
     width: input.width ?? 0,
@@ -128,6 +158,8 @@ export function resolvedObjectDefaults(input: ResolvedObjectDefaultInput): Resol
     visible: input.visible ?? true,
     properties: input.properties,
     text: input.text,
+    opacity: input.opacity,
+    capsule: input.capsule,
     ellipse: input.ellipse,
     point: input.point,
     polygon: input.polygon,
