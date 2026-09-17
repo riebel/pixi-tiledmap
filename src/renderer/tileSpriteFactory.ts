@@ -1,6 +1,6 @@
 import { AnimatedSprite, Sprite, type Texture } from 'pixi.js'
 import { type GifSource, GifSprite } from 'pixi.js/gif'
-import type { MapContext, ResolvedTile } from '../types'
+import type { MapContext, ResolvedTile, TiledObjectAlignment } from '../types'
 import type { TileSetRenderer } from './TileSetRenderer.js'
 import { getMapTileDrawRect } from './tileDrawPlan.js'
 
@@ -30,22 +30,11 @@ export interface TileObjectPlacement extends TileSpritePlacement {
   height: number
   rotation: number
   visible: boolean
+  /** Object opacity; multiplies the tile's own alpha. */
+  opacity?: number
+  /** Decides the default alignment of tile objects. */
+  orientation?: MapContext['orientation']
 }
-
-type TileVisualRequest =
-  | {
-      kind: 'map'
-      tile: ResolvedTile
-      tsRenderer: TileSetRenderer
-      placement: TileSpritePlacement
-      ctx: MapContext
-    }
-  | {
-      kind: 'object'
-      tile: ResolvedTile
-      tsRenderer: TileSetRenderer
-      placement: TileObjectPlacement
-    }
 
 export function createTileSprite(
   tile: ResolvedTile,
@@ -54,25 +43,81 @@ export function createTileSprite(
   py: number,
   ctx: MapContext
 ): Sprite | null {
-  return createMapTileVisualAt(tile, tsRenderer, px, py, ctx)
+  const sprite = createTileVisual(tile, tsRenderer)
+  if (!sprite) return null
+
+  const rect = getMapTileDrawRect(tile, tsRenderer, px, py, ctx)
+  sprite.position.set(rect.x, rect.y)
+  sprite.alpha = rect.alpha
+  applyFlip(sprite, tile, rect.width, rect.height)
+  return sprite
 }
 
-function createTileVisual(request: TileVisualRequest): Sprite | null {
-  return request.kind === 'map' ? createMapTileVisual(request) : createObjectTileVisual(request)
-}
-
-function createMapTileVisual(request: Extract<TileVisualRequest, { kind: 'map' }>): Sprite | null {
-  const { tile, tsRenderer, placement, ctx } = request
-  return createMapTileVisualAt(tile, tsRenderer, placement.x, placement.y, ctx)
-}
-
-function createMapTileVisualAt(
+/**
+ * A tile object, placed the way Tiled's renderers place it: the object box is
+ * aligned to the object's origin by the tileset's `objectalignment`, the image
+ * is centered in that box, and the whole object rotates around its origin.
+ */
+export function createObjectTileSprite(
   tile: ResolvedTile,
   tsRenderer: TileSetRenderer,
-  x: number,
-  y: number,
-  ctx: MapContext
+  placement: TileObjectPlacement
 ): Sprite | null {
+  const sprite = createTileVisual(tile, tsRenderer)
+  if (!sprite) return null
+
+  const localId = tile.localId
+  const tileW = tsRenderer.getTileWidth(localId)
+  const tileH = tsRenderer.getTileHeight(localId)
+  const hasSize = placement.width > 0 && placement.height > 0
+  const boxW = hasSize ? placement.width : tileW
+  const boxH = hasSize ? placement.height : tileH
+
+  let scaleX = tileW > 0 ? boxW / tileW : 1
+  let scaleY = tileH > 0 ? boxH / tileH : 1
+  if (tsRenderer.tileset.fillmode === 'preserve-aspect-fit') {
+    scaleX = scaleY = Math.min(scaleX, scaleY)
+  }
+  const drawW = tileW * scaleX
+  const drawH = tileH * scaleY
+
+  const [alignX, alignY] = alignmentFactors(
+    tsRenderer.tileset.objectalignment,
+    placement.orientation
+  )
+  const offset = tsRenderer.tileset.tileoffset
+  let centerX = (0.5 - alignX) * boxW + offset.x * scaleX
+  let centerY = (0.5 - alignY) * boxH + offset.y * scaleY
+  let width = drawW
+  let height = drawH
+  if (tile.diagonalFlip && placement.orientation !== 'hexagonal') {
+    const halfDiff = (boxH - boxW) / 2
+    centerX += halfDiff
+    centerY += halfDiff
+    width = drawH
+    height = drawW
+  }
+
+  // Top-left of the drawn box relative to the object origin, then rotated
+  // around that origin.
+  const localX = centerX - width / 2
+  const localY = centerY - height / 2
+  const rad = (placement.rotation * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  sprite.position.set(
+    placement.x + localX * cos - localY * sin,
+    placement.y + localX * sin + localY * cos
+  )
+  sprite.angle = placement.rotation
+  sprite.visible = placement.visible
+  sprite.alpha = (tile.alpha ?? 1) * (placement.opacity ?? 1)
+  applyFlip(sprite, tile, width, height)
+  return sprite
+}
+
+/** An animated, GIF or static sprite for a tile, before placement and sizing. */
+function createTileVisual(tile: ResolvedTile, tsRenderer: TileSetRenderer): Sprite | null {
   const animFrames = tsRenderer.getAnimationFrames(tile.localId)
 
   if (animFrames && animFrames.length > 1) {
@@ -82,14 +127,8 @@ function createMapTileVisualAt(
       if (!tex) return null
       textures.push({ texture: tex, time: frame.duration })
     }
-    const rect = getMapTileDrawRect(tile, tsRenderer, x, y, ctx)
     const sprite = new AnimatedSprite(textures)
-    sprite.width = rect.width
-    sprite.height = rect.height
-    sprite.position.set(rect.x, rect.y)
-    sprite.alpha = rect.alpha
     sprite.play()
-    applyFlip(sprite, tile)
     return sprite
   }
 
@@ -97,87 +136,77 @@ function createMapTileVisualAt(
   if (!texture) return null
 
   const gifSource = tsRenderer.getGifSource(tile.localId)
-  const rect = getMapTileDrawRect(tile, tsRenderer, x, y, ctx)
-  const sprite = gifSource ? createGifSprite(gifSource) : new Sprite(texture)
-  sprite.width = rect.width
-  sprite.height = rect.height
-  sprite.position.set(rect.x, rect.y)
-  sprite.alpha = rect.alpha
-  applyFlip(sprite, tile)
-  return sprite
+  return gifSource ? createGifSprite(gifSource) : new Sprite(texture)
 }
 
-export function createObjectTileSprite(
-  tile: ResolvedTile,
-  tsRenderer: TileSetRenderer,
-  placement: TileObjectPlacement
-): Sprite | null {
-  return createTileVisual({ kind: 'object', tile, tsRenderer, placement })
+const ALIGNMENT_FACTORS: Record<Exclude<TiledObjectAlignment, 'unspecified'>, [number, number]> = {
+  topleft: [0, 0],
+  top: [0.5, 0],
+  topright: [1, 0],
+  left: [0, 0.5],
+  center: [0.5, 0.5],
+  right: [1, 0.5],
+  bottomleft: [0, 1],
+  bottom: [0.5, 1],
+  bottomright: [1, 1]
 }
 
-function createObjectTileVisual(
-  request: Extract<TileVisualRequest, { kind: 'object' }>
-): Sprite | null {
-  const { tile, tsRenderer, placement } = request
-  const texture = tsRenderer.getTexture(tile.localId)
-  if (!texture) return null
-
-  const gifSource = tsRenderer.getGifSource(tile.localId)
-  const sprite = gifSource ? createGifSprite(gifSource) : new Sprite(texture)
-  const offset = tsRenderer.tileset.tileoffset
-  const sized = fitObjectTileSize(tsRenderer, tile.localId, placement.width, placement.height)
-  sprite.width = sized.width
-  sprite.height = sized.height
-  sprite.position.set(placement.x + offset.x, placement.y - sized.height + offset.y)
-  sprite.angle = placement.rotation
-  sprite.visible = placement.visible
-  sprite.alpha = tile.alpha ?? 1
-  applyFlip(sprite, tile)
-
-  return sprite
+/**
+ * Where a tile object's origin sits in its box. Tiled defaults tile objects to
+ * bottom-left, and to bottom-center on isometric maps.
+ */
+function alignmentFactors(
+  alignment: TiledObjectAlignment,
+  orientation: MapContext['orientation'] | undefined
+): [number, number] {
+  if (alignment !== 'unspecified') return ALIGNMENT_FACTORS[alignment]
+  return orientation === 'isometric' ? ALIGNMENT_FACTORS.bottom : ALIGNMENT_FACTORS.bottomleft
 }
 
-function fitObjectTileSize(
-  tsRenderer: TileSetRenderer,
-  localId: number,
-  objWidth: number,
-  objHeight: number
-): { width: number; height: number } {
-  if (objWidth <= 0 || objHeight <= 0) {
-    return tsRenderer.getTileSize(localId)
-  }
-  if (tsRenderer.tileset.fillmode !== 'preserve-aspect-fit') {
-    return { width: objWidth, height: objHeight }
-  }
-  const intrinsic = tsRenderer.getTileSize(localId)
-  if (intrinsic.width === 0 || intrinsic.height === 0) {
-    return { width: objWidth, height: objHeight }
-  }
-  const scale = Math.min(objWidth / intrinsic.width, objHeight / intrinsic.height)
-  return { width: intrinsic.width * scale, height: intrinsic.height * scale }
+/** Scale signs and anchor of one flip combination: [signX, signY, anchorX, anchorY]. */
+type FlipTransform = readonly [number, number, number, number]
+
+/**
+ * Indexed by H + 2V + 4D. Tiled encodes rotations via the diagonal
+ * (anti-diagonal) flip bit combined with H/V bits. Every diagonal case also
+ * rotates by PI/2 (CW); the anchor and scale signs produce the four transforms:
+ *   D      → transpose     anchor(0,0) scale( +,−)
+ *   D+H    → 90° CW        anchor(0,1) scale( +,+)
+ *   D+V    → 90° CCW       anchor(1,0) scale(−,−)
+ *   D+H+V  → 270° CW       anchor(1,1) scale(−,+)
+ */
+const FLIP_TRANSFORMS: readonly FlipTransform[] = [
+  [1, 1, 0, 0],
+  [-1, 1, 1, 0],
+  [1, -1, 0, 1],
+  [-1, -1, 1, 1],
+  [1, -1, 0, 0],
+  [1, 1, 0, 1],
+  [-1, -1, 1, 0],
+  [-1, 1, 1, 1]
+]
+
+function flipIndex(tile: ResolvedTile): number {
+  return (tile.horizontalFlip ? 1 : 0) + (tile.verticalFlip ? 2 : 0) + (tile.diagonalFlip ? 4 : 0)
 }
 
-function applyFlip(sprite: Sprite, tile: ResolvedTile): void {
-  if (tile.diagonalFlip) {
-    // Tiled encodes rotations via the diagonal (anti-diagonal) flip bit combined
-    // with H/V bits. For all diagonal cases rotation is PI/2 (CW); the anchor and
-    // scale vary by H/V to produce the four distinct transforms:
-    //   D      → transpose     anchor(0,0) scale( 1,−1)
-    //   D+H    → 90° CW        anchor(0,1) scale( 1, 1)
-    //   D+V    → 90° CCW       anchor(1,0) scale(−1,−1)
-    //   D+H+V  → 270° CW       anchor(1,1) scale(−1, 1)
-    sprite.rotation += Math.PI / 2
-    sprite.scale.x = tile.verticalFlip ? -1 : 1
-    sprite.scale.y = tile.horizontalFlip ? 1 : -1
-    sprite.anchor.set(tile.verticalFlip ? 1 : 0, tile.horizontalFlip ? 1 : 0)
-  } else {
-    if (tile.horizontalFlip) {
-      sprite.scale.x = -1
-      sprite.anchor.x = 1
-    }
-    if (tile.verticalFlip) {
-      sprite.scale.y = -1
-      sprite.anchor.y = 1
-    }
-  }
+/**
+ * Sizes `sprite` to cover a `width` x `height` screen box whose top-left is the
+ * sprite's position, drawing the texture with the tile's flips. A diagonal flip
+ * swaps the texture's axes on screen, so the box width then comes from the
+ * texture's height and vice versa.
+ */
+function applyFlip(sprite: Sprite, tile: ResolvedTile, width: number, height: number): void {
+  const diagonal = tile.diagonalFlip
+  const [signX, signY, anchorX, anchorY] = FLIP_TRANSFORMS[flipIndex(tile)]!
+  const alongX = diagonal ? height : width
+  const alongY = diagonal ? width : height
+
+  // Rotation and anchor updates invalidate the sprite; skip the no-ops.
+  if (diagonal) sprite.rotation += Math.PI / 2
+  sprite.scale.set(
+    (signX * alongX) / (sprite.texture.width || 1),
+    (signY * alongY) / (sprite.texture.height || 1)
+  )
+  if (anchorX !== 0 || anchorY !== 0) sprite.anchor.set(anchorX, anchorY)
 }

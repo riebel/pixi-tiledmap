@@ -90,8 +90,65 @@ describe('createTileSprite', () => {
       0,
       ctx
     )
-    expect(sprite!.scale.x).toBe(-1)
+    // The 1px test texture is stretched to the 32px cell, mirrored.
+    expect(sprite!.scale.x).toBe(-SIZE)
+    expect(sprite!.scale.y).toBe(SIZE)
     expect(sprite!.anchor.x).toBe(1)
+    expect(sprite!.getBounds()).toMatchObject({ x: 0, y: 0, width: SIZE, height: SIZE })
+  })
+
+  it('keeps the cell size for every flip combination', () => {
+    for (const [horizontalFlip, verticalFlip, diagonalFlip] of [
+      [true, false, false],
+      [false, true, false],
+      [true, true, false],
+      [false, false, true],
+      [true, false, true],
+      [false, true, true],
+      [true, true, true]
+    ]) {
+      const sprite = createTileSprite(
+        makeResolvedTile({ horizontalFlip, verticalFlip, diagonalFlip }),
+        makeTileset(),
+        64,
+        96,
+        ctx
+      )
+      const bounds = sprite!.getBounds()
+      expect(bounds.x).toBeCloseTo(64)
+      expect(bounds.y).toBeCloseTo(96)
+      expect(bounds.width).toBeCloseTo(SIZE)
+      expect(bounds.height).toBeCloseTo(SIZE)
+    }
+  })
+
+  it('transposes a diagonally flipped non-square tile about its bottom-left corner', () => {
+    // A 32x16 tile in a 32px cell covers x 0..32, y 16..32. Tiled draws it
+    // turned: 16 wide and 32 tall, still ending at the bottom-left corner.
+    const ts = makeTileset({ tilewidth: 32, tileheight: 16 })
+    const sprite = createTileSprite(makeResolvedTile({ diagonalFlip: true }), ts, 0, 0, ctx)
+    const bounds = sprite!.getBounds()
+    expect(bounds.x).toBeCloseTo(0)
+    expect(bounds.y).toBeCloseTo(0)
+    expect(bounds.width).toBeCloseTo(16)
+    expect(bounds.height).toBeCloseTo(32)
+  })
+
+  it('centers a preserve-aspect-fit grid tile in its cell and scales its offset', () => {
+    // 16x8 tile in a 32px grid cell: fitted to 32x16, centered vertically.
+    const ts = makeTileset({
+      tilewidth: 16,
+      tileheight: 8,
+      tilerendersize: 'grid',
+      fillmode: 'preserve-aspect-fit',
+      tileoffset: { x: 1, y: 0 }
+    })
+    const sprite = createTileSprite(makeResolvedTile(), ts, 0, 0, ctx)
+    const bounds = sprite!.getBounds()
+    expect(bounds.x).toBeCloseTo(2)
+    expect(bounds.y).toBeCloseTo(8)
+    expect(bounds.width).toBeCloseTo(32)
+    expect(bounds.height).toBeCloseTo(16)
   })
 
   it('creates AnimatedSprite for multi-frame tiles', () => {

@@ -1,10 +1,11 @@
 /**
  * @vitest-environment jsdom
  */
-import { Texture } from 'pixi.js'
+import { CanvasSource, Texture } from 'pixi.js'
 import { describe, expect, it, vi } from 'vitest'
 import { TileSetRenderer } from '../../src/renderer/TileSetRenderer.js'
 import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../../src/types/index.js'
+import { makeResolvedTileset } from '../helpers/resolved.js'
 
 const ctx: MapContext = {
   orientation: 'orthogonal',
@@ -92,5 +93,44 @@ describe('TileSetRenderer.destroy', () => {
 
     expect(destroySpy).not.toHaveBeenCalled()
     destroySpy.mockRestore()
+  })
+})
+
+describe('TileSetRenderer image sub-rectangles', () => {
+  function imageTexture(): Texture {
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 32
+    return new Texture({ source: new CanvasSource({ resource: canvas }) })
+  }
+
+  it('draws only the part of a tile image the tile names, at that size', () => {
+    const renderer = new TileSetRenderer(
+      makeResolvedTileset({
+        tiles: new Map([[0, { id: 0, image: 'sheet.png', x: 16, y: 8, width: 24, height: 12 }]])
+      }),
+      null
+    )
+    const image = imageTexture()
+    renderer.setTileTexture(0, image)
+
+    const texture = renderer.getTexture(0)!
+    expect(texture).not.toBe(image)
+    expect(texture.frame).toMatchObject({ x: 16, y: 8, width: 24, height: 12 })
+    expect(renderer.getTileSize(0)).toEqual({ width: 24, height: 12 })
+
+    renderer.destroy()
+    expect(texture.destroyed).toBe(true)
+    expect(image.destroyed).toBe(false)
+  })
+
+  it('uses a tile image whole when the tile names no part of it', () => {
+    const renderer = new TileSetRenderer(
+      makeResolvedTileset({ tiles: new Map([[0, { id: 0, image: 'whole.png' }]]) }),
+      null
+    )
+    const image = imageTexture()
+    renderer.setTileTexture(0, image)
+    expect(renderer.getTexture(0)).toBe(image)
   })
 })

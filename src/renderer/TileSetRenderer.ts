@@ -7,6 +7,8 @@ export class TileSetRenderer {
   readonly baseTexture: Texture | null
   private readonly _ownedTextures = new Map<number, Texture>()
   private readonly _externalTextures = new Map<number, Texture>()
+  /** Parts of supplied tile images; this renderer made them and destroys them. */
+  private readonly _subTextures = new Map<number, Texture>()
   private readonly _gifSources = new Map<number, GifSource>()
   // Per-localId cached render dimensions (keyed by localId, value = width | height<<32
   // is not feasible for floats, so we use two parallel maps).
@@ -50,8 +52,25 @@ export class TileSetRenderer {
     return texture
   }
 
+  /**
+   * Supplies an image-collection tile's image. A tile may use only part of it
+   * (Tiled 1.9 tile `x`/`y`/`width`/`height`); that part is cut out here, once.
+   */
   setTileTexture(localId: number, texture: Texture): void {
-    this._externalTextures.set(localId, texture)
+    this._subTextures.get(localId)?.destroy()
+    this._subTextures.delete(localId)
+
+    const tileDef = this.tileset.tiles.get(localId)
+    const rect = tileDef && imageSubRect(tileDef, texture)
+    if (!rect) {
+      this._externalTextures.set(localId, texture)
+      return
+    }
+    rect.x += texture.frame.x
+    rect.y += texture.frame.y
+    const sub = new Texture({ source: texture.source, frame: rect })
+    this._subTextures.set(localId, sub)
+    this._externalTextures.set(localId, sub)
   }
 
   setGifSource(localId: number, source: GifSource): void {
@@ -72,14 +91,21 @@ export class TileSetRenderer {
    * For regular tilesets, all tiles share the tileset's tilewidth/tileheight.
    */
   getTileSize(localId: number): { width: number; height: number } {
+    return { width: this.getTileWidth(localId), height: this.getTileHeight(localId) }
+  }
+
+  /** The intrinsic width of a tile (scalar, no allocation). */
+  getTileWidth(localId: number): number {
     const tileDef = this.tileset.tiles.get(localId)
-    if (tileDef?.image) {
-      return {
-        width: tileDef.imagewidth ?? this.tileset.tilewidth,
-        height: tileDef.imageheight ?? this.tileset.tileheight
-      }
-    }
-    return { width: this.tileset.tilewidth, height: this.tileset.tileheight }
+    if (!tileDef?.image) return this.tileset.tilewidth
+    return tileDef.width ?? tileDef.imagewidth ?? this.tileset.tilewidth
+  }
+
+  /** The intrinsic height of a tile (scalar, no allocation). */
+  getTileHeight(localId: number): number {
+    const tileDef = this.tileset.tiles.get(localId)
+    if (!tileDef?.image) return this.tileset.tileheight
+    return tileDef.height ?? tileDef.imageheight ?? this.tileset.tileheight
   }
 
   /**
@@ -155,9 +181,30 @@ export class TileSetRenderer {
       tex.destroy()
     }
     this._ownedTextures.clear()
+    for (const tex of this._subTextures.values()) tex.destroy()
+    this._subTextures.clear()
     this._externalTextures.clear()
     this._gifSources.clear()
     this._renderWidthCache = null
     this._renderHeightCache = null
   }
+}
+
+function imageSubRect(tileDef: TiledTileDefinition, texture: Texture): Rectangle | null {
+  const { frame } = texture
+  const x = tileDef.x ?? 0
+  const y = tileDef.y ?? 0
+  const rect = new Rectangle(
+    x,
+    y,
+    tileDef.width ?? frame.width - x,
+    tileDef.height ?? frame.height - y
+  )
+  return isPartOf(rect, frame) ? rect : null
+}
+
+/** Whether `rect` is a non-empty region smaller than the whole `frame`. */
+function isPartOf(rect: Rectangle, frame: Rectangle): boolean {
+  if (rect.width <= 0 || rect.height <= 0) return false
+  return rect.x !== 0 || rect.y !== 0 || rect.width !== frame.width || rect.height !== frame.height
 }

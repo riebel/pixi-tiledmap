@@ -6,6 +6,7 @@ import {
   packedTileStatsSymbol
 } from './packedTileStats.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
+import { writeMapTileBox } from './tileDrawPlan.js'
 import { createTileSprite } from './tileSpriteFactory.js'
 
 const DEFAULT_TILES_PER_MESH = 16_000
@@ -729,17 +730,22 @@ function buildTileRect(
   const texture = tsRenderer.getTexture(tile.localId)
   if (!texture) return null
 
-  const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
-  const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
-  const padding = getTileMeshPadding(renderW, renderH, ctx)
-  const tileOffset = tsRenderer.tileset.tileoffset
   const flip = getTileFlipIndex(tile)
+  const tileset = tsRenderer.tileset
 
   _tileRect.texture = texture
-  _tileRect.x = x + tileOffset.x
-  _tileRect.y = y + tileOffset.y + ctx.tileheight - renderH
-  _tileRect.width = renderW + padding
-  _tileRect.height = renderH + padding
+  if (tileset.tilerendersize === 'grid' || tile.diagonalFlip) {
+    writeMapTileBox(_tileRect, tile, tsRenderer, x, y, ctx)
+  } else {
+    // The common case, inlined: a tile drawn at its own size and not turned.
+    const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
+    const renderH = tsRenderer.getRenderHeight(tile.localId, ctx)
+    const padding = getTileMeshPadding(renderW, renderH, ctx)
+    _tileRect.x = x + tileset.tileoffset.x
+    _tileRect.y = y + tileset.tileoffset.y + ctx.tileheight - renderH
+    _tileRect.width = renderW + padding
+    _tileRect.height = renderH + padding
+  }
   _tileRect.alpha = tile.alpha
   _tileRect.uvOrder = UV_ORDERS[flip]
   _tileRect.uvKey = tile.localId * 8 + flip
