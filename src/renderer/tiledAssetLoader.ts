@@ -5,6 +5,7 @@ import {
   extensions,
   type LoaderParser,
   path as pixiPath,
+  type SCALE_MODE,
   type Texture
 } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
@@ -31,6 +32,14 @@ export interface TiledAssetPipelineOptions {
   fetchFn?: FetchFn
   loadAsset?: LoadAssetFn
   mapOptions?: Pick<TiledMapOptions, 'layerFilter' | 'tileSpritePadding' | 'tileMeshBatchSize'>
+  /**
+   * Scale mode applied to every texture source the map loads. Defaults to
+   * `'nearest'`, so tile edges stay sharp and neighbouring atlas cells do not
+   * bleed into each other when the map is scaled. The sources are shared
+   * through the `Assets` cache, so this also applies to other users of the
+   * same images. Pass `null` to keep each source's own scale mode.
+   */
+  scaleMode?: SCALE_MODE | null
 }
 
 export interface TiledMapAsset {
@@ -145,6 +154,8 @@ export async function loadTiledMapAsset(
   const { externalTilesets, templates } = await fetchMapDependencies(data, basePath, fetchFn)
   const mapData = await parseMapAsync(data, { externalTilesets, templates })
   const textures = await loadTextureManifest(collectTextureManifest(mapData, basePath), loadAsset)
+  const scaleMode = options?.scaleMode === undefined ? 'nearest' : options.scaleMode
+  if (scaleMode) applyScaleMode(textures, scaleMode)
   const mapOptions: TiledMapOptions = {
     ...options?.mapOptions,
     tilesetTextures: textures.tilesetTextures,
@@ -330,6 +341,19 @@ export async function loadTextureManifest(
   ])
 
   return loaded
+}
+
+function applyScaleMode(textures: LoadedTextureSets, scaleMode: SCALE_MODE): void {
+  const sets = [textures.tilesetTextures, textures.imageLayerTextures, textures.tileImageTextures]
+  for (const set of sets) {
+    for (const texture of set.values()) texture.source.scaleMode = scaleMode
+  }
+  // Every GIF frame has its own source; only the first one is in the texture maps.
+  for (const set of [textures.tileImageGifSources, textures.imageLayerGifSources]) {
+    for (const gifSource of set.values()) {
+      for (const frame of gifSource.textures) frame.source.scaleMode = scaleMode
+    }
+  }
 }
 
 function firstTexture(asset: Texture | GifSource, url: string): Texture {

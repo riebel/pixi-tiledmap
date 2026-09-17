@@ -7,6 +7,7 @@ import {
   AnimatedSprite,
   Assets,
   BufferImageSource,
+  type CanvasSource,
   DOMAdapter,
   extensions,
   Mesh,
@@ -698,6 +699,71 @@ describe('loadTiledMapAsset', () => {
     expect(asset.mapData.tilesets[0]?.name).toBe('tiles')
     expect(asset.mapData.layers[0]?.name).toBe('ground')
     expect(loadAsset).toHaveBeenCalledWith('maps/tiles.png')
+  })
+
+  it('switches loaded textures to nearest scaling by default', async () => {
+    const fetcher = makeFetcher({ 'maps/level.tmx': textResponse(MINIMAL_TMX) })
+    const texture = makeTexture(32, 32)
+
+    await loadTiledMapAsset('maps/level.tmx', {
+      fetchFn: fetcher,
+      loadAsset: () => Promise.resolve(texture)
+    })
+
+    expect(texture.source.scaleMode).toBe('nearest')
+  })
+
+  it('applies an explicit scale mode, or none when it is null', async () => {
+    const fetcher = makeFetcher({ 'maps/level.tmx': textResponse(MINIMAL_TMX) })
+    const linear = makeTexture(32, 32)
+    const untouched = makeTexture(32, 32)
+    untouched.source.scaleMode = 'linear'
+
+    await loadTiledMapAsset('maps/level.tmx', {
+      fetchFn: fetcher,
+      loadAsset: () => Promise.resolve(linear),
+      scaleMode: 'linear'
+    })
+    await loadTiledMapAsset('maps/level.tmx', {
+      fetchFn: fetcher,
+      loadAsset: () => Promise.resolve(untouched),
+      scaleMode: null
+    })
+
+    expect(linear.source.scaleMode).toBe('linear')
+    expect(untouched.source.scaleMode).toBe('linear')
+  })
+
+  it('applies the scale mode to every frame of a GIF image layer', async () => {
+    const map = makeMap({
+      layers: [
+        {
+          type: 'imagelayer',
+          id: 1,
+          name: 'backdrop',
+          opacity: 1,
+          visible: true,
+          x: 0,
+          y: 0,
+          image: 'backdrop.gif'
+        }
+      ]
+    })
+    const fetcher = makeFetcher({ 'maps/level.tmj': jsonResponse(map) })
+    const gifSource = new GifSource([
+      { texture: makeTexture(8, 8) as Texture<CanvasSource>, start: 0, end: 100 },
+      { texture: makeTexture(8, 8) as Texture<CanvasSource>, start: 100, end: 200 }
+    ])
+
+    await loadTiledMapAsset('maps/level.tmj', {
+      fetchFn: fetcher,
+      loadAsset: () => Promise.resolve(gifSource)
+    })
+
+    expect(gifSource.textures.map((frame) => frame.source.scaleMode)).toEqual([
+      'nearest',
+      'nearest'
+    ])
   })
 
   it('loads the MagicLand TMX fixture with its GIF tileset atlas as packed meshes', async () => {

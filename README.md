@@ -125,6 +125,22 @@ const { container } = await Assets.load({
 });
 ```
 
+The loader switches every texture it loads to `nearest` scaling, so pixel-art
+tiles stay sharp and neighbouring atlas cells do not bleed into visible lines
+when the map is zoomed. The textures are shared through the `Assets` cache, so
+this applies to other users of the same images too. Pass `scaleMode: 'linear'`
+for smooth filtering, or `scaleMode: null` to leave each texture as it is:
+
+```ts
+const { container } = await Assets.load({
+  src: 'assets/map.tmj',
+  data: { scaleMode: 'linear' }
+});
+```
+
+Antialiasing is a renderer setting; pass `antialias: false` to
+`Application.init` for crisp tile edges.
+
 Or call the same asset pipeline directly when custom fetch or asset-loading
 adapters are needed. The returned `container` is typed as `TiledMap`, so its
 layer, parallax, and tile-editing APIs are available without a cast:
