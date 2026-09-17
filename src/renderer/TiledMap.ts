@@ -188,7 +188,13 @@ export class TiledMap extends Container {
     this._tileLayerIndexContainers.length = 0
   }
 
+  /**
+   * Destroys the map. Tileset textures are destroyed with it only when its
+   * layers are (`{ children: true }`); layers that are merely detached keep
+   * drawing them. Destroying an already destroyed map does nothing.
+   */
   override destroy(options?: Parameters<Container['destroy']>[0]): void {
+    if (this.destroyed) return
     this._detachTileLayerIndexListeners()
     this._tileLayerIndex = null
     this._lastHitIndex = null

@@ -3,6 +3,9 @@ import { CanvasSource, DOMAdapter, Texture, type TextureSource } from 'pixi.js'
 interface KeyedSource {
   source: CanvasSource
   users: number
+  /** The cache this entry sits in while it is current. */
+  byColor: Map<number, KeyedSource>
+  key: number
 }
 
 /**
@@ -12,7 +15,7 @@ interface KeyedSource {
  */
 const keyedSources = new WeakMap<TextureSource, Map<number, KeyedSource>>()
 /** The shared copy behind each texture `acquireColorKeyedTexture` handed out. */
-const heldTextures = new WeakMap<Texture, { original: TextureSource; key: number }>()
+const heldTextures = new WeakMap<Texture, KeyedSource>()
 
 /**
  * Returns a copy of `texture` whose pixels of color `hex` (`#RRGGBB`) are fully
@@ -31,23 +34,35 @@ export function acquireColorKeyedTexture(texture: Texture, hex: string): Texture
   if (Number.isNaN(key)) return null
 
   const original = texture.source
-  let byColor = keyedSources.get(original)
-  let entry = byColor?.get(key)
-  if (!entry) {
-    const source = createColorKeyedSource(original, key)
-    if (!source) return null
-    entry = { source, users: 0 }
-    if (!byColor) {
-      byColor = new Map()
-      keyedSources.set(original, byColor)
-    }
-    byColor.set(key, entry)
-  }
+  const entry = currentKeyedSource(original, key)
+  if (!entry) return null
 
+  // The original's scale mode may have changed since keying, e.g. by the loader.
+  entry.source.scaleMode = original.scaleMode
   entry.users++
   const keyed = new Texture({ source: entry.source, frame: texture.frame.clone() })
-  heldTextures.set(keyed, { original, key })
+  heldTextures.set(keyed, entry)
   return keyed
+}
+
+/**
+ * The cached copy, or a new one when there is none or the cached copy was
+ * destroyed by someone else, e.g. through `destroy({ textureSource: true })`.
+ */
+function currentKeyedSource(original: TextureSource, key: number): KeyedSource | null {
+  let byColor = keyedSources.get(original)
+  const cached = byColor?.get(key)
+  if (cached && !cached.source.destroyed) return cached
+
+  const source = createColorKeyedSource(original, key)
+  if (!source) return null
+  if (!byColor) {
+    byColor = new Map()
+    keyedSources.set(original, byColor)
+  }
+  const entry: KeyedSource = { source, users: 0, byColor, key }
+  byColor.set(key, entry)
+  return entry
 }
 
 /**
@@ -55,16 +70,13 @@ export function acquireColorKeyedTexture(texture: Texture, hex: string): Texture
  * no other texture uses it.
  */
 export function releaseColorKeyedTexture(texture: Texture): void {
-  const held = heldTextures.get(texture)
+  const entry = heldTextures.get(texture)
   heldTextures.delete(texture)
   texture.destroy()
-  if (!held) return
+  if (!entry || --entry.users > 0) return
 
-  const byColor = keyedSources.get(held.original)
-  const entry = byColor?.get(held.key)
-  if (!byColor || !entry || --entry.users > 0) return
-  byColor.delete(held.key)
-  if (byColor.size === 0) keyedSources.delete(held.original)
+  // A replaced entry is no longer in the cache; only remove the current one.
+  if (entry.byColor.get(entry.key) === entry) entry.byColor.delete(entry.key)
   entry.source.destroy()
 }
 

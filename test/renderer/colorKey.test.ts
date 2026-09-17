@@ -83,6 +83,41 @@ describe('acquireColorKeyedTexture', () => {
     releaseColorKeyedTexture(again)
   })
 
+  it('keys again when the shared copy was destroyed elsewhere', () => {
+    const { texture, reads } = stubPixels([255, 0, 255, 255, 0, 0, 0, 255])
+
+    const stale = acquireColorKeyedTexture(texture, '#ff00ff')!
+    stale.source.destroy()
+    const fresh = acquireColorKeyedTexture(texture, '#ff00ff')!
+
+    expect(fresh.source).not.toBe(stale.source)
+    expect(fresh.source.destroyed).toBe(false)
+    expect(reads()).toBe(2)
+
+    // Releasing the replaced copy leaves the current one cached.
+    releaseColorKeyedTexture(stale)
+    const shared = acquireColorKeyedTexture(texture, '#ff00ff')!
+    expect(shared.source).toBe(fresh.source)
+    expect(reads()).toBe(2)
+    releaseColorKeyedTexture(fresh)
+    releaseColorKeyedTexture(shared)
+  })
+
+  it('follows the scale mode of the original source', () => {
+    const { texture } = stubPixels([255, 0, 255, 255, 0, 0, 0, 255])
+    texture.source.scaleMode = 'linear'
+
+    const first = acquireColorKeyedTexture(texture, '#ff00ff')!
+    expect(first.source.scaleMode).toBe('linear')
+
+    texture.source.scaleMode = 'nearest'
+    const second = acquireColorKeyedTexture(texture, '#ff00ff')!
+    expect(second.source).toBe(first.source)
+    expect(first.source.scaleMode).toBe('nearest')
+    releaseColorKeyedTexture(first)
+    releaseColorKeyedTexture(second)
+  })
+
   it('returns null when the pixels cannot be read', () => {
     const canvas = document.createElement('canvas')
     vi.spyOn(canvas, 'getContext').mockReturnValue(null)
@@ -129,6 +164,10 @@ describe('transparentcolor in renderers', () => {
     const layer = detached.children[0]!
     detached.destroy()
     expect(layer.destroyed).toBe(false)
+    expect(keyedSource.destroyed).toBe(false)
+
+    // Assets.unload destroys the map with its children, after the fact.
+    detached.destroy({ children: true })
     expect(keyedSource.destroyed).toBe(false)
   })
 

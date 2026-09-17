@@ -19,7 +19,7 @@ export class TileSetRenderer {
   private _cachedCtxTileHeight = 0
 
   /** The color-keyed copy of the atlas this renderer holds and must release. */
-  private readonly _keyedBaseTexture: Texture | null = null
+  private _keyedBaseTexture: Texture | null = null
 
   constructor(tileset: ResolvedTileset, baseTexture: Texture | null) {
     this.tileset = tileset
@@ -188,7 +188,9 @@ export class TileSetRenderer {
   /**
    * Destroys the textures this renderer made. Pass `keepTextures` while
    * visuals built from them outlive the renderer, such as tile layers detached
-   * from a destroyed map; the textures are then left to them.
+   * from a destroyed map; the textures are then left to them, and a
+   * color-keyed atlas stays cached for as long as its original image lives.
+   * Later calls do nothing more.
    */
   destroy(keepTextures = false): void {
     if (!keepTextures) {
@@ -196,6 +198,7 @@ export class TileSetRenderer {
       for (const tex of this._subTextures.values()) tex.destroy()
       if (this._keyedBaseTexture) releaseColorKeyedTexture(this._keyedBaseTexture)
     }
+    this._keyedBaseTexture = null
     this._ownedTextures.clear()
     this._subTextures.clear()
     this._externalTextures.clear()
