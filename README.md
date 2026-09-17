@@ -230,6 +230,22 @@ const map = new TiledMap(generated, { tilesetTextures });
 map.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 ```
 
+For isometric, staggered, and hexagonal maps, set `orientation`, and for staggered and hexagonal maps add `staggeraxis`, `staggerindex`, and (hexagonal only) `hexsidelength`, as in a Tiled map file:
+
+```ts
+const hexMap = createMap({
+  orientation: 'hexagonal',
+  width: 20,
+  height: 12,
+  tilewidth: 60,
+  tileheight: 70,
+  hexsidelength: 35,
+  staggeraxis: 'y',
+  staggerindex: 'odd',
+  // tilesets, layers ...
+});
+```
+
 Tile objects accept the same tile input as tile layer cells, so the library derives the GID and tileset index rather than making you restate them:
 
 ```ts

@@ -381,9 +381,6 @@ function buildResolvedMap(
   return {
     ...defaults,
     backgroundcolor: data.backgroundcolor,
-    hexsidelength: data.hexsidelength,
-    staggeraxis: data.staggeraxis,
-    staggerindex: data.staggerindex,
     tilesets,
     layers,
     tiledversion: data.tiledversion

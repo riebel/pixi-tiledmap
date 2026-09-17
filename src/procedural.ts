@@ -20,6 +20,8 @@ import type {
   TiledDrawOrder,
   TiledProperty,
   TiledRenderOrder,
+  TiledStaggerAxis,
+  TiledStaggerIndex,
   TiledTileDefinition,
   TiledTileInput
 } from './types/index.js'
@@ -34,6 +36,12 @@ export interface CreateMapOptions {
   orientation?: ResolvedMap['orientation']
   renderorder?: TiledRenderOrder
   infinite?: boolean
+  /** Hexagonal maps only: the length of the tile's side along the stagger axis. */
+  hexsidelength?: number
+  /** Staggered and hexagonal maps only. */
+  staggeraxis?: TiledStaggerAxis
+  /** Staggered and hexagonal maps only. */
+  staggerindex?: TiledStaggerIndex
   backgroundcolor?: string
   parallaxoriginx?: number
   parallaxoriginy?: number

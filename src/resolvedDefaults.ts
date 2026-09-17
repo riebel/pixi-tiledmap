@@ -6,6 +6,8 @@ import type {
   TiledObjectAlignment,
   TiledProperty,
   TiledRenderOrder,
+  TiledStaggerAxis,
+  TiledStaggerIndex,
   TiledTileOffset,
   TiledTileRenderSize
 } from './types/index.js'
@@ -18,6 +20,9 @@ export interface ResolvedMapDefaultInput {
   tilewidth?: number
   tileheight?: number
   infinite?: boolean
+  hexsidelength?: number
+  staggeraxis?: TiledStaggerAxis
+  staggerindex?: TiledStaggerIndex
   parallaxoriginx?: number
   parallaxoriginy?: number
   properties?: TiledProperty[]
@@ -36,6 +41,9 @@ export function resolvedMapDefaults(
   | 'tilewidth'
   | 'tileheight'
   | 'infinite'
+  | 'hexsidelength'
+  | 'staggeraxis'
+  | 'staggerindex'
   | 'parallaxoriginx'
   | 'parallaxoriginy'
   | 'properties'
@@ -49,6 +57,11 @@ export function resolvedMapDefaults(
     tilewidth: input.tilewidth ?? 0,
     tileheight: input.tileheight ?? 0,
     infinite: input.infinite ?? false,
+    // Tiled has no defaults for these; they only mean something on
+    // hexagonal and staggered maps.
+    hexsidelength: input.hexsidelength,
+    staggeraxis: input.staggeraxis,
+    staggerindex: input.staggerindex,
     parallaxoriginx: input.parallaxoriginx ?? 0,
     parallaxoriginy: input.parallaxoriginy ?? 0,
     properties: input.properties ?? [],

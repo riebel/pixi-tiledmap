@@ -7,7 +7,12 @@ import {
   createMap,
   createTileLayer,
   createTileset,
-  TiledMap
+  exportMap,
+  parseMap,
+  TiledMap,
+  type TiledMap as TiledMapData,
+  tileAt,
+  tileToPixel
 } from '../src/index.js'
 
 describe('procedural map creation', () => {
@@ -196,5 +201,88 @@ describe('procedural map creation', () => {
     if (mapData.layers[1]?.type === 'objectgroup') {
       expect(mapData.layers[1].objects[0]?.name).toBe('spawn')
     }
+  })
+})
+
+describe('procedural hexagonal and staggered maps', () => {
+  const hexOptions = {
+    orientation: 'hexagonal',
+    width: 5,
+    height: 4,
+    tilewidth: 60,
+    tileheight: 70,
+    hexsidelength: 35,
+    staggeraxis: 'y',
+    staggerindex: 'even'
+  } as const
+
+  it('locates the same hexagonal cells as the map parsed from TMJ', () => {
+    const generated = createMap(hexOptions)
+    const tmj: TiledMapData = {
+      type: 'map',
+      version: '1.10',
+      renderorder: 'right-down',
+      infinite: false,
+      nextlayerid: 1,
+      nextobjectid: 1,
+      tilesets: [],
+      layers: [],
+      ...hexOptions
+    }
+    const parsed = parseMap(tmj)
+
+    expect(generated).toEqual(parsed)
+    expect(generated).toMatchObject({ hexsidelength: 35, staggeraxis: 'y', staggerindex: 'even' })
+
+    const orthogonal = createMap({ ...hexOptions, orientation: 'orthogonal' })
+    let differsFromOrthogonal = false
+    for (let y = -10; y < 320; y += 7) {
+      for (let x = -10; x < 340; x += 7) {
+        expect(tileAt(generated, x, y)).toEqual(tileAt(parsed, x, y))
+        if (JSON.stringify(tileAt(generated, x, y)) !== JSON.stringify(tileAt(orthogonal, x, y))) {
+          differsFromOrthogonal = true
+        }
+      }
+    }
+    expect(differsFromOrthogonal).toBe(true)
+    for (let row = 0; row < generated.height; row++) {
+      for (let column = 0; column < generated.width; column++) {
+        const anchor = tileToPixel(column, row, generated)
+        const centre = {
+          x: anchor.x + generated.tilewidth / 2,
+          y: anchor.y + generated.tileheight / 2
+        }
+        expect(tileAt(generated, centre.x, centre.y)).toEqual({ column, row })
+      }
+    }
+  })
+
+  it('round-trips a staggered map through exportMap and parseMap', () => {
+    const generated = createMap({
+      orientation: 'staggered',
+      width: 3,
+      height: 2,
+      tilewidth: 64,
+      tileheight: 32,
+      staggeraxis: 'x',
+      staggerindex: 'odd',
+      tilesets: [
+        {
+          name: 'ground',
+          image: 'ground.png',
+          imagewidth: 256,
+          imageheight: 32,
+          tilewidth: 64,
+          tileheight: 32,
+          tilecount: 4
+        }
+      ],
+      layers: [{ name: 'floor', tiles: [1, 2, 3, 4, null, 1] }]
+    })
+
+    const exported = exportMap(generated)
+    expect(exported).toMatchObject({ staggeraxis: 'x', staggerindex: 'odd' })
+    expect(exported).not.toHaveProperty('hexsidelength')
+    expect(parseMap(exported)).toEqual(generated)
   })
 })
