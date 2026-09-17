@@ -251,6 +251,69 @@ describe('parseTmx', () => {
     })
   })
 
+  describe('structured properties match the values Tiled writes to JSON', () => {
+    function parseMapProperties(propertiesXml: string) {
+      return parseTmx(`<map version="1.10" orientation="orthogonal" width="1" height="1"
+     tilewidth="32" tileheight="32" nextlayerid="1" nextobjectid="1">
+  <properties>${propertiesXml}</properties>
+</map>`).properties
+    }
+
+    it('reads an object reference as its numeric id', () => {
+      expect(parseMapProperties('<property name="target" type="object" value="12"/>')).toEqual([
+        { name: 'target', type: 'object', propertytype: undefined, value: 12 }
+      ])
+    })
+
+    it('reads class members, including nested classes, into a plain object', () => {
+      const props = parseMapProperties(`
+    <property name="stats" type="class" propertytype="Stats">
+      <properties>
+        <property name="hp" type="int" value="5"/>
+        <property name="name" value="orc"/>
+        <property name="pos" type="class" propertytype="Point">
+          <properties><property name="x" type="float" value="1.5"/></properties>
+        </property>
+      </properties>
+    </property>
+    <property name="empty" type="class" propertytype="Stats"/>`)
+
+      expect(props).toEqual([
+        {
+          name: 'stats',
+          type: 'class',
+          propertytype: 'Stats',
+          value: { hp: 5, name: 'orc', pos: { x: 1.5 } }
+        },
+        { name: 'empty', type: 'class', propertytype: 'Stats', value: {} }
+      ])
+    })
+
+    it('reads list items as typed entries', () => {
+      const props = parseMapProperties(`
+    <property name="loot" type="list">
+      <item type="int" value="3"/>
+      <item value="gold"/>
+      <item type="class" propertytype="Point">
+        <properties><property name="x" type="int" value="2"/></properties>
+      </item>
+    </property>`)
+
+      expect(props).toEqual([
+        {
+          name: 'loot',
+          type: 'list',
+          propertytype: undefined,
+          value: [
+            { type: 'int', propertytype: undefined, value: 3 },
+            { type: 'string', propertytype: undefined, value: 'gold' },
+            { type: 'class', propertytype: 'Point', value: { x: 2 } }
+          ]
+        }
+      ])
+    })
+  })
+
   it('parses tile animations', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" orientation="orthogonal" width="1" height="1"

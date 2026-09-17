@@ -1,5 +1,7 @@
 import type {
   ResolvedLayer,
+  TiledClassValue,
+  TiledListItem,
   TiledProperty,
   TiledPropertyType,
   TiledPropertyValue
@@ -50,8 +52,8 @@ export function findLayerById(holder: LayerHolder, id: number): ResolvedLayer | 
 }
 
 /**
- * The JavaScript type each Tiled property type carries. `class` is the one
- * exception: its value shape is author-defined, so it cannot be narrowed.
+ * The JavaScript type each Tiled property type carries. A `class` value's
+ * members are author-defined, so they stay loosely typed.
  */
 export interface TiledPropertyValueByType {
   string: string
@@ -61,7 +63,8 @@ export interface TiledPropertyValueByType {
   float: number
   object: number
   bool: boolean
-  class: TiledPropertyValue
+  class: TiledClassValue
+  list: TiledListItem[]
 }
 
 /**
@@ -101,19 +104,21 @@ export function getProperty(
   return hasRuntimeType(property.value, type) ? property.value : undefined
 }
 
+const isString = (value: TiledPropertyValue) => typeof value === 'string'
+const isNumber = (value: TiledPropertyValue) => typeof value === 'number'
+
+const RUNTIME_TYPE_CHECKS: Record<TiledPropertyType, (value: TiledPropertyValue) => boolean> = {
+  string: isString,
+  color: isString,
+  file: isString,
+  int: isNumber,
+  float: isNumber,
+  object: isNumber,
+  bool: (value) => typeof value === 'boolean',
+  class: (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
+  list: (value) => Array.isArray(value)
+}
+
 function hasRuntimeType(value: TiledPropertyValue, type: TiledPropertyType): boolean {
-  switch (type) {
-    case 'string':
-    case 'color':
-    case 'file':
-      return typeof value === 'string'
-    case 'int':
-    case 'float':
-    case 'object':
-      return typeof value === 'number'
-    case 'bool':
-      return typeof value === 'boolean'
-    default:
-      return true
-  }
+  return RUNTIME_TYPE_CHECKS[type]?.(value) ?? true
 }

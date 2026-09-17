@@ -32,6 +32,7 @@ export type TiledPropertyType =
   | 'file'
   | 'object'
   | 'class'
+  | 'list'
 
 export type TiledObjectAlignment =
   | 'unspecified'
@@ -59,7 +60,24 @@ export type TiledVAlign = 'center' | 'bottom' | 'top'
 
 // ─── Property ────────────────────────────────────────────────────────────────
 
-export type TiledPropertyValue = string | number | boolean
+/**
+ * A custom property value. Scalars cover most types; an `object` property holds
+ * the referenced object's id. A `class` property holds its members by name, and
+ * a `list` property (Tiled 1.12) holds typed items.
+ */
+export type TiledPropertyValue = string | number | boolean | TiledClassValue | TiledListItem[]
+
+/** The members of a `class` property, as Tiled writes them to JSON. */
+export interface TiledClassValue {
+  [member: string]: TiledPropertyValue
+}
+
+/** One item of a `list` property. */
+export interface TiledListItem {
+  type: TiledPropertyType
+  propertytype?: string
+  value: TiledPropertyValue
+}
 
 export interface TiledProperty {
   name: string

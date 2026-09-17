@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { findLayer, findLayerById, getProperty, walkLayers } from '../src/mapLookup.js'
-import type { TiledProperty, TiledPropertyValue } from '../src/types/index.js'
+import type {
+  TiledClassValue,
+  TiledListItem,
+  TiledProperty,
+  TiledPropertyValue
+} from '../src/types/index.js'
 import {
   makeResolvedGroupLayer,
   makeResolvedMap,
@@ -181,6 +186,22 @@ describe('getProperty narrowing', () => {
 
   it('returns undefined for an unknown name even with a type', () => {
     expect(getProperty(holder, 'nope', 'string')).toBeUndefined()
+  })
+
+  it('narrows class and list properties to their structured values', () => {
+    const structured = {
+      properties: [
+        { name: 'stats', type: 'class', propertytype: 'Stats', value: { hp: 5 } },
+        { name: 'loot', type: 'list', value: [{ type: 'int', value: 3 }] },
+        { name: 'broken', type: 'class', value: [] }
+      ] satisfies TiledProperty[]
+    }
+
+    const stats: TiledClassValue | undefined = getProperty(structured, 'stats', 'class')
+    expect(stats).toEqual({ hp: 5 })
+    const loot: TiledListItem[] | undefined = getProperty(structured, 'loot', 'list')
+    expect(loot).toEqual([{ type: 'int', value: 3 }])
+    expect(getProperty(structured, 'broken', 'class')).toBeUndefined()
   })
 
   it('still returns the raw value when no type is requested', () => {
