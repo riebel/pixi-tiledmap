@@ -250,7 +250,7 @@ interface ChunkGrid {
 
 /**
  * Below this many chunks, walking them is faster than two map lookups: a
- * lookup in a 16-chunk layer measures about 24ns scanning against 21ns
+ * lookup in a 16-chunk layer measures about 18ns scanning against 24ns
  * indexed, while 1024 chunks cost 780ns scanning and 32ns indexed.
  */
 const CHUNK_GRID_MIN_CHUNKS = 32

@@ -23,17 +23,17 @@ Vitest runs the benchmarks through Vite's module runner, which turns every impor
 
 ## Current Smoke Baseline
 
-Recorded on September 17, 2026 after `2.10.0` with PixiJS `8.20.1` and Vitest `5.0.1`, jsdom, on the local development machine. Higher is better. Against `2.10.0`, construction and dense editing gained 30-70% from dropping per-tile allocations (string cell keys, UV corner arrays), alpha or texture group changes no longer rebuild the layer, and building an animated layer is about 7x faster now that a layer drives its animated tile visuals from one ticker listener; empty-layer inserts are unchanged within noise. Run-to-run spread on this machine reaches 20% for the dense editing cases, so compare a change against a fresh baseline rather than against this table.
+Recorded on September 17, 2026 after `2.10.0` with PixiJS `8.20.1` and Vitest `5.0.1`, jsdom, on the local development machine. Higher is better. Against `2.10.0`, construction and dense editing gained 30-70% from dropping per-tile allocations (string cell keys, UV corner arrays), alpha or texture group changes no longer rebuild the layer, building an animated layer is about 8x faster now that a layer drives its animated tile visuals from one ticker listener, and a tile lookup in an infinite layer no longer scans its chunks; empty-layer inserts are unchanged within noise. Run-to-run spread on this machine reaches 20% for the dense editing cases, so compare a change against a fresh baseline rather than against this table.
 
 ### Layer construction
 
 | Benchmark | Result |
 | --- | ---: |
-| finite `64x64` tile layer | `1,040 hz` |
-| finite `64x64` tile layer, `tileMeshBatchSize: 2000` | `925 hz` |
-| infinite `16` chunks of `16x16` tiles | `998 hz` |
-| animated finite `64x64` tile layer | `109 hz` |
-| finite `256x256` tile layer from two alternating tilesets | `35 hz` |
+| finite `64x64` tile layer | `926 hz` |
+| finite `64x64` tile layer, `tileMeshBatchSize: 2000` | `803 hz` |
+| infinite `16` chunks of `16x16` tiles | `889 hz` |
+| animated finite `64x64` tile layer | `134 hz` |
+| finite `256x256` tile layer from two alternating tilesets | `33 hz` |
 
 The two-tileset case guards the draw-order bookkeeping, which must stay free for layers whose tiles all keep to their cells.
 
@@ -41,23 +41,23 @@ The two-tileset case guards the draw-order bookkeeping, which must stay free for
 
 | Benchmark | Result |
 | --- | ---: |
-| one shared ticker update of an animated `64x64` layer | `10,273 hz` |
+| one shared ticker update of an animated `64x64` layer | `10,449 hz` |
 
 ### Runtime editing
 
 | Benchmark | Result |
 | --- | ---: |
-| `1` insert into a `256x256` empty layer | `2,312 hz` |
-| `100` inserts into a `256x256` empty layer | `2,078 hz` |
-| `10000` inserts into a `256x256` empty layer | `154 hz` |
-| `10000` clear/set cycles in a `64x64` dense layer | `106 hz` |
-| `1000` inserts into a `16`-chunk infinite layer | `1,796 hz` |
-| `1000` `getTile` in a `16`-chunk infinite layer | `47,954 hz` |
-| `1000` `getTile` in a `1024`-chunk infinite layer | `25,899 hz` |
-| `10000` compatible updates in a `256x256` dense layer | `29 hz` |
-| `1000` alpha group changes in a `64x64` dense layer | `604 hz` |
+| `1` insert into a `256x256` empty layer | `2,420 hz` |
+| `100` inserts into a `256x256` empty layer | `2,101 hz` |
+| `10000` inserts into a `256x256` empty layer | `157 hz` |
+| `10000` clear/set cycles in a `64x64` dense layer | `142 hz` |
+| `1000` inserts into a `16`-chunk infinite layer | `1,881 hz` |
+| `1000` `getTile` in a `16`-chunk infinite layer | `48,351 hz` |
+| `1000` `getTile` in a `1024`-chunk infinite layer | `26,374 hz` |
+| `10000` compatible updates in a `256x256` dense layer | `34 hz` |
+| `1000` alpha group changes in a `64x64` dense layer | `696 hz` |
 
-Each editing benchmark includes building its layer, so results drop with layer size even for a single insert (`89,218 hz` at `32x32`, `566 hz` at `512x512`), and dense `256x256` cases are dominated by the build. Compare editing cases of the same layer size.
+Each editing benchmark includes building its layer, so results drop with layer size even for a single insert (`94,096 hz` at `32x32`, `593 hz` at `512x512`), and dense `256x256` cases are dominated by the build. Compare editing cases of the same layer size.
 
 ## Animated Tiles in a Real Browser
 
