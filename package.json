@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "2.10.0",
+  "version": "2.10.1",
   "description": "Tiled map loader and renderer for PixiJS v8: batched tile meshes, in-place runtime tile edits, TMJ/TMX parsing and export, no runtime dependencies",
   "keywords": [
     "pixi",
