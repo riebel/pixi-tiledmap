@@ -1,8 +1,9 @@
 import { AnimatedSprite, Sprite } from 'pixi.js'
 import { type GifSource, GifSprite } from 'pixi.js/gif'
 import type { MapContext, ResolvedTile, TiledObjectAlignment } from '../types'
-import type { TileSetRenderer } from './TileSetRenderer.js'
-import { getMapTileDrawRect } from './tileDrawPlan.js'
+import type { AnimationFrameTextures, TileSetRenderer } from './TileSetRenderer.js'
+import { getMapTileDrawRect, usesMapTileSeamProtection } from './tileDrawPlan.js'
+import { getTileSeamTexture } from './tileSeamTexture.js'
 
 /**
  * A `GifSprite` that never destroys its source. The source belongs to the
@@ -15,6 +16,8 @@ class SharedSourceGifSprite extends GifSprite {
     super.destroy(false)
   }
 }
+
+const seamSafeAnimationFrames = new WeakMap<AnimationFrameTextures, AnimationFrameTextures>()
 
 export function createGifSprite(source: GifSource, autoUpdate = true): GifSprite {
   return new SharedSourceGifSprite({ source, autoUpdate })
@@ -46,10 +49,11 @@ export function createTileSprite(
   // Map tiles come by the thousand, so they are driven by the layer's own
   // ticker listener instead of connecting one per sprite; see
   // `tileAnimationTicker.ts`.
-  const sprite = createTileVisual(tile, tsRenderer, false)
+  const rect = getMapTileDrawRect(tile, tsRenderer, px, py, ctx)
+  const seamSafeTexture = usesMapTileSeamProtection(tile, tsRenderer, ctx)
+  const sprite = createTileVisual(tile, tsRenderer, false, seamSafeTexture)
   if (!sprite) return null
 
-  const rect = getMapTileDrawRect(tile, tsRenderer, px, py, ctx)
   sprite.alpha = rect.alpha
   if (hexTurnDegrees(tile, ctx.orientation) !== 0) {
     sprite.position.set(rect.x + rect.width / 2, rect.y + rect.height / 2)
@@ -160,12 +164,14 @@ function applyHexTurn(sprite: Sprite, tile: ResolvedTile, width: number, height:
 function createTileVisual(
   tile: ResolvedTile,
   tsRenderer: TileSetRenderer,
-  autoUpdate: boolean
+  autoUpdate: boolean,
+  seamSafeTexture = false
 ): Sprite | null {
   const animation = tsRenderer.getAnimationFrames(tile.localId)
   if (animation && animation.length > 1) {
-    const frames = tsRenderer.getAnimationFrameTextures(tile.localId)
+    let frames = tsRenderer.getAnimationFrameTextures(tile.localId)
     if (!frames) return null
+    if (seamSafeTexture) frames = getSeamSafeAnimationFrames(tsRenderer, frames)
     const sprite = new AnimatedSprite(frames, autoUpdate)
     sprite.play()
     return sprite
@@ -175,7 +181,24 @@ function createTileVisual(
   if (!texture) return null
 
   const gifSource = tsRenderer.getGifSource(tile.localId)
-  return gifSource ? createGifSprite(gifSource, autoUpdate) : new Sprite(texture)
+  return gifSource
+    ? createGifSprite(gifSource, autoUpdate)
+    : new Sprite(seamSafeTexture ? getTileSeamTexture(tsRenderer, texture) : texture)
+}
+
+function getSeamSafeAnimationFrames(
+  owner: TileSetRenderer,
+  frames: AnimationFrameTextures
+): AnimationFrameTextures {
+  let protectedFrames = seamSafeAnimationFrames.get(frames)
+  if (!protectedFrames) {
+    protectedFrames = frames.map(({ texture, time }) => ({
+      texture: getTileSeamTexture(owner, texture),
+      time
+    }))
+    seamSafeAnimationFrames.set(frames, protectedFrames)
+  }
+  return protectedFrames
 }
 
 const ALIGNMENT_FACTORS: Record<Exclude<TiledObjectAlignment, 'unspecified'>, [number, number]> = {

@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "2.10.1",
+  "version": "2.10.2",
   "description": "Tiled map loader and renderer for PixiJS v8: batched tile meshes, in-place runtime tile edits, TMJ/TMX parsing and export, no runtime dependencies",
   "keywords": [
     "pixi",
@@ -64,6 +64,7 @@
     "check:fix": "biome check --write src/ test/",
     "bench": "vitest bench --run --reporter=verbose",
     "measure:animated": "node scripts/measureAnimatedTiles.mjs",
+    "reproduce:tile-seams": "node scripts/reproduceTileSeams.mjs",
     "fallow": "fallow --score",
     "fallow:report": "fallow --score",
     "fallow:baseline": "node scripts/updateFallowBaselines.mjs",

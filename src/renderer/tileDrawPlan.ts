@@ -129,6 +129,21 @@ export function needsMapTileVisual(
   return !!tsRenderer.getGifSource(tile.localId)
 }
 
+/** Whether this map tile receives both the geometry and UV seam guards. */
+export function usesMapTileSeamProtection(
+  tile: ResolvedTile,
+  tsRenderer: TileSetRenderer,
+  ctx: MapContext
+): boolean {
+  return (
+    getMapTilePadding(
+      tsRenderer.getRenderWidth(tile.localId, ctx),
+      tsRenderer.getRenderHeight(tile.localId, ctx),
+      ctx
+    ) > 0
+  )
+}
+
 export function getTileUvOrder(tile: ResolvedTile): [number, number, number, number] {
   const h = tile.horizontalFlip
   const v = tile.verticalFlip

@@ -8,7 +8,8 @@ import {
 import { destroysChildren } from './renderableLayer.js'
 import type { TileSetRenderer } from './TileSetRenderer.js'
 import { isTickerDriven, TileAnimationTicker } from './tileAnimationTicker.js'
-import { writeMapTileBox } from './tileDrawPlan.js'
+import { usesMapTileSeamProtection, writeMapTileBox } from './tileDrawPlan.js'
+import { getTileSeamUvs } from './tileSeamTexture.js'
 import { createTileSprite, hexTurnDegrees } from './tileSpriteFactory.js'
 
 const DEFAULT_TILES_PER_MESH = 16_000
@@ -84,6 +85,7 @@ interface InternalTileRenderHandle extends PackedTileRenderHandle {
   batch: PackedTileBatch
   slot: number
   released: boolean
+  seamSafeUvs: boolean
 }
 
 /** The part of a quad or sprite placement the coverage grid reads. */
@@ -103,6 +105,10 @@ export interface PackedTextureRect {
   alpha?: number
   uvOrder?: readonly [number, number, number, number]
   uvKey?: number
+}
+
+interface BuiltTileRect extends PackedTextureRect {
+  seamSafeUvs: boolean
 }
 
 export class PackedTileLayerRenderer extends Container {
@@ -203,7 +209,7 @@ export class PackedTileLayerRenderer extends Container {
 
     const ownCell = isTileInOwnCellShape(tile, rect, x, y, ctx)
     this._trackConfinement(ownCell, ctx)
-    return this._addRect(rect, ownCell)
+    return this._addRect(rect, ownCell, rect.seamSafeUvs)
   }
 
   /**
@@ -229,7 +235,7 @@ export class PackedTileLayerRenderer extends Container {
     if (!rect) return null
     if (!isRectConfinedToCell(rect, x, y, ctx)) return null
 
-    return this._addRect(rect, true)
+    return this._addRect(rect, true, rect.seamSafeUvs)
   }
 
   finalize(): void {
@@ -254,6 +260,8 @@ export class PackedTileLayerRenderer extends Container {
 
     const rect = buildTileRect(tile, tsRenderer, x, y, ctx)
     if (!rect || !isSameBatchGroup(rect, handle)) return false
+    const seamSafeUvs = rect.seamSafeUvs
+    const internal = this._asInternalHandle(handle)
 
     const rectChanged = !isSameRect(rect, handle)
     // A quad moved or resized in place keeps its draw position, which is only
@@ -282,11 +290,12 @@ export class PackedTileLayerRenderer extends Container {
       changed = true
     }
 
-    if (rect.uvKey !== handle.uvKey) {
-      writeTextureUvs(geometry.uvs, handle.uvOffset, rect.texture, rect.uvOrder)
+    if (rect.uvKey !== handle.uvKey || (internal && internal.seamSafeUvs !== seamSafeUvs)) {
+      writeTextureUvs(geometry.uvs, handle.uvOffset, rect.texture, rect.uvOrder, seamSafeUvs)
       geometry.getBuffer('aUV').update()
       stats.bufferUploads++
       handle.uvKey = rect.uvKey
+      if (internal) internal.seamSafeUvs = seamSafeUvs
       changed = true
     }
 
@@ -301,7 +310,7 @@ export class PackedTileLayerRenderer extends Container {
   addTextureRect(rect: PackedTextureRect): PackedTileRenderHandle {
     // Raw rectangles carry no grid-cell contract, so they can overlap freely.
     this._quadsConfined = false
-    return this._addRect(rect, false)
+    return this._addRect(rect, false, false)
   }
 
   clearPackedTile(handle: PackedTileRenderHandle): boolean {
@@ -383,7 +392,11 @@ export class PackedTileLayerRenderer extends Container {
     this._releaseBatches(destroyChildren && !destroyTextures)
   }
 
-  private _addRect(rect: PackedTextureRect, ownCell: boolean): InternalTileRenderHandle {
+  private _addRect(
+    rect: PackedTextureRect,
+    ownCell: boolean,
+    seamSafeUvs: boolean
+  ): InternalTileRenderHandle {
     const alpha = rect.alpha ?? 1
     const batch = this._getBatch(rect.texture, alpha, this._coveredOrder(rect, ownCell))
     this._recordCoverage(rect, batch.order, ownCell)
@@ -391,7 +404,7 @@ export class PackedTileLayerRenderer extends Container {
     const offset = slot * 8
 
     writeRectPositions(batch.positions, offset, rect.x, rect.y, rect.width, rect.height)
-    writeTextureUvs(batch.uvs, offset, rect.texture, rect.uvOrder)
+    writeTextureUvs(batch.uvs, offset, rect.texture, rect.uvOrder, seamSafeUvs)
 
     const handle: InternalTileRenderHandle = {
       mesh: batch.mesh,
@@ -406,7 +419,8 @@ export class PackedTileLayerRenderer extends Container {
       uvOffset: offset,
       batch,
       slot,
-      released: false
+      released: false,
+      seamSafeUvs
     }
     batch.handles[slot] = handle
 
@@ -807,7 +821,7 @@ function coverageKey(col: number, row: number): number {
 // Reusable output rect - avoids allocating one per packed tile. Safe because
 // every caller reads the fields before the next buildTileRect call, mirroring
 // the reusable TilePosition in mapGeometry.ts.
-const _tileRect: PackedTextureRect = {
+const _tileRect: BuiltTileRect = {
   texture: Texture.EMPTY,
   x: 0,
   y: 0,
@@ -815,7 +829,8 @@ const _tileRect: PackedTextureRect = {
   height: 0,
   alpha: 1,
   uvOrder: UV_ORDERS[0],
-  uvKey: 0
+  uvKey: 0,
+  seamSafeUvs: false
 }
 
 function buildTileRect(
@@ -824,7 +839,7 @@ function buildTileRect(
   x: number,
   y: number,
   ctx: MapContext
-): PackedTextureRect | null {
+): BuiltTileRect | null {
   const texture = tsRenderer.getTexture(tile.localId)
   if (!texture) return null
 
@@ -834,6 +849,7 @@ function buildTileRect(
   _tileRect.texture = texture
   if (tileset.tilerendersize === 'grid' || tile.diagonalFlip) {
     writeMapTileBox(_tileRect, tile, tsRenderer, x, y, ctx)
+    _tileRect.seamSafeUvs = usesMapTileSeamProtection(tile, tsRenderer, ctx)
   } else {
     // The common case, inlined: a tile drawn at its own size and not turned.
     const renderW = tsRenderer.getRenderWidth(tile.localId, ctx)
@@ -843,6 +859,7 @@ function buildTileRect(
     _tileRect.y = y + tileset.tileoffset.y + ctx.tileheight - renderH
     _tileRect.width = renderW + padding
     _tileRect.height = renderH + padding
+    _tileRect.seamSafeUvs = padding > 0
   }
   _tileRect.alpha = tile.alpha
   _tileRect.uvOrder = UV_ORDERS[flip]
@@ -1043,9 +1060,10 @@ function writeTextureUvs(
   uvs: Float32Array,
   offset: number,
   texture: Texture,
-  uvOrder: readonly [number, number, number, number] = UV_ORDERS[0]!
+  uvOrder: readonly [number, number, number, number] = UV_ORDERS[0]!,
+  seamSafe = false
 ): void {
-  const source = texture.uvs
+  const source = seamSafe ? getTileSeamUvs(texture) : texture.uvs
   const corners = _uvCorners
   corners[0] = source.x0
   corners[1] = source.y0

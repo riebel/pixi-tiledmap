@@ -670,7 +670,9 @@ export interface TiledMapOptions {
   layerFilter?: TiledLayerFilter
   /**
    * Extra pixels added to full-size orthogonal tile sprites to hide subpixel
-   * seams when the map container is scaled by a fractional amount.
+   * seams when the map container has a fractional transform. Protected tiles
+   * also sample half a source texel inside their atlas frame, so the overlap
+   * cannot expose a neighbouring atlas texel.
    *
    * Set to 0 to disable.
    */

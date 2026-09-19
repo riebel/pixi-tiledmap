@@ -2,6 +2,7 @@ import { Rectangle, Texture } from 'pixi.js'
 import type { GifSource } from 'pixi.js/gif'
 import type { MapContext, ResolvedTileset, TiledTileDefinition } from '../types'
 import { acquireColorKeyedTexture, releaseColorKeyedTexture } from './colorKey.js'
+import { destroyTileSeamTextures } from './tileSeamTexture.js'
 
 /** Frame textures and durations of one animated tile, as `AnimatedSprite` takes them. */
 export type AnimationFrameTextures = { texture: Texture; time: number }[]
@@ -225,6 +226,7 @@ export class TileSetRenderer {
    * atlas. Later calls release nothing more.
    */
   destroy(): void {
+    destroyTileSeamTextures(this)
     for (const tex of this._ownedTextures.values()) tex.destroy()
     for (const tex of this._subTextures.values()) tex.destroy()
     if (this._keyedBaseTexture) releaseColorKeyedTexture(this._keyedBaseTexture)
