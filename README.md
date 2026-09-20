@@ -62,7 +62,7 @@ The package ships its own TMJ and TMX parsers, comprehensive TypeScript types, p
 ## Live Demos
 
 - **[Showcase](https://pixi-tiledmap-showcase.vercel.app/)** (pictured above) - seven scenes rendered by the library: packed tiles animated quad by quad, parallax worlds, falling blocks that become map tiles, an isometric heightfield, hexagonal biome waves, Conway's Game of Life, and a liquid-atlas terrain flight. The scenes include runtime editing at about 10k `setTile` calls per second.
-- **[Map viewer](https://pixi-tiledmap-viewer.vercel.app/)** - 175 `.tmx` maps behind a searchable picker, with a pan/zoom camera, the layer tree, a tile grid overlay, a hovered-tile inspector, and an FPS counter.
+- **[Map viewer](https://pixi-tiledmap-viewer.vercel.app/)** - a curated catalog of `.tmx` maps behind a searchable picker, with a pan/zoom camera, the layer tree, a tile grid overlay, a hovered-tile inspector, and an FPS counter.
 
 <a href="https://pixi-tiledmap-viewer.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/viewer.webp" width="880" alt="The map viewer showing a 350x250 tile town map with its layer tree, the collision layer switched off, and the hovered tile reported as 273, 116" /></a>
 
