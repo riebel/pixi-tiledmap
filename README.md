@@ -4,9 +4,9 @@
 
 # pixi-tiledmap
 
-**pixi-tiledmap is a high-performance [PixiJS v8](https://pixijs.com/) renderer for [Tiled Map Editor](https://www.mapeditor.org/) maps (`.tmj` / `.tmx`), built for TypeScript and JavaScript.**
+**pixi-tiledmap is a complete Tiled map runtime for [PixiJS v8](https://pixijs.com/) - a high-performance renderer for [Tiled Map Editor](https://www.mapeditor.org/) maps (`.tmj` / `.tmx`), with their parser, runtime editing, and export, built for TypeScript and JavaScript.**
 
-Load `.tmj` and `.tmx` maps, render batched GPU tiles, edit and generate maps at runtime, and export Tiled JSON — with no additional runtime dependencies beyond PixiJS.
+Load `.tmj` and `.tmx` maps, render batched GPU tiles, edit and generate maps at runtime, and export Tiled JSON, all with no additional runtime dependencies beyond PixiJS.
 
 [![CI][ci-image]][ci-url]
 [![npm version][npm-image]][npm-url]
@@ -19,6 +19,8 @@ Load `.tmj` and `.tmx` maps, render batched GPU tiles, edit and generate maps at
 [Showcase](https://pixi-tiledmap-showcase.vercel.app/) · [Map viewer](https://pixi-tiledmap-viewer.vercel.app/) · [Quick Start](#quick-start) · [Performance](#performance) · [API Reference](#api-reference) · [Architecture](docs/ARCHITECTURE.md)
 
 <a href="https://pixi-tiledmap-showcase.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/showcase.webp" width="880" alt="The showcase: a wordmark built from map tiles over an animated packed tile layer, running at 144 fps with 7891 quads and 13.2k setTile calls per second" /></a>
+
+<sub>The showcase running live: in this frame, 7,891 quads in one animated packed tile layer at 144 fps, with 13.2k <code>setTile</code> calls per second.</sub>
 
 </div>
 
@@ -53,11 +55,23 @@ app.stage.addChild(container);
 
 ## Why pixi-tiledmap?
 
-Choose pixi-tiledmap when Tiled is your map editor and you need a complete, high-performance Tiled-to-PixiJS renderer rather than only a low-level tile batcher.
+Choose pixi-tiledmap when Tiled is your map editor and you want the whole path from map file to rendered, editable, exportable map handled for you.
 
 Static tiles are batched into PixiJS meshes, and compatible runtime edits update their buffers in place instead of rebuilding a layer. The library supports every Tiled layer type and orientation, animated tiles, objects and templates, parallax scrolling, and infinite maps. The [Performance](#performance) section explains the design and records the measurements behind it.
 
 The package ships its own TMJ and TMX parsers, comprehensive TypeScript types, procedural map tools, and Tiled JSON export. It has no additional runtime dependencies beyond PixiJS, which is supplied as a peer dependency.
+
+pixi-tiledmap is listed in Tiled's own [support documentation](https://doc.mapeditor.org/en/stable/reference/support-for-tmx-maps/#html5-multiple-engines) among the libraries that read the TMX/TMJ formats.
+
+## More than a tile batcher
+
+[`@pixi/tilemap`](https://github.com/pixijs-userland/tilemap), the other familiar name in this space, describes itself as a "low-level, optimized rectangular tilemap implementation": it draws tiles into a grid quickly, and leaves Tiled's file formats and map model to you.
+
+pixi-tiledmap starts one level up, at the Tiled map itself - tilesets, every layer type and orientation, objects, templates, infinite maps, parallax, and animation - and makes that model editable, generatable, and exportable at runtime. The two sit at different levels rather than competing for the same job.
+
+**Reach for pixi-tiledmap when** PixiJS v8 is your renderer and you would rather have Tiled's semantics handled for you than implement them - especially with large maps, runtime tile changes, procedurally generated maps, or round-trip export.
+
+**You probably do not need it when** you only want to draw arbitrary rectangular sprites on a grid and never touch a `.tmx` or `.tmj` file.
 
 ## Live Demos
 
@@ -67,6 +81,27 @@ The package ships its own TMJ and TMX parsers, comprehensive TypeScript types, p
 <a href="https://pixi-tiledmap-viewer.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/viewer.webp" width="880" alt="The map viewer showing a 350x250 tile town map with its layer tree, the collision layer switched off, and the hovered tile reported as 273, 116" /></a>
 
 ## Features
+
+What the library does with a Tiled map, including where it stops:
+
+| Tiled feature | Support |
+| --- | --- |
+| TMJ and TMX maps | Yes |
+| External TSJ / TSX tilesets, TJ / TX object templates | Yes, resolved automatically |
+| Tile, image, object, and group layers | Yes |
+| Orthogonal, isometric, staggered, hexagonal, Tiled 1.12 oblique | Yes |
+| Infinite (chunked) maps | Yes |
+| Animated tiles | Yes |
+| Flip and rotation flags, tile offsets, tint, fill modes, color keys | Yes |
+| Parallax factors, parallax origin, blend modes, all four render orders | Yes |
+| Image-collection tilesets | Yes |
+| Runtime tile editing | Yes, in place where the edit allows it |
+| Procedural map generation | Yes |
+| Export to TMJ and TSJ | Yes, round-trip verified |
+| gzip / zlib compressed tile data | Yes, through `parseMapAsync` / `exportMapAsync` only |
+| zstd compressed tile data | No |
+| Wang sets and terrains, including the pre-1.5 TMX form | Parsed and exposed on `ResolvedTileset`; editor-only metadata with no rendering behaviour |
+| Hexagonal tile turns (diagonal-flip bit as 60°, extra bit as 120°) | Rendered as sprites rather than packed quads |
 
 - **TMJ and TMX** - load Tiled JSON and XML through PixiJS' `Assets` API; external TSJ/TSX tilesets and TJ/TX object templates resolve automatically
 - **Every layer and orientation** - tile, image, object, and group layers on orthogonal, isometric, staggered, hexagonal, and Tiled 1.12 oblique maps
@@ -78,9 +113,6 @@ The package ships its own TMJ and TMX parsers, comprehensive TypeScript types, p
 - **Tiled JSON export** - write loaded or generated maps as TMJ and standalone tilesets as TSJ; preserve tile-layer encodings, with gzip/zlib compression through `exportMapAsync`; see [Writing Maps Back Out](#writing-maps-back-out) for round-trip guarantees and runtime-only exclusions
 - **Data-only tools** - `parseMap`, export, procedural-map, lookup, and map-geometry APIs bundle without PixiJS; XML parsing uses PixiJS' `DOMAdapter`, but no renderer is needed
 - **TypeScript-first packaging** - comprehensive Tiled types, ESM and CJS builds, tree-shakable modules, and no additional runtime dependencies beyond the PixiJS peer dependency
-
-> [!NOTE]
-> **Tiled-spec coverage.** Compressed tile data supports gzip and zlib through the Compression Streams API; zstd is not supported by this library. Wang sets and terrains (including the pre-1.5 TMX format) are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour. Tiled's hexagonal tile turns (the diagonal-flip bit as 60°, the extra bit as 120°) render as sprites rather than packed quads.
 
 ## Performance
 
@@ -362,7 +394,7 @@ const kept = await exportMapAsync(parsed); // each layer keeps its compression
 const gzipped = await exportMapAsync(generated, { compression: 'gzip' }); // or pick one; null for none
 ```
 
-`exportTileset` writes a tileset the same way. By default it produces embedded map data; `{ standalone: true }` produces a `.tsj` file, which carries `type: 'tileset'` and no `firstgid` — the first global id belongs to the map that references the tileset, not to the file:
+`exportTileset` writes a tileset the same way. By default it produces embedded map data; `{ standalone: true }` produces a `.tsj` file, which carries `type: 'tileset'` and no `firstgid`, because the first global id belongs to the map that references the tileset, not to the file:
 
 ```ts
 import { exportTileset } from 'pixi-tiledmap';
@@ -374,7 +406,7 @@ await writeFile(
 );
 ```
 
-That file reads straight back through `ParseOptions.externalTilesets`, which is typed `TiledTilesetFile` — a tileset without a `firstgid` — so a `.tsj` read from disk needs no cast:
+That file reads straight back through `ParseOptions.externalTilesets`, which is typed `TiledTilesetFile` (a tileset without a `firstgid`), so a `.tsj` read from disk needs no cast:
 
 ```ts
 import type { TiledTilesetFile } from 'pixi-tiledmap';
