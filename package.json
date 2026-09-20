@@ -1,7 +1,7 @@
 {
   "name": "pixi-tiledmap",
   "version": "2.10.2",
-  "description": "Tiled map loader and renderer for PixiJS v8: batched tile meshes, in-place runtime tile edits, TMJ/TMX parsing and export, no runtime dependencies",
+  "description": "Tiled map loader and renderer for PixiJS v8 with TMJ/TMX support, batched tiles, runtime editing, procedural generation, and Tiled JSON export",
   "keywords": [
     "pixi",
     "pixi.js",
@@ -15,6 +15,7 @@
     "tsx",
     "tsj",
     "map-editor",
+    "tiled-map-editor",
     "level-editor",
     "isometric",
     "hexagonal",
@@ -24,6 +25,7 @@
     "gamedev",
     "webgl",
     "renderer",
+    "javascript",
     "typescript"
   ],
   "author": "Hagen Sommerkorn",

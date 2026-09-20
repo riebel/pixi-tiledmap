@@ -4,7 +4,9 @@
 
 # pixi-tiledmap
 
-**Load, render, edit, generate, and export [Tiled](https://www.mapeditor.org/) maps with [PixiJS v8](https://pixijs.com/).**
+**[Tiled](https://www.mapeditor.org/) map loader and renderer for [PixiJS v8](https://pixijs.com/).**
+
+Load `.tmj` and `.tmx` maps in TypeScript or JavaScript, render batched tile layers, edit and generate maps at runtime, and export Tiled JSON.
 
 [![CI][ci-image]][ci-url]
 [![npm version][npm-image]][npm-url]
@@ -14,19 +16,19 @@
 [![license][license-image]][license-url]
 [![checked with Biome][biome-image]][biome-url]
 
-[Showreel](https://pixi-tiledmap-showcase.vercel.app/) · [Map viewer](https://pixi-tiledmap-viewer.vercel.app/) · [Quick Start](#quick-start) · [Performance](#performance) · [API Reference](#api-reference) · [Architecture](docs/ARCHITECTURE.md)
+[Showcase](https://pixi-tiledmap-showcase.vercel.app/) · [Map viewer](https://pixi-tiledmap-viewer.vercel.app/) · [Quick Start](#quick-start) · [Performance](#performance) · [API Reference](#api-reference) · [Architecture](docs/ARCHITECTURE.md)
 
-<a href="https://pixi-tiledmap-showcase.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/showreel.webp" width="880" alt="The showreel: a wordmark built from map tiles over an animated packed tile layer, running at 144 fps with 7891 quads and 13.2k setTile calls per second" /></a>
+<a href="https://pixi-tiledmap-showcase.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/showcase.webp" width="880" alt="The showcase: a wordmark built from map tiles over an animated packed tile layer, running at 144 fps with 7891 quads and 13.2k setTile calls per second" /></a>
 
 </div>
 
-pixi-tiledmap is a modern, performance-focused take on Tiled support for PixiJS v8. A `.tmj` or `.tmx` loaded through PixiJS' `Assets` arrives complete: every layer type and orientation Tiled can write, animated tiles, objects and templates, parallax scrolling, and infinite maps - on a renderer built to keep large maps cheap per frame and to repaint tiles at runtime without rebuilding a layer. The [Performance](#performance) section has the numbers.
+Static tiles are batched into PixiJS meshes, and compatible runtime edits update their buffers in place instead of rebuilding a layer. The library supports every Tiled layer type and orientation, animated tiles, objects and templates, parallax scrolling, and infinite maps. The [Performance](#performance) section explains the design and records the measurements behind it.
 
-Loaded maps can be edited in place, generated from scratch, and written back out to files Tiled opens. The package is self-contained: its own TMJ and TMX parsers, comprehensive TypeScript types, and no runtime dependencies - not even a tilemap library.
+The package ships its own TMJ and TMX parsers, comprehensive TypeScript types, procedural map tools, and Tiled JSON export. It has no additional runtime dependencies beyond PixiJS, which is supplied as a peer dependency.
 
 ## Live Demos
 
-- **[Showreel](https://pixi-tiledmap-showcase.vercel.app/)** (pictured above) - six scenes rendered by the library: packed tile meshes animated quad by quad, parallax worlds, an isometric heightfield, a hexagonal map, runtime edits at about 10k `setTile` calls per second, and a live `exportMap` round-trip check.
+- **[Showcase](https://pixi-tiledmap-showcase.vercel.app/)** (pictured above) - seven scenes rendered by the library: packed tiles animated quad by quad, parallax worlds, falling blocks that become map tiles, an isometric heightfield, hexagonal biome waves, Conway's Game of Life, and a liquid-atlas terrain flight. The scenes include runtime editing at about 10k `setTile` calls per second.
 - **[Map viewer](https://pixi-tiledmap-viewer.vercel.app/)** - 175 `.tmx` maps behind a searchable picker, with a pan/zoom camera, the layer tree, a tile grid overlay, a hovered-tile inspector, and an FPS counter.
 
 <a href="https://pixi-tiledmap-viewer.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/viewer.webp" width="880" alt="The map viewer showing a 350x250 tile town map with its layer tree, the collision layer switched off, and the hovered tile reported as 273, 116" /></a>
@@ -55,10 +57,71 @@ app.stage.addChild(container);
 
 > [!NOTE]
 > The loader auto-detects the format by file extension: `.tmj` → JSON, `.tmx` → XML.
-> Image paths inside external TSJ/TSX tilesets are resolved relative to the
-> tileset file, matching Tiled's path semantics even when tilesets live in a
-> nested directory. External tileset paths inside object templates are likewise
-> resolved relative to the template file so template tile GIDs map correctly.
+>
+> PixiJS caches the loaded asset, so repeated loads of one URL return the same
+> `container`, not a copy. See [Asset Loading and Lifecycle](#asset-loading-and-lifecycle)
+> before rendering one map more than once or managing loaded textures yourself.
+
+## Features
+
+- **TMJ and TMX** - load Tiled JSON and XML through PixiJS' `Assets` API; external TSJ/TSX tilesets and TJ/TX object templates resolve automatically
+- **Every layer and orientation** - tile, image, object, and group layers on orthogonal, isometric, staggered, hexagonal, and Tiled 1.12 oblique maps
+- **Batched tile rendering** - static tiles use batchable PixiJS meshes while animated tiles retain per-tile playback; render order remains correct when tiles overhang their cells
+- **Runtime editing and generation** - edit loaded maps in place or build maps procedurally; compatible edits update packed mesh buffers instead of rebuilding a layer
+- **Infinite worlds and parallax** - render chunked infinite maps, all four Tiled render orders, nested parallax factors, map-level parallax origins, and layer blend modes
+- **Complete tile visuals** - flip and rotation flags, image-collection tilesets, tint, tile offsets, runtime alpha, render-size/fill-mode rules, and transparent color keys
+- **Objects and templates** - render shapes, text, and animated tile objects in Tiled draw order, with automatic object-template inheritance and GID remapping
+- **Tiled JSON export** - write loaded or generated maps as TMJ and standalone tilesets as TSJ; preserve tile-layer encodings, with gzip/zlib compression through `exportMapAsync`; see [Writing Maps Back Out](#writing-maps-back-out) for round-trip guarantees and runtime-only exclusions
+- **Data-only tools** - `parseMap`, export, procedural-map, lookup, and map-geometry APIs bundle without PixiJS; XML parsing uses PixiJS' `DOMAdapter`, but no renderer is needed
+- **TypeScript-first packaging** - comprehensive Tiled types, ESM and CJS builds, tree-shakable modules, and no additional runtime dependencies beyond the PixiJS peer dependency
+
+> [!NOTE]
+> **Tiled-spec coverage.** Compressed tile data supports gzip and zlib through the Compression Streams API; zstd is not supported by this library. Wang sets and terrains (including the pre-1.5 TMX format) are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour. Tiled's hexagonal tile turns (the diagonal-flip bit as 60°, the extra bit as 120°) render as sprites rather than packed quads.
+
+## Performance
+
+The renderer gets the most attention in this library, because a Tiled map is usually the largest thing on screen.
+
+- **Static tiles are batched, not one sprite each.** A tile layer packs its static tiles into batchable PixiJS `Mesh` children grouped by texture source and runtime alpha, so an ordinary layer ends up with one mesh per texture and alpha instead of one display object per tile. Grouping never changes what is drawn on top: a tile joins an existing mesh only when nothing it overlaps is drawn above that mesh. Packed meshes hold `16000` quads by default (`tileMeshBatchSize`), which stays below 16-bit index limits while keeping the render object count low, and their quad indices are cached per quad count and shared between mesh instances.
+- **Tile edits write buffers, not layers.** `setTile` and `clearTile` rewrite the affected quad in the existing mesh geometry, skip the upload when its rect and UVs are unchanged, and reuse slots freed by earlier clears before growing batch capacity. Only the cases listed under [Runtime Editing and Procedural Maps](#runtime-editing-and-procedural-maps) rebuild a tile layer.
+- **One ticker listener per layer.** A tile layer advances all of its animated tile visuals from a single `Ticker.shared` listener instead of PixiJS' per-sprite `autoUpdate`: connecting `4096` sprites individually cost more than creating them, about 55ms of the 64ms an animated `64x64` layer took to build, so building such a layer is now about 8x faster.
+- **Lookups are indexed.** An infinite layer resolves a coordinate to its chunk through a chunk grid built once per layer, about `32`ns instead of `780`ns at `1024` chunks, and `TiledMap` resolves a tile layer through a cached index, so an edit does not walk other layers' render children. Layer construction and editing avoid per-tile allocations such as string cell keys and UV corner arrays.
+- **Nothing ships that a map does not use.** There is no external tilemap dependency and no additional runtime dependency beyond PixiJS; PixiJS' advanced blend modes are imported on demand for the maps that use them; and `parseMap`, map export, procedural maps, lookups, and map geometry are free of `pixi.js`, so a data-only consumer bundles no renderer.
+
+`npm run bench` measures the renderer hot paths: layer construction, one animated layer tick, and runtime editing across map sizes, occupancy, and operation mixes. [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) records the current baseline, explains how packed layers and incremental editing work, and lists the edits that still rebuild a layer. Those numbers are machine-specific - compare a change against a baseline measured on the same machine in the same session.
+
+Animated tiles are deliberately still sprites. `npm run measure:animated` prices the two shapes in PixiJS itself in headless Chrome: on an RTX 3080 the difference between packed animated quads and one `AnimatedSprite` per tile is a rounding error in a 16ms frame below about a thousand simultaneously animated tiles, and reaches roughly 8 percent of a frame budget at `16384` of them. Until a map needs that, animated tiles keep their per-sprite playback control and the packed path stays simple.
+
+### Tuning checklist (for app integrators)
+
+If you want the best runtime behavior in your game/application:
+
+- Prefer `.tmj` for the fastest parse path when authoring allows it.
+- Preload map, tileset, and image assets with `Assets` before scene transitions.
+- Reuse `TiledMap` instances for frequently revisited scenes when possible.
+- Keep large worlds in infinite/chunked maps to avoid over-allocating one giant layer.
+- Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
+- Keep the default `tileMeshBatchSize` unless you are profiling a GPU/driver that prefers smaller meshes; the default keeps packed meshes below 16-bit index limits while reducing render object count.
+- Object layers show each named shape's name as in the Tiled editor, one `Text` texture per label. For layers with many named objects, such as collision layers, pass `objectStyle: { showLabels: false }`, and consider `screenSpace: false` if the map zooms continuously.
+- Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are packed into `Mesh` children, not one `Sprite` per tile.
+- Display objects you add to a `TileLayerRenderer` (for example a player walking on that layer) survive tile edits and layer rebuilds and keep their position relative to the tiles. Tiles sit below children you add, unless you insert yours below them with `addChildAt`. Destroying the map with its children, or unloading it, destroys them too.
+
+## Requirements
+
+- `pixi.js` `>=8.10.0` as a peer dependency
+- A runtime with the Compression Streams API for gzip/zlib tile data (`parseMapAsync`, `exportMapAsync`); every current browser and Node 18+ provides it
+
+## Asset Loading and Lifecycle
+
+### Paths and formats
+
+The loader detects `.tmj` as JSON and `.tmx` as XML. Image paths inside external
+TSJ/TSX tilesets resolve relative to the tileset file, matching Tiled's path
+semantics even when tilesets live in a nested directory. External tileset paths
+inside object templates likewise resolve relative to the template file so template
+tile GIDs map correctly.
+
+### PixiJS asset cache
 
 > [!IMPORTANT]
 > PixiJS caches loaded assets, so loading the same map URL again returns the
@@ -81,7 +144,9 @@ app.stage.addChild(container);
 > `GifSprite`: `clone.destroy(true)` does destroy the shared source, so destroy
 > clones without arguments.
 
-Renderer options can be supplied through Pixi's asset metadata:
+### Renderer options
+
+Supply renderer options through PixiJS asset metadata:
 
 ```ts
 const { container } = await Assets.load({
@@ -111,9 +176,11 @@ const { container } = await Assets.load({
 Antialiasing is a renderer setting; pass `antialias: false` to
 `Application.init` for crisp tile edges.
 
-Or call the same asset pipeline directly when custom fetch or asset-loading
-adapters are needed. The returned `container` is typed as `TiledMap`, so its
-layer, parallax, and tile-editing APIs are available without a cast:
+### Direct pipeline
+
+Call the same asset pipeline directly when custom fetch or asset-loading adapters
+are needed. The returned `container` is typed as `TiledMap`, so its layer,
+parallax, and tile-editing APIs are available without a cast:
 
 ```ts
 import { loadTiledMapAsset } from 'pixi-tiledmap';
@@ -129,68 +196,6 @@ const { container } = await loadTiledMapAsset('assets/map.tmj', {
 container.applyParallax(cameraX, cameraY);
 container.setTile('details', 10, 6, { tileset: 'dungeon', tileId: 42 });
 ```
-
-## Features
-
-- **Packed tile layers** - static map tiles render as PixiJS batchable mesh geometry grouped by texture source and alpha without changing draw order, with large source-inspired batches and no external tilemap dependency
-- **Incremental tile edits** - runtime tile edits update packed mesh buffers in place, and painting into empty cells reuses freed quad slots or grows batch capacity; edits that cannot be written in place rebuild the affected tile layer
-- **Hot paths without per-tile overhead** - layer construction and tile edits allocate no per-tile cell keys or UV corner arrays, quad indices are cached per quad count and shared between meshes, an infinite layer resolves a coordinate through a chunk grid instead of scanning its chunks, and `TiledMap` reaches a tile layer through a cached index
-- **PixiJS v8** - integrates through the `Assets` / `LoadParser` extension system
-- **Tiled JSON + TMX XML** - full spec coverage (Tiled 1.11, plus the 1.12 additions below), both `.tmj` and `.tmx` formats, which parse to identical data - including `object`, `class` and `list` custom properties
-- **All layer types** - tile, image, object, and group layers
-- **All orientations** - orthogonal, isometric, staggered, hexagonal, and Tiled 1.12 oblique (`skewx` / `skewy`)
-- **Render order** - right-down, right-up, left-down, left-up
-- **Infinite maps** - chunk-based tile layer rendering
-- **Tile features** - animated tiles (all of a layer's advanced by one shared-ticker listener, not one per sprite), flip/rotation flags, image-collection tilesets (including Tiled 1.9 image sub-rectangles), tint color, tile offset, runtime tile alpha, `tilerendersize` / `fillmode`, `transparentcolor` color keys on tilesets and image layers
-- **Layer blend modes** - Tiled 1.12 `mode` maps onto the container's PixiJS `blendMode`; PixiJS' advanced blend modes are loaded on demand for maps that use them
-- **Object rendering** - rectangles, ellipses, capsules, polygons, polylines, points, text (aligned and clipped to its box, with underline/strikeout), and tile objects (animated, placed by `objectalignment`, rotated around their origin), in `topdown` or `index` draw order and projected on isometric and oblique maps like in Tiled
-- **Object templates** - automatic `.tx` / `.tj` resolution following Tiled's inheritance rules, with gid remapping between template and map tileset spaces
-- **Parallax scrolling** - per-layer `parallaxx` / `parallaxy` and map-level `parallaxorigin`, composed multiplicatively through group layers, applied via `TiledMap.applyParallax(cameraX, cameraY)`
-- **Data encoding** - CSV (both `.tmx` and `.tmj`) and base64 (uncompressed, gzip, zlib), read and written
-- **Asset lifecycle** - loaded maps follow the PixiJS `Assets` cache: `Assets.unload` destroys the map, and a destroyed map is rebuilt on the next load
-- **External tilesets** - automatic resolution via the asset loader (`.tsj` and `.tsx`)
-- **Runtime editing and generation** - edit loaded maps in place or create resolved maps procedurally, with tile objects taking the same friendly tile input as tile layer cells
-- **Map export** - `exportMap` / `exportMapAsync` write a resolved map back to Tiled JSON, keeping each tile layer's encoding and (async) its gzip/zlib compression, and `exportTileset` writes a standalone `.tsj`, so a generated map opens in Tiled; parsing an exported map reproduces the same map exactly
-- **Map introspection** - `findLayer`, `getProperty`, and `tileAt` (point to tile cell, every orientation) work on the resolved map without a renderer, free of PixiJS and the DOM
-- **Parser defaulting** - sparse TMJ/JSON input is normalized with Tiled-compatible defaults before rendering
-- **Tree-shakable** - ESM + CJS builds with one module per source file and included type definitions; the parser, map export, procedural maps, lookups, and map geometry bundle without PixiJS
-- **Typed** - comprehensive TypeScript types for the full Tiled spec
-
-> [!NOTE]
-> **Tiled-spec coverage.** `zstd`-compressed tile data is not supported - the browser's `DecompressionStream` API only exposes `gzip` and `deflate`, and this library intentionally ships with zero runtime dependencies. Wang sets and terrains (including the pre-1.5 TMX format) are parsed and exposed on `ResolvedTileset` for introspection, but they are editor-only metadata with no runtime rendering behaviour. Tiled's hexagonal tile turns (the diagonal-flip bit as 60°, the extra bit as 120°) render as sprites rather than packed quads.
-
-## Performance
-
-The renderer gets the most attention in this library, because a Tiled map is usually the largest thing on screen.
-
-- **Static tiles are batched, not one sprite each.** A tile layer packs its static tiles into batchable PixiJS `Mesh` children grouped by texture source and runtime alpha, so an ordinary layer ends up with one mesh per texture and alpha instead of one display object per tile. Grouping never changes what is drawn on top: a tile joins an existing mesh only when nothing it overlaps is drawn above that mesh. Packed meshes hold `16000` quads by default (`tileMeshBatchSize`), which stays below 16-bit index limits while keeping the render object count low, and their quad indices are cached per quad count and shared between mesh instances.
-- **Tile edits write buffers, not layers.** `setTile` and `clearTile` rewrite the affected quad in the existing mesh geometry, skip the upload when its rect and UVs are unchanged, and reuse slots freed by earlier clears before growing batch capacity. Only the cases listed under [Runtime Editing and Procedural Maps](#runtime-editing-and-procedural-maps) rebuild a tile layer.
-- **One ticker listener per layer.** A tile layer advances all of its animated tile visuals from a single `Ticker.shared` listener instead of PixiJS' per-sprite `autoUpdate`: connecting `4096` sprites individually cost more than creating them, about 55ms of the 64ms an animated `64x64` layer took to build, so building such a layer is now about 8x faster.
-- **Lookups are indexed.** An infinite layer resolves a coordinate to its chunk through a chunk grid built once per layer, about `32`ns instead of `780`ns at `1024` chunks, and `TiledMap` resolves a tile layer through a cached index, so an edit does not walk other layers' render children. Layer construction and editing avoid per-tile allocations such as string cell keys and UV corner arrays.
-- **Nothing ships that a map does not use.** There is no external tilemap dependency and no runtime dependency at all; PixiJS' advanced blend modes are imported on demand for the maps that use them; and the parser, map export, procedural maps, lookups, and map geometry are free of `pixi.js`, so a data-only consumer bundles no renderer.
-
-`npm run bench` measures the renderer hot paths: layer construction, one animated layer tick, and runtime editing across map sizes, occupancy, and operation mixes. [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) records the current baseline, explains how packed layers and incremental editing work, and lists the edits that still rebuild a layer. Those numbers are machine-specific - compare a change against a baseline measured on the same machine in the same session.
-
-Animated tiles are deliberately still sprites. `npm run measure:animated` prices the two shapes in PixiJS itself in headless Chrome: on an RTX 3080 the difference between packed animated quads and one `AnimatedSprite` per tile is a rounding error in a 16ms frame below about a thousand simultaneously animated tiles, and reaches roughly 8 percent of a frame budget at `16384` of them. Until a map needs that, animated tiles keep their per-sprite playback control and the packed path stays simple.
-
-### Tuning checklist (for app integrators)
-
-If you want the best runtime behavior in your game/application:
-
-- Prefer `.tmj` for the fastest parse path when authoring allows it.
-- Preload map, tileset, and image assets with `Assets` before scene transitions.
-- Reuse `TiledMap` instances for frequently revisited scenes when possible.
-- Keep large worlds in infinite/chunked maps to avoid over-allocating one giant layer.
-- Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
-- Keep the default `tileMeshBatchSize` unless you are profiling a GPU/driver that prefers smaller meshes; the default keeps packed meshes below 16-bit index limits while reducing render object count.
-- Object layers show each named shape's name as in the Tiled editor, one `Text` texture per label. For layers with many named objects, such as collision layers, pass `objectStyle: { showLabels: false }`, and consider `screenSpace: false` if the map zooms continuously.
-- Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are packed into `Mesh` children, not one `Sprite` per tile.
-- Display objects you add to a `TileLayerRenderer` (for example a player walking on that layer) survive tile edits and layer rebuilds and keep their position relative to the tiles. Tiles sit below children you add, unless you insert yours below them with `addChildAt`. Destroying the map with its children, or unloading it, destroys them too.
-
-## Requirements
-
-- `pixi.js` `>=8.10.0` as a peer dependency
-- A runtime with the Compression Streams API for gzip/zlib tile data (`parseMapAsync`, `exportMapAsync`); every current browser and Node 18+ provides it
 
 ## Internal Model
 
