@@ -4,9 +4,9 @@
 
 # pixi-tiledmap
 
-**[Tiled](https://www.mapeditor.org/) map loader and renderer for [PixiJS v8](https://pixijs.com/).**
+**pixi-tiledmap is a high-performance [PixiJS v8](https://pixijs.com/) renderer for [Tiled Map Editor](https://www.mapeditor.org/) maps (`.tmj` / `.tmx`), built for TypeScript and JavaScript.**
 
-Load `.tmj` and `.tmx` maps in TypeScript or JavaScript, render batched tile layers, edit and generate maps at runtime, and export Tiled JSON.
+Load `.tmj` and `.tmx` maps, render batched GPU tiles, edit and generate maps at runtime, and export Tiled JSON — with no additional runtime dependencies beyond PixiJS.
 
 [![CI][ci-image]][ci-url]
 [![npm version][npm-image]][npm-url]
@@ -21,17 +21,6 @@ Load `.tmj` and `.tmx` maps in TypeScript or JavaScript, render batched tile lay
 <a href="https://pixi-tiledmap-showcase.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/showcase.webp" width="880" alt="The showcase: a wordmark built from map tiles over an animated packed tile layer, running at 144 fps with 7891 quads and 13.2k setTile calls per second" /></a>
 
 </div>
-
-Static tiles are batched into PixiJS meshes, and compatible runtime edits update their buffers in place instead of rebuilding a layer. The library supports every Tiled layer type and orientation, animated tiles, objects and templates, parallax scrolling, and infinite maps. The [Performance](#performance) section explains the design and records the measurements behind it.
-
-The package ships its own TMJ and TMX parsers, comprehensive TypeScript types, procedural map tools, and Tiled JSON export. It has no additional runtime dependencies beyond PixiJS, which is supplied as a peer dependency.
-
-## Live Demos
-
-- **[Showcase](https://pixi-tiledmap-showcase.vercel.app/)** (pictured above) - seven scenes rendered by the library: packed tiles animated quad by quad, parallax worlds, falling blocks that become map tiles, an isometric heightfield, hexagonal biome waves, Conway's Game of Life, and a liquid-atlas terrain flight. The scenes include runtime editing at about 10k `setTile` calls per second.
-- **[Map viewer](https://pixi-tiledmap-viewer.vercel.app/)** - 175 `.tmx` maps behind a searchable picker, with a pan/zoom camera, the layer tree, a tile grid overlay, a hovered-tile inspector, and an FPS counter.
-
-<a href="https://pixi-tiledmap-viewer.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/viewer.webp" width="880" alt="The map viewer showing a 350x250 tile town map with its layer tree, the collision layer switched off, and the hovered tile reported as 273, 116" /></a>
 
 ## Quick Start
 
@@ -61,6 +50,21 @@ app.stage.addChild(container);
 > PixiJS caches the loaded asset, so repeated loads of one URL return the same
 > `container`, not a copy. See [Asset Loading and Lifecycle](#asset-loading-and-lifecycle)
 > before rendering one map more than once or managing loaded textures yourself.
+
+## Why pixi-tiledmap?
+
+Choose pixi-tiledmap when Tiled is your map editor and you need a complete, high-performance Tiled-to-PixiJS renderer rather than only a low-level tile batcher.
+
+Static tiles are batched into PixiJS meshes, and compatible runtime edits update their buffers in place instead of rebuilding a layer. The library supports every Tiled layer type and orientation, animated tiles, objects and templates, parallax scrolling, and infinite maps. The [Performance](#performance) section explains the design and records the measurements behind it.
+
+The package ships its own TMJ and TMX parsers, comprehensive TypeScript types, procedural map tools, and Tiled JSON export. It has no additional runtime dependencies beyond PixiJS, which is supplied as a peer dependency.
+
+## Live Demos
+
+- **[Showcase](https://pixi-tiledmap-showcase.vercel.app/)** (pictured above) - seven scenes rendered by the library: packed tiles animated quad by quad, parallax worlds, falling blocks that become map tiles, an isometric heightfield, hexagonal biome waves, Conway's Game of Life, and a liquid-atlas terrain flight. The scenes include runtime editing at about 10k `setTile` calls per second.
+- **[Map viewer](https://pixi-tiledmap-viewer.vercel.app/)** - 175 `.tmx` maps behind a searchable picker, with a pan/zoom camera, the layer tree, a tile grid overlay, a hovered-tile inspector, and an FPS counter.
+
+<a href="https://pixi-tiledmap-viewer.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/viewer.webp" width="880" alt="The map viewer showing a 350x250 tile town map with its layer tree, the collision layer switched off, and the hovered tile reported as 273, 116" /></a>
 
 ## Features
 
