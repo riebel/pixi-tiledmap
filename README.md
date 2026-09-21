@@ -16,7 +16,7 @@ Load `.tmj` and `.tmx` maps, render batched GPU tiles, edit and generate maps at
 [![license][license-image]][license-url]
 [![checked with Biome][biome-image]][biome-url]
 
-[Showcase](https://pixi-tiledmap-showcase.vercel.app/) · [Map viewer](https://pixi-tiledmap-viewer.vercel.app/) · [Quick Start](#quick-start) · [Performance](#performance) · [API Reference](#api-reference) · [Architecture](docs/ARCHITECTURE.md)
+[Showcase](https://pixi-tiledmap-showcase.vercel.app/) · [Map viewer](https://pixi-tiledmap-viewer.vercel.app/) · [Quick Start](#quick-start) · [Performance](#performance) · [API Reference](#api-reference) · [Documentation](#documentation)
 
 <a href="https://pixi-tiledmap-showcase.vercel.app/"><img src="https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/showcase.webp" width="880" alt="The showcase: a wordmark built from map tiles over an animated packed tile layer, running at 144 fps with 7891 quads and 13.2k setTile calls per second" /></a>
 
@@ -118,6 +118,10 @@ What the library does with a Tiled map, including where it stops:
 
 The renderer gets the most attention in this library, because a Tiled map is usually the largest thing on screen.
 
+**At a glance.** A static `256x256` layer reaches the GPU as a few meshes rather than 65,536 display objects. Editing one tile rewrites one quad's buffers, not the layer. An animated layer costs a single ticker listener regardless of how many tiles move. An infinite map resolves a coordinate to its chunk in about `32`ns. A consumer that only parses or generates maps bundles no renderer at all.
+
+The rest of this section is how that is done, and what it was measured against.
+
 - **Static tiles are batched, not one sprite each.** A tile layer packs its static tiles into batchable PixiJS `Mesh` children grouped by texture source and runtime alpha, so an ordinary layer ends up with one mesh per texture and alpha instead of one display object per tile. Grouping never changes what is drawn on top: a tile joins an existing mesh only when nothing it overlaps is drawn above that mesh. Packed meshes hold `16000` quads by default (`tileMeshBatchSize`), which stays below 16-bit index limits while keeping the render object count low, and their quad indices are cached per quad count and shared between mesh instances.
 - **Tile edits write buffers, not layers.** `setTile` and `clearTile` rewrite the affected quad in the existing mesh geometry, skip the upload when its rect and UVs are unchanged, and reuse slots freed by earlier clears before growing batch capacity. Only the cases listed under [Runtime Editing and Procedural Maps](#runtime-editing-and-procedural-maps) rebuild a tile layer.
 - **One ticker listener per layer.** A tile layer advances all of its animated tile visuals from a single `Ticker.shared` listener instead of PixiJS' per-sprite `autoUpdate`: connecting `4096` sprites individually cost more than creating them, about 55ms of the 64ms an animated `64x64` layer took to build, so building such a layer is now about 8x faster.
@@ -141,6 +145,30 @@ If you want the best runtime behavior in your game/application:
 - Object layers show each named shape's name as in the Tiled editor, one `Text` texture per label. For layers with many named objects, such as collision layers, pass `objectStyle: { showLabels: false }`, and consider `screenSpace: false` if the map zooms continuously.
 - Treat `TileLayerRenderer.children` as renderer internals. Static map tiles are packed into `Mesh` children, not one `Sprite` per tile.
 - Display objects you add to a `TileLayerRenderer` (for example a player walking on that layer) survive tile edits and layer rebuilds and keep their position relative to the tiles. Tiles sit below children you add, unless you insert yours below them with `addChildAt`. Destroying the map with its children, or unloading it, destroys them too.
+
+## Documentation
+
+Everything above is the short version. The rest of this file is reference material, mapped here so you can jump straight to what you need.
+
+**In this README**
+
+- [Requirements](#requirements) - supported PixiJS and runtime versions
+- [Asset Loading and Lifecycle](#asset-loading-and-lifecycle) - paths and formats, the PixiJS asset cache, renderer options, and the direct pipeline
+- [Internal Model](#internal-model) - what a resolved map holds and how to reach it
+- [Manual Construction](#manual-construction) - building a `TiledMap` without the loader
+- [Runtime Editing and Procedural Maps](#runtime-editing-and-procedural-maps) - `setTile` and `clearTile`, generating maps, and which edits rebuild a layer
+- [Writing Maps Back Out](#writing-maps-back-out) - TMJ and TSJ export, round-trip guarantees, and compression
+- [Inspecting a Map Without Rendering It](#inspecting-a-map-without-rendering-it) - lookups and map geometry with no renderer involved
+- [API Reference](#api-reference) - exports, the `TiledMap` container, object templates, and low-level packing
+- [Migration from v1](#migration-from-v1) - what changed and what to rename
+- [Development](#development) - building and testing the package itself
+
+**Deeper dives**
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - module map, data flow, and the constraints that keep the parser free of PixiJS
+- [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) - the recorded baseline, how packed layers and incremental editing work, and the edits that still rebuild a layer
+- [`docs/TESTING.md`](docs/TESTING.md) - how the suite is organised and what to write for a change
+- [`docs/QUALITY.md`](docs/QUALITY.md) - CI, releases, and the quality gate
 
 ## Requirements
 
