@@ -4,9 +4,9 @@
 
 # pixi-tiledmap
 
-**pixi-tiledmap is a complete Tiled map runtime for [PixiJS v8](https://pixijs.com/) - a high-performance renderer for [Tiled Map Editor](https://www.mapeditor.org/) maps (`.tmj` / `.tmx`), with their parser, runtime editing, and export, built for TypeScript and JavaScript.**
+**pixi-tiledmap is a complete Tiled map runtime for [PixiJS v8](https://pixijs.com/) - a high-performance renderer for [Tiled Map Editor](https://www.mapeditor.org/) maps (`.tmj` / `.tmx`) with built-in parsing, runtime editing, procedural generation, and Tiled JSON export, built for TypeScript and JavaScript.**
 
-Load `.tmj` and `.tmx` maps, render batched GPU tiles, edit and generate maps at runtime, and export Tiled JSON, all with no additional runtime dependencies beyond PixiJS.
+Load `.tmj` and `.tmx` maps, render batched GPU tiles, edit and generate maps at runtime, and export them back to Tiled JSON, all with no additional runtime dependencies beyond PixiJS.
 
 [![CI][ci-image]][ci-url]
 [![npm version][npm-image]][npm-url]
@@ -65,7 +65,7 @@ pixi-tiledmap is listed in Tiled's own [support documentation](https://doc.maped
 
 ## More than a tile batcher
 
-[`@pixi/tilemap`](https://github.com/pixijs-userland/tilemap), the other familiar name in this space, describes itself as a "low-level, optimized rectangular tilemap implementation": it draws tiles into a grid quickly, and leaves Tiled's file formats and map model to you.
+[`@pixi/tilemap`](https://github.com/pixijs-userland/tilemap) describes itself as a "low-level, optimized rectangular tilemap implementation": it draws tiles into a grid quickly, and leaves Tiled's file formats and map model to you.
 
 pixi-tiledmap starts one level up, at the Tiled map itself - tilesets, every layer type and orientation, objects, templates, infinite maps, parallax, and animation - and makes that model editable, generatable, and exportable at runtime. The two sit at different levels rather than competing for the same job.
 
@@ -92,8 +92,8 @@ What the library does with a Tiled map, including where it stops:
 | Orthogonal, isometric, staggered, hexagonal, Tiled 1.12 oblique | Yes |
 | Infinite (chunked) maps | Yes |
 | Animated tiles | Yes |
-| Flip and rotation flags, tile offsets, tint, fill modes, color keys | Yes |
-| Parallax factors, parallax origin, blend modes, all four render orders | Yes |
+| Flip and rotation flags, tile offsets, tint, runtime alpha, render size and fill mode, color keys | Yes |
+| Nested parallax factors, map parallax origin, blend modes, all four render orders | Yes |
 | Image-collection tilesets | Yes |
 | Runtime tile editing | Yes, in place where the edit allows it |
 | Procedural map generation | Yes |
@@ -103,12 +103,10 @@ What the library does with a Tiled map, including where it stops:
 | Wang sets and terrains, including the pre-1.5 TMX form | Parsed and exposed on `ResolvedTileset`; editor-only metadata with no rendering behaviour |
 | Hexagonal tile turns (diagonal-flip bit as 60°, extra bit as 120°) | Rendered as sprites rather than packed quads |
 
-- **TMJ and TMX** - load Tiled JSON and XML through PixiJS' `Assets` API; external TSJ/TSX tilesets and TJ/TX object templates resolve automatically
-- **Every layer and orientation** - tile, image, object, and group layers on orthogonal, isometric, staggered, hexagonal, and Tiled 1.12 oblique maps
+What the table does not show:
+
 - **Batched tile rendering** - static tiles use batchable PixiJS meshes while animated tiles retain per-tile playback; render order remains correct when tiles overhang their cells
 - **Runtime editing and generation** - edit loaded maps in place or build maps procedurally; compatible edits update packed mesh buffers instead of rebuilding a layer
-- **Infinite worlds and parallax** - render chunked infinite maps, all four Tiled render orders, nested parallax factors, map-level parallax origins, and layer blend modes
-- **Complete tile visuals** - flip and rotation flags, image-collection tilesets, tint, tile offsets, runtime alpha, render-size/fill-mode rules, and transparent color keys
 - **Objects and templates** - render shapes, text, and animated tile objects in Tiled draw order, with automatic object-template inheritance and GID remapping
 - **Tiled JSON export** - write loaded or generated maps as TMJ and standalone tilesets as TSJ; preserve tile-layer encodings, with gzip/zlib compression through `exportMapAsync`; see [Writing Maps Back Out](#writing-maps-back-out) for round-trip guarantees and runtime-only exclusions
 - **Data-only tools** - `parseMap`, export, procedural-map, lookup, and map-geometry APIs bundle without PixiJS; XML parsing uses PixiJS' `DOMAdapter`, but no renderer is needed
@@ -118,7 +116,7 @@ What the library does with a Tiled map, including where it stops:
 
 The renderer gets the most attention in this library, because a Tiled map is usually the largest thing on screen.
 
-**At a glance.** A static `256x256` layer reaches the GPU as a few meshes rather than 65,536 display objects. Editing one tile rewrites one quad's buffers, not the layer. An animated layer costs a single ticker listener regardless of how many tiles move. An infinite map resolves a coordinate to its chunk in about `32`ns. A consumer that only parses or generates maps bundles no renderer at all.
+**At a glance.** A static `256x256` layer drawn from one tileset image reaches the GPU as a few meshes rather than 65,536 display objects. Editing one tile rewrites one quad's buffers, not the layer. An animated layer costs a single ticker listener regardless of how many tiles move. An infinite map resolves a coordinate to its chunk in about `32`ns at `1024` chunks in the recorded benchmark. A consumer that only parses or generates maps bundles no renderer at all.
 
 The rest of this section is how that is done, and what it was measured against.
 
