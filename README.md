@@ -57,7 +57,7 @@ app.stage.addChild(container);
 
 Choose pixi-tiledmap when Tiled is your map editor and you want the whole path from map file to rendered, editable, exportable map handled for you.
 
-Static tiles are batched into PixiJS meshes, and compatible runtime edits update their buffers in place instead of rebuilding a layer. The library supports every Tiled layer type and orientation, animated tiles, objects and templates, parallax scrolling, and infinite maps. The [Performance](#performance) section explains the design and records the measurements behind it.
+Static tiles are batched into PixiJS meshes, tile layers are render groups that a moving camera does not re-upload, and compatible runtime edits update their buffers in place instead of rebuilding a layer. The library supports every Tiled layer type and orientation, animated tiles, objects and templates, parallax scrolling, and infinite maps. The [Performance](#performance) section explains the design and records the measurements behind it.
 
 The package ships its own TMJ and TMX parsers, comprehensive TypeScript types, procedural map tools, and Tiled JSON export. It has no additional runtime dependencies beyond PixiJS, which is supplied as a peer dependency.
 
@@ -116,12 +116,13 @@ What the table does not show:
 
 The renderer gets the most attention in this library, because a Tiled map is usually the largest thing on screen.
 
-**At a glance.** A static `256x256` layer drawn from one tileset image reaches the GPU as a few meshes rather than 65,536 display objects. Editing one tile rewrites one quad's buffers, not the layer. An animated layer costs a single ticker listener regardless of how many tiles move. An infinite map resolves a coordinate to its chunk in about `32`ns at `1024` chunks in the recorded benchmark. A consumer that only parses or generates maps bundles no renderer at all.
+**At a glance.** A static `256x256` layer drawn from one tileset image reaches the GPU as a few meshes rather than 65,536 display objects. Moving the camera over it costs a transform update, not a pass over its quads. Editing one tile rewrites one quad's buffers, not the layer. An animated layer costs a single ticker listener regardless of how many tiles move. An infinite map resolves a coordinate to its chunk in about `32`ns at `1024` chunks in the recorded benchmark. A consumer that only parses or generates maps bundles no renderer at all.
 
 The rest of this section is how that is done, and what it was measured against.
 
 - **Static tiles are batched, not one sprite each.** A tile layer packs its static tiles into batchable PixiJS `Mesh` children grouped by texture source and runtime alpha, so an ordinary layer ends up with one mesh per texture and alpha instead of one display object per tile. Grouping never changes what is drawn on top: a tile joins an existing mesh only when nothing it overlaps is drawn above that mesh. Packed meshes hold `16000` quads by default (`tileMeshBatchSize`), which stays below 16-bit index limits while keeping the render object count low, and their quad indices are cached per quad count and shared between mesh instances.
 - **Tile edits write buffers, not layers.** `setTile` and `clearTile` rewrite the affected quad in the existing mesh geometry, skip the upload when its rect and UVs are unchanged, and reuse slots freed by earlier clears before growing batch capacity. Only the cases listed under [Runtime Editing and Procedural Maps](#runtime-editing-and-procedural-maps) rebuild a tile layer.
+- **Moving the camera does not touch the tiles.** Tile and object layers are PixiJS render groups, so panning, zooming, or `applyParallax` updates one transform per layer instead of making PixiJS re-transform every batched quad on the CPU each frame; that took about 4-6ms per frame for a panning `256x256` map with four layers on a desktop CPU, and a fraction of a millisecond as render groups (`npm run measure:camera`). Layers that use a Tiled blend mode other than `normal` stay plain containers, because PixiJS does not apply blend modes to render groups.
 - **One ticker listener per layer.** A tile layer advances all of its animated tile visuals from a single `Ticker.shared` listener instead of PixiJS' per-sprite `autoUpdate`: connecting `4096` sprites individually cost more than creating them, about 55ms of the 64ms an animated `64x64` layer took to build, so building such a layer is now about 8x faster.
 - **Lookups are indexed.** An infinite layer resolves a coordinate to its chunk through a chunk grid built once per layer, about `32`ns instead of `780`ns at `1024` chunks, and `TiledMap` resolves a tile layer through a cached index, so an edit does not walk other layers' render children. Layer construction and editing avoid per-tile allocations such as string cell keys and UV corner arrays.
 - **Nothing ships that a map does not use.** There is no external tilemap dependency and no additional runtime dependency beyond PixiJS; PixiJS' advanced blend modes are imported on demand for the maps that use them; and `parseMap`, map export, procedural maps, lookups, and map geometry are free of `pixi.js`, so a data-only consumer bundles no renderer.
@@ -137,6 +138,7 @@ If you want the best runtime behavior in your game/application:
 - Prefer `.tmj` for the fastest parse path when authoring allows it.
 - Preload map, tileset, and image assets with `Assets` before scene transitions.
 - Reuse `TiledMap` instances for frequently revisited scenes when possible.
+- Move the camera by transforming the `TiledMap` or a container above it; tile and object layers are render groups, so that stays cheap on mobile CPUs. A blend mode you set on the map or an ancestor is not applied inside those layers; set `isRenderGroup = false` on the layers that need it.
 - Keep large worlds in infinite/chunked maps to avoid over-allocating one giant layer.
 - Avoid unnecessary texture churn; pass stable texture maps into `TiledMap` options.
 - Keep the default `tileMeshBatchSize` unless you are profiling a GPU/driver that prefers smaller meshes; the default keeps packed meshes below 16-bit index limits while reducing render object count.
@@ -553,6 +555,7 @@ map.mapHeight; // tile rows
 map.tileWidth; // tile pixel width
 map.tileHeight; // tile pixel height
 map.getLayer('ground'); // find layer Container by name
+map.getLayer('ground')!.isRenderGroup; // true: tile and object layers are render groups unless they blend
 
 // Runtime tile editing. Layer can be a tile-layer name or numeric layer id.
 map.getTile('ground', 12, 8);
@@ -583,6 +586,8 @@ const map = new TiledMap(resolvedMap, {
 ```
 
 Text objects with `kerning` turned off in Tiled render without kerning: the library switches the canvas `fontKerning` off while PixiJS measures and draws those texts.
+
+Tile and object layers are PixiJS [render groups](https://pixijs.com/8.x/guides/concepts/render-groups), so moving the map, a container above it, or a layer through `applyParallax` does not re-transform their tiles on the CPU. Layers whose Tiled blend mode is not `normal`, and the layers inside a group layer that blends, are plain containers instead, because PixiJS does not apply a render group's blend mode to its contents. For the same reason, a blend mode you set on the `TiledMap` or one of its ancestors does not reach into render-group layers; set `isRenderGroup = false` on those layers if they must blend with it. Image and group layers are always plain containers.
 
 To split a map around a player sprite, render the same resolved map twice with
 different layer filters:
@@ -654,6 +659,8 @@ npm run check        # Biome lint + format
 npm run typecheck    # tsc --noEmit
 npm test             # Build, Vitest, and MagicLand visual regression
 npm run bench        # renderer hot-path benchmarks
+npm run measure:camera   # camera and parallax cost per frame in headless Chrome (after build)
+npm run measure:animated # animated sprites vs. packed quads in headless Chrome
 npm run quality:gate # check + typecheck + test, then the Fallow regression gate
 ```
 

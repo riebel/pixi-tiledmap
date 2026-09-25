@@ -17,6 +17,8 @@ The benchmarks are intentionally not part of `npm test`: local CPU, background l
 
 Absolute numbers depend heavily on the machine and its current load. Compare a change against a baseline measured on the same machine in the same session: run the benchmarks, stash the change, run them again. A single run is not enough to separate a real regression from noise; repeat runs that look suspicious.
 
+The Vitest benchmarks run in jsdom and never render, so they do not see per-frame rendering cost. The headless Chrome measurements below cover that: `npm run measure:camera` for a moving camera and `npm run measure:animated` for animated tiles.
+
 Investigate changes that consistently move a benchmark by more than about 15-20% without an intentional renderer tradeoff.
 
 Vitest runs the benchmarks through Vite's module runner, which turns every imported binding into a getter. Some groups therefore report that they ["accessed module export getters too many times"](https://vitest.dev/guide/benchmarking#module-runner-overhead): part of the measured time is that getter overhead, for example on `tileToPixel`, not renderer work. It is the same for both sides of a same-session comparison, but it narrows the gap between a real change and noise, and it makes numbers from a different Vitest version or module layout hard to compare. Treat small differences, such as the few percent between PixiJS releases, with that in mind.
@@ -101,6 +103,58 @@ per animation so a frame change does not re-upload a whole layer, and a sprite
 fallback for animations whose frames live in different texture sources. If a
 map with thousands of animated tiles makes that trade worth it, it belongs
 behind an option rather than in the default path.
+
+## Moving the Camera
+
+PixiJS v8 batches a packed mesh by copying its vertices, already multiplied
+by the mesh's transform, into the batcher's buffer. When that transform
+changes, the mesh is packed again on the CPU. Without a render group between
+the stage and a tile layer, a camera that pans or zooms the map, or
+`applyParallax` moving a layer, therefore re-transforms every packed quad of
+every layer, every frame. Inside a render group the vertices stay in the
+group's space and the group's transform is a uniform, which is how
+[`@pixi/tilemap`](https://github.com/pixijs-userland/tilemap) keeps its
+tilemaps cheap to move with its own render pipe.
+
+Tile and object layers are therefore render groups. Moving the map, one of
+its ancestors, or a layer then only updates the group transforms, and
+rebuilding one layer after an edit no longer rebuilds the other layers'
+render instructions. The layer draws the same pixels; its alpha and tint are
+applied as a float uniform instead of an 8-bit vertex color, which can move a
+channel by `1/255`. Image and group layers stay plain containers: an image
+layer is one sprite, and a group's children are render groups themselves.
+
+PixiJS does not apply a render group's own blend mode, or one inherited from
+above it, to what the group draws. A layer whose Tiled blend mode is not
+`normal`, or that sits in a group layer that blends, stays a plain container.
+The same holds for a blend mode an application sets on the `TiledMap` or on
+one of its ancestors; set `isRenderGroup = false` on the layers that need to
+blend with it.
+
+`scripts/measureCameraPan.mjs` prices this with the built package in headless
+Chrome: it builds a `256x256` map with four tile layers, moves the camera
+every frame, and compares the shipped layers against the same map with every
+render group switched off.
+
+```sh
+npm run build
+MEASURE_GPU=1 npm run measure:camera
+```
+
+It is configured through `MEASURE_MAP_SIZE` (default `256`), `MEASURE_LAYERS`
+(`4`), `MEASURE_FRAMES` (`300`), and `MEASURE_GPU=1`. Recorded on September 25,
+2026 on an RTX 5060 Ti, `131072` packed quads, ms per frame:
+
+| Scene | no render groups | layer render groups |
+| --- | ---: | ---: |
+| still camera | `0.024` | `0.028` |
+| pan | `4.361` | `0.012` |
+| pan and zoom | `4.809` | `0.023` |
+| pan with parallax layers | `6.031` | `0.026` |
+
+The difference is CPU time spent in `render()`, which a phone's CPU spends
+several times over: on a desktop CPU a panning `256x256` map already took a
+third of a 16ms frame. A still camera costs the same either way.
 
 ## Packed Tile Layers
 

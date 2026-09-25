@@ -1,6 +1,7 @@
 import { Container } from 'pixi.js'
 import type { ResolvedGroupLayer } from '../types'
 import {
+  blendsOtherThanNormal,
   createLayerRendererWithGroupFactory,
   type LayerTreeRendererContext
 } from './layerRendererFactory.js'
@@ -15,8 +16,16 @@ export class GroupLayerRenderer extends Container {
     this.layerData = layerData
     applyLayerState(this, layerData)
 
+    const childContext =
+      !context.insideBlendedGroup && blendsOtherThanNormal(layerData)
+        ? { ...context, insideBlendedGroup: true }
+        : context
     for (const child of layerData.layers) {
-      const renderer = createLayerRendererWithGroupFactory(child, context, createGroupLayerRenderer)
+      const renderer = createLayerRendererWithGroupFactory(
+        child,
+        childContext,
+        createGroupLayerRenderer
+      )
       if (renderer) this.addChild(renderer)
     }
   }

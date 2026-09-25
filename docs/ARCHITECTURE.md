@@ -42,7 +42,7 @@ The library is a map generator as well as a viewer, so parse and export form a r
 | Module | Role |
 | --- | --- |
 | `TiledMap.ts` | Root `Container`: owns the tileset renderers, builds the layer tree, `applyParallax`, and routes `getTile`/`setTile`/`clearTile` through a cached tile-layer index. |
-| `layerTreeRenderer.ts`, `layerRendererFactory.ts` | Layer traversal, `layerFilter`, and renderer construction from one context. Group layers receive the factory, which keeps the module graph acyclic. |
+| `layerTreeRenderer.ts`, `layerRendererFactory.ts` | Layer traversal, `layerFilter`, and renderer construction from one context; makes tile and object layers render groups unless they blend (see [BENCHMARKS.md](BENCHMARKS.md#moving-the-camera)). Group layers receive the factory, which keeps the module graph acyclic. |
 | `renderableLayer.ts` | Shared layer state: label, alpha, visibility, tint, blend mode, offset, parallax. Parallax targets this seam, not concrete renderers. |
 | `TileLayerRenderer.ts` | One tile layer, including infinite-map chunks and their lookup grid, render order, and runtime edits. |
 | `PackedTileLayerRenderer.ts` | Batchable `Mesh` packing grouped by texture source and alpha, keeping painter order; `addTextureRect()` is the low-level packing seam. See [BENCHMARKS.md](BENCHMARKS.md). |

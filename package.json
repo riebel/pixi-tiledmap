@@ -69,6 +69,7 @@
     "check:fix": "biome check --write src/ test/",
     "bench": "vitest bench --run --reporter=verbose",
     "measure:animated": "node scripts/measureAnimatedTiles.mjs",
+    "measure:camera": "node scripts/measureCameraPan.mjs",
     "reproduce:tile-seams": "node scripts/reproduceTileSeams.mjs",
     "fallow": "fallow --score",
     "fallow:report": "fallow --score",

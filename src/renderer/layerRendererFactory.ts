@@ -19,6 +19,8 @@ export interface LayerTreeRendererContext {
   imageGifSources?: Map<string, GifSource>
   layerFilter?: TiledLayerFilter
   objectStyle?: TiledObjectStyle
+  /** Set below a group layer that blends other than `normal`. */
+  insideBlendedGroup?: boolean
 }
 
 type GroupRendererFactory = (
@@ -35,7 +37,24 @@ export function createLayerRendererWithGroupFactory(
   if (!layerMatches && !hasMatchingDescendant(layer, context.layerFilter)) return null
   if (layer.type === 'group') return createGroupRenderer(layer, context)
   if (!layerMatches) return null
-  return createLeafLayerRenderer(layer, context)
+  const renderer = createLeafLayerRenderer(layer, context)
+  if (layer.type !== 'imagelayer' && !context.insideBlendedGroup && !blendsOtherThanNormal(layer)) {
+    renderer.isRenderGroup = true
+  }
+  return renderer
+}
+
+/**
+ * Tile and object layers are PixiJS render groups, so their batched geometry
+ * stays in layer space: moving the camera, the map, or the layer (parallax)
+ * only updates the group's transform, instead of re-transforming every quad
+ * on the CPU each frame, and rebuilding one layer does not rebuild the
+ * others' instructions. PixiJS does not apply a render group's blend mode to
+ * what it draws, so a layer that blends, or sits in a group that does, stays
+ * an ordinary container.
+ */
+export function blendsOtherThanNormal(layer: ResolvedLayer): boolean {
+  return !!layer.mode && layer.mode !== 'normal'
 }
 
 function createLeafLayerRenderer(

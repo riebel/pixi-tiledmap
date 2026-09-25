@@ -19,6 +19,7 @@
 - Build `Resolved*` fixtures with `test/helpers/resolved.ts` unless the test documents the full shape.
 - Test the loader through `loadTiledMapAsset` with fake `fetchFn` and `loadAsset` adapters instead of mocking PixiJS globals.
 - Static map tiles are packed meshes, not sprites; assert editing behaviour through `src/renderer/packedTileStats.ts` rather than `TileLayerRenderer.children`.
+- Tile and object layers are render groups unless they blend; `test/renderer/layerRenderGroups.test.ts` pins which layers are. jsdom does not render, so check a change that could affect what render groups draw in a real browser, with `npm run measure:camera` for its cost and the MagicLand visual test for its pixels.
 - Animated map tiles are advanced by the layer, not by PixiJS: drive them with `Ticker.shared.update(time)`. A spy on a sprite's `update` only sees the layer's calls, because PixiJS' own listener holds the original method, which is what `test/renderer/tileAnimationTicker.test.ts` uses to tell the two apart.
 
 ## Export and parser correctness
