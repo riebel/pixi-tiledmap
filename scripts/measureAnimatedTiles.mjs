@@ -27,23 +27,12 @@
  * rasterisation inflates fill and upload costs, so the reported GL renderer
  * string is part of the result: compare runs made on the same backend.
  */
-import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
-import { createServer } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { measureInChrome, readCount, resultsPosterSource } from './headlessChrome.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-
-const CHROME_PATHS = {
-  win32: [
-    join(process.env.PROGRAMFILES ?? '', 'Google/Chrome/Application/chrome.exe'),
-    join(process.env['PROGRAMFILES(X86)'] ?? '', 'Google/Chrome/Application/chrome.exe'),
-    join(process.env.LOCALAPPDATA ?? '', 'Google/Chrome/Application/chrome.exe')
-  ],
-  darwin: ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'],
-  linux: ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser']
-}
 
 const tiles = readCount('MEASURE_TILES', 4096)
 const config = {
@@ -54,28 +43,21 @@ const config = {
   gpu: process.env.MEASURE_GPU === '1'
 }
 
-function readCount(name, fallback) {
-  const raw = process.env[name]
-  if (raw === undefined) return fallback
-  const count = Number(raw)
-  if (Number.isInteger(count) && count > 0) return count
-  throw new Error(`${name} must be a positive integer, got ${raw}`)
-}
-
 const pixiBundle = join(root, 'node_modules', 'pixi.js', 'dist', 'pixi.js')
 
 if (!existsSync(pixiBundle)) {
   throw new Error(`PixiJS UMD bundle not found at ${pixiBundle}; run npm install first.`)
 }
 
-const server = await startServer()
-try {
-  const dom = await runChrome(`http://127.0.0.1:${server.port}/`)
-  const results = readResults(dom)
-  report(results)
-} finally {
-  await new Promise((done) => server.instance.close(done))
-}
+report(
+  await measureInChrome(
+    {
+      '/': { type: 'text/html', body: renderPage },
+      '/pixi.js': { type: 'text/javascript', body: () => readFileSync(pixiBundle) }
+    },
+    { gpu: config.gpu }
+  )
+)
 
 function report(results) {
   if (results.error) {
@@ -110,76 +92,6 @@ function fmt(ms) {
   return `${ms.toFixed(3)}ms`.padStart(13)
 }
 
-function readResults(dom) {
-  const match = dom.match(/<pre id="out">([\s\S]*?)<\/pre>/)
-  if (!match) throw new Error(`The page produced no results:\n${dom.slice(0, 2000)}`)
-  return JSON.parse(decodeEntities(match[1]))
-}
-
-function decodeEntities(text) {
-  return text
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replaceAll('&amp;', '&')
-}
-
-function runChrome(url) {
-  return new Promise((done, fail) => {
-    const flags = [
-      '--headless=new',
-      '--hide-scrollbars',
-      '--force-device-scale-factor=1',
-      '--window-size=1024,1024',
-      '--dump-dom',
-      url
-    ]
-    if (!config.gpu) flags.splice(1, 0, '--disable-gpu')
-
-    const chrome = spawn(findChrome(), flags)
-    let stdout = ''
-    let stderr = ''
-    chrome.stdout.on('data', (chunk) => {
-      stdout += chunk
-    })
-    chrome.stderr.on('data', (chunk) => {
-      stderr += chunk
-    })
-    chrome.on('error', fail)
-    chrome.on('close', (code) => {
-      if (code === 0) done(stdout)
-      else fail(new Error(`Chrome exited with status ${code}\n${stderr}`))
-    })
-  })
-}
-
-function startServer() {
-  const page = renderPage()
-  const instance = createServer((request, response) => {
-    const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
-    if (pathname === '/') {
-      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-      response.end(page)
-      return
-    }
-    if (pathname === '/pixi.js') {
-      response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' })
-      response.end(readFileSync(pixiBundle))
-      return
-    }
-    response.writeHead(404)
-    response.end('Not found')
-  })
-
-  return new Promise((done) => {
-    instance.listen(0, '127.0.0.1', () => {
-      const address = instance.address()
-      done({ instance, port: address.port })
-    })
-  })
-}
-
 function renderPage() {
   return `<!doctype html>
 <html>
@@ -189,7 +101,6 @@ function renderPage() {
     <script src="/pixi.js"></script>
   </head>
   <body>
-    <pre id="out"></pre>
     <script>
       const TILES = ${config.tiles};
       const ANIMATED = ${config.animated};
@@ -202,11 +113,10 @@ function renderPage() {
 
       ${measurementSource()}
 
-      run().then((results) => {
-        document.getElementById('out').textContent = JSON.stringify(results);
-      }, (error) => {
-        document.getElementById('out').textContent =
-          JSON.stringify({ error: String(error && error.stack || error) });
+      ${resultsPosterSource}
+
+      run().then(postResults, (error) => {
+        postResults({ error: String(error && error.stack || error) });
       });
     </script>
   </body>
@@ -421,14 +331,4 @@ async function run() {
   return { glRenderer, tiles: TILES, animated: ANIMATED, frames: FRAMES, scenes };
 }
 `
-}
-
-/** Mirrors the Chrome lookup of the MagicLand visual test. */
-function findChrome() {
-  if (process.env.CHROME_PATH) return process.env.CHROME_PATH
-
-  const candidates = CHROME_PATHS[process.platform] ?? CHROME_PATHS.linux
-  const found = candidates.find((candidate) => candidate && existsSync(candidate))
-  if (found) return found
-  throw new Error('Chrome not found; set CHROME_PATH to a Chrome or Chromium binary.')
 }
