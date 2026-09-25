@@ -1,6 +1,6 @@
 {
   "name": "pixi-tiledmap",
-  "version": "2.10.4",
+  "version": "2.11.0",
   "description": "Complete Tiled map runtime for PixiJS v8 - high-performance renderer, parser, runtime editing, and export for Tiled Map Editor maps (TMJ/TMX), in TypeScript and JavaScript",
   "keywords": [
     "pixi",
