@@ -3,14 +3,12 @@ title: "From Tiled to PixiJS and back: editable maps in TypeScript"
 published: false
 description: "Load a Tiled map in PixiJS, edit its tiles at runtime, and export the result to continue working in Tiled."
 tags: typescript, gamedev, javascript, opensource
-cover_image: devto-cover.png
+cover_image: https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/devto-roundtrip/devto-cover.png
 ---
-
-<!-- Before publishing: upload devto-cover.png and pixi-tiledmap-roundtrip.gif to dev.to and replace both relative URLs. The StackBlitz embed works once examples/tiled-roundtrip is on master. -->
 
 Open a map in Tiled. Build a bridge in the browser. Open the changed map in Tiled again.
 
-![A map in the Tiled editor crossfades into the same map rendered by PixiJS in a browser. Four clicks build a bridge, the map is exported as level-edited.tmj, and Tiled opens it with the four new tiles highlighted on the Bridge layer.](./pixi-tiledmap-roundtrip.gif)
+![A map in the Tiled editor crossfades into the same map rendered by PixiJS in a browser. Four clicks build a bridge, the map is exported as level-edited.tmj, and Tiled opens it with the four new tiles highlighted on the Bridge layer.](https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/devto-roundtrip/pixi-tiledmap-roundtrip.gif)
 
 I'm working on [pixi-tiledmap](https://github.com/riebel/pixi-tiledmap), a TypeScript library for loading, rendering, editing, and exporting Tiled maps with PixiJS v8. This post follows one small map through that whole loop. Every frame in the GIF comes from the real editor or the real demo. Only the pointer and the labels were added afterwards.
 
