@@ -7,6 +7,7 @@
     "build": "vite build"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "pixi-tiledmap": "^2.11.0",
     "pixi.js": "^8.21.0"
   },

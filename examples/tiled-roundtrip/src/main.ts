@@ -1,4 +1,5 @@
 import { Application } from 'pixi.js';
+import { strToU8, zipSync } from 'fflate';
 import { exportMap, loadTiledMapAsset } from 'pixi-tiledmap';
 
 const app = new Application();
@@ -21,10 +22,17 @@ app.canvas.addEventListener('pointerdown', (event) => {
   document.querySelector('#status')!.textContent = 'Bridge edited in PixiJS';
 });
 
-document.querySelector('#export')!.addEventListener('click', () => {
-  const json = JSON.stringify(exportMap(map.mapData), null, 2);
-  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-  const link = Object.assign(document.createElement('a'), { href: url, download: 'level-edited.tmj' });
+// A .tmj only references its tileset images by path, so the zip ships them
+// next to the map, ready to open in Tiled.
+document.querySelector('#export')!.addEventListener('click', async () => {
+  const files: Record<string, Uint8Array> = {
+    'level-edited.tmj': strToU8(JSON.stringify(exportMap(map.mapData), null, 2)),
+  };
+  for (const { image } of map.mapData.tilesets) {
+    if (image) files[image] = new Uint8Array(await (await fetch(`./${image}`)).arrayBuffer());
+  }
+  const url = URL.createObjectURL(new Blob([zipSync(files)], { type: 'application/zip' }));
+  const link = Object.assign(document.createElement('a'), { href: url, download: 'level-edited.zip' });
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   document.querySelector('#status')!.textContent = 'Exported · ready to open in Tiled';
