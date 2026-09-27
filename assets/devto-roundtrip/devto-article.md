@@ -89,7 +89,23 @@ document.querySelector('#export')!.addEventListener('click', () => {
 
 Put the downloaded file next to the original map and open it in Tiled. The four new tiles are on the `Bridge` layer, ready for more editing. The end of the GIF uses Tiled's *View › Highlight Current Layer*: with `Bridge` selected, everything else is dimmed and only the tiles added in the browser stay bright.
 
-The `.tmj` contains the map data. It does not bundle the tileset images, so `platformer.png` has to sit next to the exported file, and maps with external tilesets also need those files at the paths they reference.
+The `.tmj` contains the map data. It does not bundle the tileset images, because Tiled's format stores images only as paths, so `platformer.png` has to sit next to the exported file, and maps with external tilesets also need those files at the paths they reference.
+
+To ship everything in one download, zip the map together with the images it references. This uses [fflate](https://github.com/101arrowz/fflate):
+
+```ts
+import { strToU8, zipSync } from 'fflate';
+
+const files: Record<string, Uint8Array> = {
+  'level-edited.tmj': strToU8(JSON.stringify(exportMap(map.mapData), null, 2)),
+};
+for (const { image } of map.mapData.tilesets) {
+  if (image) files[image] = new Uint8Array(await (await fetch(`./${image}`)).arrayBuffer());
+}
+const zip = new Blob([zipSync(files)], { type: 'application/zip' });
+```
+
+Download that blob the same way as the JSON above. Unzipped, the folder opens in Tiled as is. The demo below exports this way.
 
 ## Try it
 
