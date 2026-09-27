@@ -1,6 +1,6 @@
 ---
 title: "From Tiled to PixiJS and back: editable maps in TypeScript"
-published: false
+published: true
 description: "Load a Tiled map in PixiJS, edit its tiles at runtime, and export the result to continue working in Tiled."
 tags: typescript, gamedev, javascript, opensource
 cover_image: https://raw.githubusercontent.com/riebel/pixi-tiledmap/master/assets/devto-roundtrip/devto-cover.png
@@ -93,11 +93,7 @@ The `.tmj` contains the map data. It does not bundle the tileset images, so `pla
 
 ## Try it
 
-The complete demo is in the repository as [`examples/tiled-roundtrip`](https://github.com/riebel/pixi-tiledmap/tree/master/examples/tiled-roundtrip), including the map and the CC0 tileset:
-
-{% embed https://stackblitz.com/github/riebel/pixi-tiledmap/tree/master/examples/tiled-roundtrip?file=src/main.ts %}
-
-If the embedded preview blocks the download, open the preview in its own tab.
+The complete demo is in the repository as [`examples/tiled-roundtrip`](https://github.com/riebel/pixi-tiledmap/tree/master/examples/tiled-roundtrip), including the map and the CC0 tileset. You can run it in your browser without installing anything: [open the demo in StackBlitz](https://stackblitz.com/github/riebel/pixi-tiledmap/tree/master/examples/tiled-roundtrip?file=src/main.ts). If the StackBlitz preview blocks the download, open the preview in its own tab.
 
 ## What's under the hood
 
