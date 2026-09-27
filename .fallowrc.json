@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/fallow/schema.json",
   "entry": ["test/**/*.bench.ts"],
-  "ignorePatterns": ["graphify-out/**", "test/fixtures/magicland/.visual-output/**"],
+  "ignorePatterns": ["graphify-out/**", "assets/**", "test/fixtures/magicland/.visual-output/**"],
   "cache": {
     "dir": "node_modules/.cache/fallow",
     "maxSizeMb": 64
