@@ -107,8 +107,10 @@ export function findLayerByName(children: Iterable<Container>, name: string): Co
   for (const child of children) {
     if (child.label === name) return child
 
-    const descendant = findLayerByName(child.children, name)
-    if (descendant) return descendant
+    if (child instanceof GroupLayerRenderer) {
+      const descendant = findLayerByName(child.children, name)
+      if (descendant) return descendant
+    }
   }
 
   return null
