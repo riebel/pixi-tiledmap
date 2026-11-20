@@ -85,14 +85,8 @@ function parseObjectGroup(el: Element): TiledLayer {
 
 function parseImageLayer(el: Element): TiledLayer {
   const img = parseImage(el)
-  const layer = parseLayerCommon(el)
-  // Before Tiled 0.15 an image layer's position was stored on x/y.
-  if (!el.hasAttribute('offsetx')) {
-    layer.offsetx = layer.x
-    layer.offsety = layer.y
-  }
   return {
-    ...layer,
+    ...parseLayerCommon(el),
     type: 'imagelayer' as TiledLayerType,
     repeatx: el.hasAttribute('repeatx') ? bool(el, 'repeatx') : undefined,
     repeaty: el.hasAttribute('repeaty') ? bool(el, 'repeaty') : undefined,
