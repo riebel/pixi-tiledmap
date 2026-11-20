@@ -124,7 +124,7 @@ function resolveLocalId(
 ): number {
   const localId = input.localId ?? input.tileId
   if (localId === undefined) throw new Error('Tile input must include localId, tileId, or gid.')
-  if (localId < 0 || localId >= tileset.tilecount) {
+  if (localId < 0 || (localId >= tileset.tilecount && !tileset.tiles.has(localId))) {
     throw new RangeError(
       `Local tile ID ${localId} is outside tileset "${tileset.name}" (${tileset.tilecount} tiles).`
     )
