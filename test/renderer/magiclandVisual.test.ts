@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process'
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
@@ -20,6 +20,13 @@ const viewport = process.env.MAGICLAND_VIEWPORT ?? '1000,700'
 const { width: viewportWidth, height: viewportHeight } = parseViewport(viewport)
 const maxDiffPixels = Number(process.env.MAGICLAND_MAX_DIFF_PIXELS ?? '3500')
 
+// Headless Chrome occasionally never exits after `--screenshot` on CI runners.
+// A healthy capture takes 4-25 s there, so each attempt gets its own deadline
+// and a hung Chrome is killed and retried once instead of eating the timeout.
+const chromeAttemptTimeoutMs = 30_000
+const chromeAttempts = 2
+// The test's 75 s timeout covers both attempts plus the server and the diff.
+
 // The page loads PixiJS as UMD globals and maps each specifier to a generated shim.
 const pixiShimRoutes = {
   'pixi.js': '/shims/pixi.mjs',
@@ -30,13 +37,11 @@ const fixturePagePixiImports = ['Application', 'Assets', 'extensions']
 describe('MagicLand visual render', () => {
   it('matches the checked-in visual reference headlessly', async () => {
     mkdirSync(outputDir, { recursive: true })
-    rmSync(actualPath, { force: true })
     rmSync(diffPath, { force: true })
-    rmSync(chromeProfileDir, { recursive: true, force: true })
 
     const server = await startFixtureServer()
     try {
-      await runChromeCapture(`http://127.0.0.1:${server.port}/`)
+      await captureWithRetry(`http://127.0.0.1:${server.port}/`)
       const { diffPixels, totalPixels } = compareScreenshot()
       expect(diffPixels).toBeLessThanOrEqual(maxDiffPixels)
       console.log(
@@ -45,9 +50,9 @@ describe('MagicLand visual render', () => {
       )
     } finally {
       await new Promise<void>((resolveClose) => server.instance.close(() => resolveClose()))
-      rmSync(chromeProfileDir, { recursive: true, force: true })
+      removeChromeProfile()
     }
-  }, 60_000)
+  }, 75_000)
 })
 
 function compareScreenshot(): { diffPixels: number; totalPixels: number } {
@@ -81,35 +86,109 @@ function compareScreenshot(): { diffPixels: number; totalPixels: number } {
   }
 }
 
+async function captureWithRetry(url: string): Promise<void> {
+  const failures: string[] = []
+  for (let attempt = 1; attempt <= chromeAttempts; attempt++) {
+    rmSync(actualPath, { force: true })
+    removeChromeProfile()
+    try {
+      await runChromeCapture(url)
+      return
+    } catch (error) {
+      failures.push(`attempt ${attempt}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  throw new Error(`Chrome capture failed ${chromeAttempts} times\n${failures.join('\n')}`)
+}
+
+function removeChromeProfile(): void {
+  // A just-killed Chrome on Windows can hold profile files for a moment.
+  rmSync(chromeProfileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+}
+
+/** Ends Chrome and the renderer, GPU and utility processes it spawned. */
+function killChromeTree(chrome: ChildProcess): void {
+  if (chrome.pid === undefined || chrome.exitCode !== null) return
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(chrome.pid), '/T', '/F'], { stdio: 'ignore' })
+    return
+  }
+  try {
+    // Chrome was spawned as a process group leader, so this reaches its children.
+    process.kill(-chrome.pid, 'SIGKILL')
+  } catch {
+    chrome.kill('SIGKILL')
+  }
+}
+
+/** True once Chrome has written a screenshot that decodes as a complete PNG. */
+function screenshotIsComplete(): boolean {
+  if (!existsSync(actualPath)) return false
+  try {
+    PNG.sync.read(readFileSync(actualPath))
+    return true
+  } catch {
+    return false
+  }
+}
+
 function runChromeCapture(url: string): Promise<void> {
   return new Promise((resolveCapture, rejectCapture) => {
-    const chrome = spawn(findChrome(), [
-      '--headless=new',
-      '--disable-gpu',
-      '--hide-scrollbars',
-      '--force-device-scale-factor=1',
-      `--user-data-dir=${chromeProfileDir}`,
-      `--window-size=${viewport}`,
-      '--virtual-time-budget=5000',
-      `--screenshot=${actualPath}`,
-      url
-    ])
+    const chrome = spawn(
+      findChrome(),
+      [
+        '--headless=new',
+        '--disable-gpu',
+        '--hide-scrollbars',
+        '--force-device-scale-factor=1',
+        `--user-data-dir=${chromeProfileDir}`,
+        `--window-size=${viewport}`,
+        '--virtual-time-budget=5000',
+        `--screenshot=${actualPath}`,
+        url
+      ],
+      { detached: process.platform !== 'win32' }
+    )
 
     let stdout = ''
     let stderr = ''
+    let settled = false
+    const settle = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(watchdog)
+      if (error) rejectCapture(error)
+      else resolveCapture()
+    }
+
+    // Waiting for 'close' after the kill could hang too: orphaned child
+    // processes may keep the stdio pipes open. Settle here instead.
+    const watchdog = setTimeout(() => {
+      killChromeTree(chrome)
+      if (screenshotIsComplete()) {
+        settle()
+        return
+      }
+      settle(
+        new Error(
+          `Chrome did not exit within ${chromeAttemptTimeoutMs} ms and wrote no screenshot\n${stdout}\n${stderr}`
+        )
+      )
+    }, chromeAttemptTimeoutMs)
+
     chrome.stdout.on('data', (chunk) => {
       stdout += chunk
     })
     chrome.stderr.on('data', (chunk) => {
       stderr += chunk
     })
-    chrome.on('error', rejectCapture)
+    chrome.on('error', (error) => settle(error))
     chrome.on('close', (code) => {
       if (code === 0) {
-        resolveCapture()
+        settle()
         return
       }
-      rejectCapture(new Error(`Chrome exited with status ${code}\n${stdout}\n${stderr}`))
+      settle(new Error(`Chrome exited with status ${code}\n${stdout}\n${stderr}`))
     })
   })
 }
