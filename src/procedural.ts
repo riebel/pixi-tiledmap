@@ -1,5 +1,6 @@
 import { resolveIdCounters } from './idCounters.js'
 import {
+  type ResolvedLayerDefaultInput,
   type ResolvedObjectDefaultInput,
   resolvedLayerDefaults,
   resolvedMapDefaults,
@@ -18,7 +19,6 @@ import type {
   ResolvedTile,
   ResolvedTileLayer,
   ResolvedTileset,
-  TiledBlendMode,
   TiledDrawOrder,
   TiledProperty,
   TiledRenderOrder,
@@ -99,20 +99,8 @@ export type CreateLayerOptions =
   | CreateObjectLayerOptions
   | CreateGroupLayerOptions
 
-interface CreateLayerBaseOptions {
-  id?: number
+interface CreateLayerBaseOptions extends ResolvedLayerDefaultInput {
   name: string
-  class?: string
-  locked?: boolean
-  opacity?: number
-  visible?: boolean
-  offsetx?: number
-  offsety?: number
-  parallaxx?: number
-  parallaxy?: number
-  tintcolor?: string
-  mode?: TiledBlendMode
-  properties?: TiledProperty[]
 }
 
 export interface CreateTileLayerOptions extends CreateLayerBaseOptions {

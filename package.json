@@ -97,7 +97,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
     "@types/node": "^25.9.7",
-    "fallow": "3.26.0",
+    "fallow": "3.45.0",
     "jsdom": "^30.0.1",
     "pixelmatch": "^7.2.0",
     "pixi.js": "^8.23.0",

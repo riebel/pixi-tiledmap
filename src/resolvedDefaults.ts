@@ -1,4 +1,5 @@
 import type {
+  ResolvedLayerCommon,
   ResolvedMap,
   ResolvedObject,
   ResolvedTileset,
@@ -100,21 +101,7 @@ function versionString(version: string | number): string {
   return Number.isInteger(version) ? version.toFixed(1) : String(version)
 }
 
-export interface ResolvedLayerDefaultInput {
-  id?: number
-  name?: string
-  class?: string
-  locked?: boolean
-  opacity?: number
-  visible?: boolean
-  offsetx?: number
-  offsety?: number
-  parallaxx?: number
-  parallaxy?: number
-  tintcolor?: string
-  mode?: TiledBlendMode
-  properties?: TiledProperty[]
-}
+export type ResolvedLayerDefaultInput = Partial<ResolvedLayerCommon>
 
 /** Every blend mode name Tiled reads (`blendModeMapping` in Tiled's `tiled.cpp`). */
 const TILED_BLEND_MODES: ReadonlySet<string> = new Set<TiledBlendMode>([

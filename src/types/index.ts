@@ -469,8 +469,8 @@ export interface ResolvedChunk {
   tiles: (ResolvedTile | null)[]
 }
 
-export interface ResolvedTileLayer {
-  type: 'tilelayer'
+/** The fields every resolved layer carries, whatever its type. */
+export interface ResolvedLayerCommon {
   id: number
   name: string
   class?: string
@@ -486,6 +486,10 @@ export interface ResolvedTileLayer {
   /** Tiled 1.12 blend mode; absent means `'normal'`. */
   mode?: TiledBlendMode
   properties: TiledProperty[]
+}
+
+export interface ResolvedTileLayer extends ResolvedLayerCommon {
+  type: 'tilelayer'
   width: number
   height: number
   infinite: boolean
@@ -503,23 +507,8 @@ export interface ResolvedTileLayer {
 /** The tile data compressions this library reads and writes. */
 export type TiledDataCompression = 'zlib' | 'gzip'
 
-export interface ResolvedImageLayer {
+export interface ResolvedImageLayer extends ResolvedLayerCommon {
   type: 'imagelayer'
-  id: number
-  name: string
-  class?: string
-  /** Editor-only: the layer is locked against editing. */
-  locked?: boolean
-  opacity: number
-  visible: boolean
-  offsetx: number
-  offsety: number
-  parallaxx: number
-  parallaxy: number
-  tintcolor?: string
-  /** Tiled 1.12 blend mode; absent means `'normal'`. */
-  mode?: TiledBlendMode
-  properties: TiledProperty[]
   image: string
   imagewidth?: number
   imageheight?: number
@@ -528,46 +517,16 @@ export interface ResolvedImageLayer {
   transparentcolor?: string
 }
 
-export interface ResolvedObjectLayer {
+export interface ResolvedObjectLayer extends ResolvedLayerCommon {
   type: 'objectgroup'
-  id: number
-  name: string
-  class?: string
-  /** Editor-only: the layer is locked against editing. */
-  locked?: boolean
-  opacity: number
-  visible: boolean
-  offsetx: number
-  offsety: number
-  parallaxx: number
-  parallaxy: number
-  tintcolor?: string
-  /** Tiled 1.12 blend mode; absent means `'normal'`. */
-  mode?: TiledBlendMode
-  properties: TiledProperty[]
   /** Editor color of the layer's objects; `undefined` means Tiled's default gray. */
   color?: string
   draworder: TiledDrawOrder
   objects: ResolvedObject[]
 }
 
-export interface ResolvedGroupLayer {
+export interface ResolvedGroupLayer extends ResolvedLayerCommon {
   type: 'group'
-  id: number
-  name: string
-  class?: string
-  /** Editor-only: the layer is locked against editing. */
-  locked?: boolean
-  opacity: number
-  visible: boolean
-  offsetx: number
-  offsety: number
-  parallaxx: number
-  parallaxy: number
-  tintcolor?: string
-  /** Tiled 1.12 blend mode; absent means `'normal'`. */
-  mode?: TiledBlendMode
-  properties: TiledProperty[]
   layers: ResolvedLayer[]
 }
 
