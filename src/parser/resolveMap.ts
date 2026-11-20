@@ -136,6 +136,10 @@ function resolveImageLayer(layer: TiledLayer): ResolvedImageLayer {
   return {
     type: 'imagelayer',
     ...layerDefaults(layer),
+    // Before Tiled 0.15 an image layer stored its position on x/y instead of
+    // offsetx/offsety. Fall back per axis so a lone offsety is never dropped.
+    offsetx: layer.offsetx ?? layer.x ?? 0,
+    offsety: layer.offsety ?? layer.y ?? 0,
     image: layer.image ?? '',
     imagewidth: layer.imagewidth,
     imageheight: layer.imageheight,

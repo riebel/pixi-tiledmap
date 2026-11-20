@@ -181,6 +181,36 @@ describe('parseMap', () => {
     }
   })
 
+  it('uses a legacy image layer x/y as its offset, one axis at a time', () => {
+    const imageLayer = (fields: Record<string, number>) => ({
+      id: 1,
+      name: 'bg',
+      type: 'imagelayer' as const,
+      opacity: 1,
+      visible: true,
+      image: 'background.png',
+      x: 0,
+      y: 0,
+      ...fields
+    })
+    const map = makeMinimalMap({
+      layers: [
+        // Written before Tiled 0.15: the position lives on x/y.
+        imageLayer({ x: 10, y: 20 }),
+        // A modern offset wins over x/y on each axis independently.
+        imageLayer({ x: 10, y: 20, offsetx: 5 }),
+        imageLayer({ offsety: 50 })
+      ]
+    })
+
+    const offsets = parseMap(map).layers.map(({ offsetx, offsety }) => [offsetx, offsety])
+    expect(offsets).toEqual([
+      [10, 20],
+      [5, 20],
+      [0, 50]
+    ])
+  })
+
   it('resolves a group layer with nested children', () => {
     const map = makeMinimalMap({
       layers: [

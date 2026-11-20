@@ -267,6 +267,19 @@ describe('parseTmx', () => {
     expect(map.layers[1]!.objects![0]).toMatchObject({ opacity: 0.25, capsule: true })
   })
 
+  it('places a legacy TMX image layer at its x/y and keeps a lone offsety', () => {
+    const map = parseMap(
+      parseTmx(`<map version="1.10" orientation="orthogonal" width="1" height="1"
+     tilewidth="16" tileheight="16" nextlayerid="3" nextobjectid="1">
+  <imagelayer name="legacy" x="10" y="20"><image source="a.png"/></imagelayer>
+  <imagelayer id="2" name="modern" offsety="50"><image source="b.png"/></imagelayer>
+</map>`)
+    )
+
+    expect(map.layers[0]).toMatchObject({ offsetx: 10, offsety: 20 })
+    expect(map.layers[1]).toMatchObject({ offsetx: 0, offsety: 50 })
+  })
+
   it('normalizes a TMX image color key to the JSON form', () => {
     const map = parseMap(
       parseTmx(`<map version="1.10" orientation="orthogonal" width="1" height="1"
